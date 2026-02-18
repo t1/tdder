@@ -14,6 +14,8 @@ and Clean Code practices.
 
 ## Skills
 
+Language-agnostic core skills work with any language. Language and build-system skills complement them automatically when matching files are detected.
+
 | Skill | Purpose |
 |-------|---------|
 | `tdd` | Core TDD process (Red-Green-Refactor, baby steps, guessing game) |
@@ -40,8 +42,6 @@ hitl: every-phase
 ---
 ```
 
-**Levels:**
-
 | Level | Behavior |
 |-------|----------|
 | `every-phase` | Stop after every Red, Green, Refactor phase (default) |
@@ -58,21 +58,9 @@ claude --plugin-dir /path/to/tdder
 ln -s /path/to/tdder ~/.claude/plugins/tdder
 ```
 
-## Adding a New Language
+## Extending
 
-To add support for a new language (e.g., TypeScript):
-
-1. Create `skills/typescript/SKILL.md`
-2. Add language-specific conventions (testing framework, naming, imports, etc.)
-3. The skill triggers automatically when working in projects with matching files
-
-## Adding a New Build System
-
-To add support for a new build system (e.g., npm):
-
-1. Create `skills/npm/SKILL.md`
-2. Add build-system-specific conventions (test commands, project structure, etc.)
-3. The skill triggers automatically when working in projects with matching files
+To add a new language or build system, create `skills/<name>/SKILL.md` with the relevant conventions (testing framework, naming, commands, etc.). The skill triggers automatically when working in projects with matching files.
 
 ## License
 
