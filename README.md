@@ -14,20 +14,21 @@ and Clean Code practices.
 
 ## Skills
 
-Language-agnostic core skills work with any language. Language and build-system skills complement them automatically when matching files are detected.
+Language-agnostic core skills work with any language. Language and build-system skills complement them automatically
+when matching files are detected.
 
-| Skill | Purpose |
-|-------|---------|
-| `tdd` | Core TDD process (Red-Green-Refactor, baby steps, guessing game) |
-| `clean-code` | Clean Code principles (naming, SOLID, smells, method design) |
-| `app` | Absolute Priority Premise mass calculations |
-| `java` | Java-specific conventions (var, BDD testing, static imports) |
-| `maven` | Maven-specific conventions (test execution, project structure) |
+| Skill        | Purpose                                                          |
+|--------------|------------------------------------------------------------------|
+| `tdd`        | Core TDD process (Red-Green-Refactor, baby steps, guessing game) |
+| `clean-code` | Clean Code principles (naming, SOLID, smells, method design)     |
+| `app`        | Absolute Priority Premise mass calculations                      |
+| `java`       | Java-specific conventions (var, BDD testing, static imports)     |
+| `maven`      | Maven-specific conventions (test execution, project structure)   |
 
 ## Agents
 
-| Agent | Purpose |
-|-------|---------|
+| Agent                 | Purpose                                       |
+|-----------------------|-----------------------------------------------|
 | `clean-code-reviewer` | Autonomous code review during refactor phases |
 
 ## Configuration
@@ -42,11 +43,11 @@ hitl: every-phase
 ---
 ```
 
-| Level | Behavior |
-|-------|----------|
-| `every-phase` | Stop after every Red, Green, Refactor phase (default) |
-| `end-of-cycle` | Stop after each complete Red-Green-Refactor cycle |
-| `off` | Run autonomously, report at end |
+| Level          | Behavior                                              |
+|----------------|-------------------------------------------------------|
+| `every-phase`  | Stop after every Red, Green, Refactor phase (default) |
+| `end-of-cycle` | Stop after each complete Red-Green-Refactor cycle     |
+| `off`          | Run autonomously, report at end                       |
 
 ## Installation
 
@@ -60,8 +61,5 @@ ln -s /path/to/tdder ~/.claude/plugins/tdder
 
 ## Extending
 
-To add a new language or build system, create `skills/<name>/SKILL.md` with the relevant conventions (testing framework, naming, commands, etc.). The skill triggers automatically when working in projects with matching files.
-
-## License
-
-MIT
+To add a new language or build system, create `skills/<name>/SKILL.md` with the relevant conventions (testing framework,
+naming, commands, etc.). The skill triggers automatically when working in projects with matching files.
