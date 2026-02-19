@@ -51,15 +51,17 @@ hitl: every-phase
 
 ## Installation
 
-```bash
-# Test locally
-claude --plugin-dir /path/to/tdder
+Add this repo as a marketplace, then install the plugin:
 
-# Or symlink into your plugins directory
-ln -s /path/to/tdder ~/.claude/plugins/tdder
+```bash
+/plugin marketplace add t1/tdder
+/plugin install tdder@tdder
 ```
+
+See the [official plugin documentation](https://docs.anthropic.com/en/docs/claude-code/plugins) for full details.
 
 ## Extending
 
-To add a new language or build system, create `skills/<name>/SKILL.md` with the relevant conventions (testing framework,
-naming, commands, etc.). The skill triggers automatically when working in projects with matching files.
+To add a new language or build system, create `skills/<name>/SKILL.md` with the relevant conventions
+(testing framework, naming, commands, etc.).
+The skill triggers automatically when working in projects with matching files.
