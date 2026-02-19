@@ -55,7 +55,7 @@ Add this repo as a marketplace, then install the plugin:
 
 ```bash
 /plugin marketplace add t1/tdder
-/plugin install tdder@tdder
+/plugin install tdder@t1
 ```
 
 ## Extending
