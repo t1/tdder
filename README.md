@@ -58,8 +58,6 @@ Add this repo as a marketplace, then install the plugin:
 /plugin install tdder@tdder
 ```
 
-See the [official plugin documentation](https://docs.anthropic.com/en/docs/claude-code/plugins) for full details.
-
 ## Extending
 
 To add a new language or build system, create `skills/<name>/SKILL.md` with the relevant conventions

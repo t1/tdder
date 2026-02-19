@@ -1,0 +1,12 @@
+{
+  "name": "t1",
+  "owner": {
+    "name": "Rüdiger zu Dohna"
+  },
+  "plugins": [
+    {
+      "name": "tdder",
+      "source": "./"
+    }
+  ]
+}
