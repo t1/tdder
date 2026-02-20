@@ -142,6 +142,81 @@ command that triggers the next step. If a step fails, compensating transactions 
 steps. Sagas trade atomicity for availability — the system is eventually consistent, and you must
 design compensating actions for every step that can fail.
 
+## Testing Distributed Failures
+
+Integration code fails in ways that unit tests for business logic never exercise: brokers restart,
+messages arrive out of order, schemas drift between producer and consumer, compensation logic
+triggers under unexpected conditions. The scopes below are independent — pick the ones that
+match the risks of a given integration rather than treating them as a progression.
+
+Note that it may be possible to run the same tests at various scopes, with only the test drivers /
+fixtures running in different configurations. This can reduce the cost for the maintaining tests,
+while it may also add complexity.
+
+Test doubles (fakes, mocks, stubs) are not tied to a single scope. A unit test may fake a broker
+client; a system test may fake an external payment provider while using a real broker. Choose the
+double that isolates the failure you want to test.
+
+### Scope: Unit
+
+Test message handling logic in isolation: serialization/deserialization, idempotency checks,
+compensation logic, routing decisions. All infrastructure is faked or mocked.
+
+**Good at catching:** Logic errors in message handlers, incorrect deduplication, broken
+serialization for edge-case payloads, flawed compensation logic.
+
+**Example:** A handler receives a duplicate message ID — does it skip processing? A compensation
+function receives a partial state — does it undo the right steps?
+
+### Scope: Integration
+
+A single service running against technical real but local infrastructure (e.g., Testcontainers
+for broker and database) or fakes or mocks. The service processes messages end-to-end
+through its own stack, but no real remote service is involved.
+
+**Good at catching:**
+
+- *Technical failures:* connection handling after broker restart, acknowledgment semantics
+  (does the message re-deliver on crash?), transaction boundaries between DB and broker,
+  poison messages that block a queue.
+- *Business failures:* handler rejects a message (validation failure) — does it dead-letter
+  or retry? A transactional outbox entry is written but the relay crashes — does it recover?
+
+### Scope: Contract
+
+Producer and consumer agree on a message schema, verified independently of deployment. Each side
+runs its own tests against the shared contract. Neither side needs the other to be running.
+
+**Good at catching:** Schema drift, breaking changes in field names or types, missing required
+fields, incompatible serialization formats. Especially valuable when different teams own
+producer and consumer.
+
+### Scope: System
+
+Multiple services running together — some real, some faked. Exercises end-to-end flows across
+service boundaries.
+
+**Good at catching:**
+
+- *Technical failures:* timeout cascades (service A waits for B which waits for C), message
+  ordering assumptions that hold in integration tests but break under concurrent load,
+  fault injection (kill a service mid-saga — does compensation trigger?).
+- *Business failures:* saga compensation across services (does the full undo sequence work?),
+  eventual consistency (does the read model converge?), cross-service validation
+  (service A accepts a message that service B later rejects — what happens?).
+
+### Choosing Scopes
+
+Start with unit tests for any non-trivial message handling logic — they're fast and cheap. Add
+integration scope when the service talks to a real broker or database, because those interactions
+are where most production failures hide. Add contract scope when producer and consumer are owned
+by different teams or deployed independently. Add system scope for critical flows where
+cross-service failure behavior matters (sagas, compensation chains, consistency guarantees).
+
+You don't need all four for every integration. A fire-and-forget event with a single consumer
+may only need unit + integration. A saga across three services owned by two teams likely needs
+all four.
+
 ## Anti-Patterns
 
 ### Event Soup
