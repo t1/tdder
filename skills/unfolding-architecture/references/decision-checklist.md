@@ -17,38 +17,53 @@ If any answer is "no", do not unfold.
 ### Data vs Logic (Dimension 1)
 
 - [ ] Are there multiple independent algorithms operating on the same data?
-- [ ] Do the data structures change at a different rate than the algorithms?
-- [ ] Would separation reduce the number of reasons each component changes?
+- [ ] Are data structures stable but processing varies significantly?
+- [ ] Do serialization/deserialization concerns conflict with behavior encapsulation?
 
-### Coupling & Cohesion (Dimension 2)
+### Indirection (Dimension 2)
 
-- [ ] Does this component have (or concretely need) multiple implementations?
+**Level 1 — Targeted abstraction:**
+
+- [ ] Does this component have (or concretely need) multiple implementations that must be swappable?
+- [ ] Does a dependency cross a deployment boundary (e.g., external service)?
+- [ ] Is a test double needed that cannot be achieved without an interface (e.g., calling an external service)?
+- [ ] Is an external system's model leaking into and distorting the domain model?
+- [ ] Does an external API return data in a shape that does not match domain concepts?
 - [ ] Does a change in one component force an unrelated change in another?
-- [ ] Is a test double needed that cannot be achieved without an interface?
+- [ ] Does persistence technology need to change and the domain should not be affected?
 
-### Layering & Boundaries (Dimension 3)
+**Level 2 — Ports & adapters (hexagonal):**
 
-- [ ] Is an external model leaking into and distorting the domain?
-- [ ] Would a translation layer simplify the domain model?
-- [ ] Are there multiple infrastructure adapters for the same concern?
+- [ ] Do multiple adapters exist for the same port (with no suitable platform abstraction available)?
+- [ ] Is it too complex to test the domain in isolation from real infrastructure?
+- [ ] Are there many distinct infrastructure concerns (persistence, messaging, external APIs) that would clutter the domain?
 
-### Communication (Dimension 4)
+### Communication (Dimension 3)
 
-- [ ] Does one action trigger multiple independent side effects?
-- [ ] Do the side effects change independently of the triggering action?
+**Level 1 — Domain events (in-process):**
+
+- [ ] Does one action trigger multiple independent side effects that change independently of the triggering action?
 - [ ] Are there circular dependencies that events would resolve?
 
-### Persistence (Dimension 5)
+**Level 2 — Async messaging (broker):**
 
-- [ ] Is persistence technology likely to change based on current plans?
-- [ ] Do read and write models have fundamentally different shapes?
-- [ ] Would a repository interface simplify testing?
+- [ ] Must components be deployed and scaled independently?
+- [ ] Is temporal decoupling required (sender must not wait for receiver)?
+- [ ] Does the system span multiple processes or services?
 
-### Error Handling (Dimension 6)
+### Error Handling (Dimension 4)
 
-- [ ] Are there expected failure cases that are not truly exceptional?
-- [ ] Must callers distinguish between multiple failure modes?
-- [ ] Is an external dependency unreliable enough to warrant resilience patterns?
+**Level 1 — Result types:**
+
+- [ ] Are there expected failure cases that are not truly exceptional (e.g., validation of user input)?
+- [ ] Must callers distinguish between multiple failure modes to make decisions?
+- [ ] Does exception-based control flow obscure the business logic?
+
+**Level 2 — Circuit breakers / resilience:**
+
+- [ ] Is an external dependency unreliable and must failures be contained?
+- [ ] Are cascading failures a real risk (not hypothetical)?
+- [ ] Must the system degrade gracefully under partial failure?
 
 ## Post-Unfolding Checks
 

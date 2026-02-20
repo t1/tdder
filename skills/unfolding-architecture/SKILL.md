@@ -4,7 +4,7 @@ description: >
   This skill should be used when the user asks to "design the architecture", "should I add a service layer",
   "add an abstraction", "introduce an interface", "separate concerns", "add a repository",
   "use hexagonal architecture", "add domain events", "split into layers", "add ports and adapters",
-  "should I use CQRS", "decouple this", "add an anti-corruption layer",
+  "decouple this", "add an anti-corruption layer",
   or when considering architectural changes during a TDD refactor phase.
   It also contains guides when starting a new project.
 version: 0.1.0
@@ -41,56 +41,50 @@ or measurable complexity increase. "It might be useful later" is never a valid r
 **Do NOT unfold when:**
 
 - Data and logic change together (they belong together)
-- There is only one algorithm per data structure
+- There is only a hand full of algorithms per data structure that are closely related to the data
 - The separation would scatter related behavior across files
 
-### 2. Coupling & Cohesion
+### 2. Indirection
 
-| Level | Style                          | Description                                                                                 |
-|-------|--------------------------------|---------------------------------------------------------------------------------------------|
-| 0     | High cohesion, accept coupling | Keep related things together. Accept that tightly related components know about each other. |
-| 1     | Loose coupling via interfaces  | Introduce interfaces/abstractions to decouple components that change independently.         |
+| Level | Style                        | Description                                                                                                    |
+|-------|------------------------------|----------------------------------------------------------------------------------------------------------------|
+| 0     | Direct dependencies          | Everything knows about everything it uses. No interfaces, no layers, no DTOs. Persistence lives next to domain. |
+| 1     | Targeted abstraction         | Interface or anti-corruption layer at a specific pain point — persistence, external API, or unstable component. |
+| 2     | Ports & adapters (hexagonal) | Full separation of domain from infrastructure via IoC: the domain defines ports (interfaces), adapters implement them, dependencies point inward. Persistence is just one adapter among many. A composition root wires adapters to ports. |
 
 **Unfold to Level 1 when:**
 
 - A component has multiple concrete implementations that must be swappable
 - A dependency crosses a deployment boundary (e.g., external service)
-- Testing requires replacing a real dependency with a test double
-- Changes in one component frequently force changes in an unrelated component
-
-**Do NOT unfold when:**
-
-- Only one implementation exists and none others are foreseeable from current requirements
-- The "interface" would mirror the class 1:1 (interface bloat)
-- The coupling is between genuinely related concepts (cohesion, not coupling)
-
-### 3. Layering & Boundaries
-
-| Level | Style                             | Description                                                                                              |
-|-------|-----------------------------------|----------------------------------------------------------------------------------------------------------|
-| 0     | No layers, no DTOs                | Everything in one place. No translation objects. Direct access.                                          |
-| 1     | Anti-corruption layer at boundary | A translation layer at a specific integration point to protect the domain from external model pollution. |
-| 2     | Hexagonal (ports & adapters)      | Full separation of domain from infrastructure via ports (interfaces) and adapters (implementations).     |
-
-**Unfold to Level 1 when:**
-
+- Testing requires replacing a real dependency with a test double, e.g. calling an external service
 - An external system's model leaks into and distorts the domain model
-- A specific integration point is unstable or likely to be replaced
 - An external API returns data in a shape that does not match domain concepts
+- Changes in one component frequently force changes in an unrelated component
+- Persistence technology needs to change and the domain should not be affected
 
 **Unfold to Level 2 when:**
 
-- Multiple adapters exist for the same port (e.g., database + in-memory for tests)
-- The domain must be testable in complete isolation from all infrastructure
-- The system has 3+ distinct infrastructure concerns (persistence, messaging, external APIs)
+- Multiple adapters exist for the same port (e.g., database + in-memory for tests,
+  but there is no suitable abstraction layer available in the platform, e.g. an EntityManager)
+- It becomes too complex to test the domain in isolation from real infrastructure
+- The system has many distinct infrastructure concerns (persistence, messaging, external APIs, etc.)
+  that would clutter the domain
 
 **Do NOT unfold when:**
 
-- The application has a single persistence mechanism and no external integrations
-- DTOs would be identical copies of domain objects
+- Only one implementation exists, and it can be seen as an implementation or model detail of the domain
+- The "interface" would mirror the class 1:1 (interface bloat)
+- The coupling is between genuinely related concepts (cohesion, not coupling)
+- DTOs or DB Entities would be identical copies of domain objects (except for some annotations, etc.)
 - The "boundary" is between two internal components that change together
+- The application has a single persistence mechanism and no external integrations
 
-### 4. Communication
+**Note:** Even hexagonal architecture can evolve step-by-step. You do not need to introduce all ports
+and adapters at once. Start with a single targeted abstraction (Level 1) where the pressure is highest,
+then add more ports as concrete needs arise. Full hexagonal (Level 2) is the result of multiple
+incremental unfoldings, not a single architectural decision.
+
+### 3. Communication
 
 | Level | Style                      | Description                                                                                       |
 |-------|----------------------------|---------------------------------------------------------------------------------------------------|
@@ -100,15 +94,16 @@ or measurable complexity increase. "It might be useful later" is never a valid r
 
 **Unfold to Level 1 when:**
 
-- A action must trigger multiple independent side effects (e.g., send email AND update audit log)
-- The side effects change independently of the triggering action
-- Circular dependencies emerge between components
+- An action must trigger multiple independent side effects (e.g., send email AND update audit log)
+  that change independently of the triggering action
+- Circular dependencies emerge between components that cannot easily be resolved by other means
 
 **Unfold to Level 2 when:**
 
 - Components must be deployed and scaled independently
 - Temporal decoupling is required (sender must not wait for receiver)
 - The system spans multiple processes or services
+- Exactly-one guarantees are necessary (mostly using Two-Phase-Commits)
 
 **Do NOT unfold when:**
 
@@ -116,33 +111,7 @@ or measurable complexity increase. "It might be useful later" is never a valid r
 - Traceability and debuggability are more important than decoupling
 - The indirection would obscure a simple, linear flow
 
-### 5. Persistence
-
-| Level | Style              | Description                                                                                     |
-|-------|--------------------|-------------------------------------------------------------------------------------------------|
-| 0     | Direct persistence | Persistence logic lives close to the domain (e.g., companion class, DAO). No abstraction layer. |
-| 1     | Repository pattern | Domain-oriented collection interface hides persistence details.                                 |
-| 2     | CQRS               | Separate models and paths for reads and writes.                                                 |
-
-**Unfold to Level 1 when:**
-
-- Persistence technology may change and the domain should not be affected
-- Complex query logic needs to be testable without a database
-- Multiple aggregates share persistence patterns worth unifying
-
-**Unfold to Level 2 when:**
-
-- Read and write models have fundamentally different shapes or performance requirements
-- Read-heavy workloads require denormalized views
-- Event sourcing is used for writes
-
-**Do NOT unfold when:**
-
-- The application uses a single, stable persistence technology
-- CRUD operations map directly to domain operations
-- The repository interface would have a single implementation forever
-
-### 6. Error Handling
+### 4. Error Handling
 
 | Level | Style                         | Description                                                                            |
 |-------|-------------------------------|----------------------------------------------------------------------------------------|
@@ -152,15 +121,15 @@ or measurable complexity increase. "It might be useful later" is never a valid r
 
 **Unfold to Level 1 when:**
 
-- Business logic has expected failure cases that are not exceptional (e.g., validation)
+- Business logic has expected failure cases that are not exceptional (e.g., validation of user input)
 - Callers must distinguish between multiple failure modes to make decisions
 - Exception-based control flow obscures the business logic
 
 **Unfold to Level 2 when:**
 
-- External dependencies are unreliable and failures must be contained
+- External dependencies are unreliable and failures must be contained / backpressure applied
 - Cascading failures are a real risk (not hypothetical)
-- The system must degrade gracefully under partial failure
+- The system must degrade gracefully under partial failure, esp. on high load
 
 **Do NOT unfold when:**
 
@@ -189,7 +158,7 @@ requirement demands it, do not add it.
 
 ### Uniform Depth
 
-Making all dimensions the same level. A system might legitimately need Level 2 persistence
+Making all dimensions the same level. A system might legitimately need Level 2 indirection
 but Level 0 communication. Each dimension is independent.
 
 ### Architecture Envy
@@ -211,7 +180,7 @@ each doing nothing but delegating to the next. Every layer must justify its exis
 
 - **TDD**: Unfolding happens during refactor phases. A failing test or a refactoring need is the
   trigger — never unfold speculatively before a test demands it.
-- **Clean Code**: Unfolding often shifts the cohesion/coupling balance (Dimension 2). Apply clean
+- **Clean Code**: Unfolding often shifts the indirection balance (Dimension 2). Apply clean
   code principles to evaluate whether the shift improves or worsens the design.
 - **APP**: After unfolding, compare mass before and after. If mass increased without a proportional
   gain in clarity or testability, reconsider the change.
