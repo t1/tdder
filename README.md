@@ -19,14 +19,15 @@ and Clean Code practices.
 Language-agnostic core skills work with any language. Language and build-system skills complement them automatically
 when matching files are detected.
 
-| Skill                    | Purpose                                                              |
-|--------------------------|----------------------------------------------------------------------|
-| `tdd`                    | Core TDD process (Red-Green-Refactor, baby steps, guessing game)     |
-| `clean-code`             | Clean Code principles (naming, SOLID, smells, method design)         |
-| `app`                    | Absolute Priority Premise mass calculations                          |
-| `java`                   | Java-specific conventions (var, BDD testing, static imports)         |
-| `unfolding-architecture` | Progressive architectural decisions (start simple, unfold on demand) |
-| `maven`                  | Maven-specific conventions (test execution, project structure)       |
+| Skill                      | Purpose                                                                        |
+|----------------------------|--------------------------------------------------------------------------------|
+| `tdd`                      | Core TDD process (Red-Green-Refactor, baby steps, guessing game)               |
+| `clean-code`               | Clean Code principles (naming, SOLID, smells, method design)                   |
+| `app`                      | Absolute Priority Premise mass calculations                                    |
+| `java`                     | Java-specific conventions (var, BDD testing, static imports)                   |
+| `unfolding-architecture`   | Progressive architectural decisions (start simple, unfold on demand)           |
+| `integration-architecture` | Integration messaging patterns (commands vs events, push vs pull, reliability) |
+| `maven`                    | Maven-specific conventions (test execution, project structure)                 |
 
 ## Agents
 
