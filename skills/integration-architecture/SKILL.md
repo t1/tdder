@@ -163,6 +163,19 @@ are expensive in complexity and operational burden. Most communication tolerates
 delivery (Level 1) or even fire-and-forget (Level 0). Match the reliability level to the actual
 business consequences of failure.
 
+### Late Integration
+
+Designing components in isolation and deferring integration to the end. Each team builds their
+service with assumed message formats, assumed delivery semantics, and assumed ordering — then
+discovers at integration time that the assumptions don't match. The fix is expensive because
+contracts are baked into the internals.
+
+Instead, integrate continuously from the start. Define message contracts early, even if the
+implementation behind them is trivial. Run integration tests against real (or realistic) brokers
+as soon as two components exist. Let integration pain surface while the design is still cheap to change.
+
+This is also true for integrating with a (real) database, etc.
+
 ### Backpressure Denial
 
 Using unbounded queues and assuming the consumer will keep up. This works until it doesn't, and
