@@ -46,10 +46,10 @@ or measurable complexity increase. "It might be useful later" is never a valid r
 
 ### 2. Indirection
 
-| Level | Style                        | Description                                                                                                    |
-|-------|------------------------------|----------------------------------------------------------------------------------------------------------------|
-| 0     | Direct dependencies          | Everything knows about everything it uses. No interfaces, no layers, no DTOs. Persistence lives next to domain. |
-| 1     | Targeted abstraction         | Interface or anti-corruption layer at a specific pain point — persistence, external API, or unstable component. |
+| Level | Style                        | Description                                                                                                                                                                                                                               |
+|-------|------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 0     | Direct dependencies          | Everything knows about everything it uses. No interfaces, no layers, no DTOs. Persistence lives next to domain.                                                                                                                           |
+| 1     | Targeted abstraction         | Interface or anti-corruption layer at a specific pain point — persistence, external API, or unstable component.                                                                                                                           |
 | 2     | Ports & adapters (hexagonal) | Full separation of domain from infrastructure via IoC: the domain defines ports (interfaces), adapters implement them, dependencies point inward. Persistence is just one adapter among many. A composition root wires adapters to ports. |
 
 **Unfold to Level 1 when:**
@@ -136,6 +136,11 @@ incremental unfoldings, not a single architectural decision.
 - Failures are truly exceptional and unexpected
 - The language/framework has strong exception conventions that result types would fight
 - There is no external dependency that warrants resilience patterns
+
+## Naming Conventions
+
+- A companion class / repository / DAO to a domain entity should be the plural of the
+  entity, e.g. `Products` for `Product`
 
 ## How to Use
 
