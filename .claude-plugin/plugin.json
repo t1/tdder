@@ -1,11 +1,11 @@
 {
   "name": "tdder",
   "version": "0.1.0",
-  "description": "Guides AI agents through disciplined TDD and Clean Code practices. Language and build-system agnostic core with extensible language/build skills.",
+  "description": "Guides AI agents through disciplined coding practices. Language and build-system agnostic core with extensible language/build skills.",
   "author": {
     "name": "Rüdiger zu Dohna",
     "url": "https://github.com/t1"
   },
   "homepage": "https://github.com/t1/tdder",
-  "keywords": ["tdd", "clean-code", "code-quality", "refactoring"]
+  "keywords": ["tdd", "clean-code", "code-quality", "refactoring", "architecture", "design"]
 }

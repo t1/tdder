@@ -10,6 +10,8 @@ and Clean Code practices.
 - **APP mass calculations**: Objective code complexity measurement
 - **Language-agnostic core**: TDD and Clean Code principles work with any language
 - **Extensible**: Add language skills (Java, TypeScript, ...) and build-system skills (Maven, npm, ...)
+- **Unfolding Architecture**: Progressive architectural decisions — start simple, add complexity only when it reduces
+  complexity
 - **Configurable human-in-the-loop**: Control how often the AI pauses for your input
 
 ## Skills
@@ -17,13 +19,14 @@ and Clean Code practices.
 Language-agnostic core skills work with any language. Language and build-system skills complement them automatically
 when matching files are detected.
 
-| Skill        | Purpose                                                          |
-|--------------|------------------------------------------------------------------|
-| `tdd`        | Core TDD process (Red-Green-Refactor, baby steps, guessing game) |
-| `clean-code` | Clean Code principles (naming, SOLID, smells, method design)     |
-| `app`        | Absolute Priority Premise mass calculations                      |
-| `java`       | Java-specific conventions (var, BDD testing, static imports)     |
-| `maven`      | Maven-specific conventions (test execution, project structure)   |
+| Skill                    | Purpose                                                              |
+|--------------------------|----------------------------------------------------------------------|
+| `tdd`                    | Core TDD process (Red-Green-Refactor, baby steps, guessing game)     |
+| `clean-code`             | Clean Code principles (naming, SOLID, smells, method design)         |
+| `app`                    | Absolute Priority Premise mass calculations                          |
+| `java`                   | Java-specific conventions (var, BDD testing, static imports)         |
+| `unfolding-architecture` | Progressive architectural decisions (start simple, unfold on demand) |
+| `maven`                  | Maven-specific conventions (test execution, project structure)       |
 
 ## Agents
 
@@ -57,6 +60,9 @@ Add this repo as a marketplace, then install the plugin:
 /plugin marketplace add t1/tdder
 /plugin install tdder@t1
 ```
+
+Note that the official docs are not very clear about this, but you actually need a `marketplace.json`,
+even if you have only a single plugin.
 
 ## Extending
 
