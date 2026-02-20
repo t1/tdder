@@ -36,7 +36,8 @@ If any answer is "no", do not unfold.
 
 - [ ] Do multiple adapters exist for the same port (with no suitable platform abstraction available)?
 - [ ] Is it too complex to test the domain in isolation from real infrastructure?
-- [ ] Are there many distinct infrastructure concerns (persistence, messaging, external APIs) that would clutter the domain?
+- [ ] Are there many distinct infrastructure concerns (persistence, messaging, external APIs) that would clutter the
+  domain?
 
 ### Communication (Dimension 3)
 
@@ -51,7 +52,29 @@ If any answer is "no", do not unfold.
 - [ ] Is temporal decoupling required (sender must not wait for receiver)?
 - [ ] Does the system span multiple processes or services?
 
-### Error Handling (Dimension 4)
+### Package Structure (Dimension 4)
+
+**Level 1 — Package dependency tests:**
+
+- [ ] Are accidental cross-package dependencies appearing?
+- [ ] Do changes in one package unexpectedly break another?
+- [ ] Are package responsibilities becoming blurred?
+- [ ] Are there dependency cycles between packages?
+
+**Level 2 — Modulith:**
+
+- [ ] Are there too many package dependencies to hold in your head?
+- [ ] Are dependency tests alone insufficient to maintain isolation?
+- [ ] Do teams need stronger encapsulation with explicit public APIs per module?
+- [ ] Is independent module testing with enforced visibility needed?
+
+**Level 3 — Microservices:**
+
+- [ ] Do modules need independent scaling?
+- [ ] Do modules need independent development teams?
+- [ ] Do modules have fundamentally different security requirements?
+
+### Error Handling (Dimension 5)
 
 **Level 1 — Result types:**
 

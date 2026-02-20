@@ -111,7 +111,50 @@ incremental unfoldings, not a single architectural decision.
 - Traceability and debuggability are more important than decoupling
 - The indirection would obscure a simple, linear flow
 
-### 4. Error Handling
+### 4. Package Structure Guarantees
+
+| Level | Style                    | Description                                                                                                |
+|-------|--------------------------|------------------------------------------------------------------------------------------------------------|
+| 0     | Manual                   | No enforced dependency rules between packages. Any class can use any other class (as long as it's public). |
+| 1     | Package dependency tests | Packages exist with clear responsibilities. Dependency rules between packages are enforced by tests.       |
+| 2     | Modulith                 | Separate modules within one deployable unit, each with explicit API boundaries and enforced encapsulation. |
+| 3     | Microservices            | Independent services, separately built and deployed, communicating over network boundaries.                |
+
+**Unfold to Level 1 when:**
+
+- The codebase grows beyond a handful of packages and accidental cross-package dependencies start appearing
+- Changes in one package unexpectedly break another
+- Package responsibilities become blurred because nothing enforces boundaries
+- Dependency cycles emerge between packages
+
+**Unfold to Level 2 when:**
+
+- Dependency tests alone are insufficient to maintain isolation (too many rules, hard to reason about)
+- Teams need stronger encapsulation with explicit public APIs per module
+- You want independent module testing with enforced visibility constraints
+
+**Unfold to Level 3 when:**
+
+- Modules need independent scaling, i.e. scaling the full modulith to handle only a minor subset of functionality would
+  be too expensive;
+  this is often cited, but hardly really the case
+- Different teams develop and deploy independently the different microservices
+- Modules have different security requirements, so the non-critical parts make the attack surface too big for the
+  critical ones
+
+**Do NOT unfold to Level 1 when:**
+
+- The system is small enough that a developer can hold the full dependency graph in their head
+
+**Do NOT unfold to Level 2 when:**
+
+- All packages change together and are released together (splitting adds overhead without benefit)
+
+**Do NOT unfold to Level 3 when:**
+
+- The team is small and communication overhead of service boundaries outweighs the decoupling benefit
+
+### 5. Error Handling
 
 | Level | Style                         | Description                                                                            |
 |-------|-------------------------------|----------------------------------------------------------------------------------------|
