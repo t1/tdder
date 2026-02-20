@@ -50,20 +50,14 @@ src/
 └── test/resources/     # Test resources
 ```
 
-### Package Documentation
-
-Use `package-info.java` files for package-level documentation and architecture.
-Always read the relevant `package-info.java` files to understand the architecture,
-patterns, and conventions for a package before modifying code within it.
-
 ## POM Conventions
 
 ### Dependencies
 
 Dependencies are declared in `pom.xml`. When adding a new dependency:
 
-- Use the latest stable release version
-- Choose the appropriate scope (`compile`, `test`, `provided`, `runtime`)
+- Use the latest stable release version (double check with Maven Central)
+- Choose the appropriate scope (`compile`, `provided`, `runtime`, `test`) and keep them sorted by their scope
 - Prefer managed versions via `<dependencyManagement>` in parent POMs
 
 ### Properties
@@ -81,6 +75,7 @@ java --enable-preview -jar target/artifact.jar
 This is typically configured in the Maven compiler plugin:
 
 ```xml
+
 <plugin>
     <groupId>org.apache.maven.plugins</groupId>
     <artifactId>maven-compiler-plugin</artifactId>
