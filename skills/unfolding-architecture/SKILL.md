@@ -4,7 +4,7 @@ description: >
   This skill should be used when the user asks to "design the architecture", "should I add a service layer",
   "add an abstraction", "introduce an interface", "separate concerns", "add a repository",
   "use hexagonal architecture", "add domain events", "split into layers", "add ports and adapters",
-  "decouple this", "add an anti-corruption layer",
+  "decouple this", "add an anti-corruption layer", "review package structure",
   or when considering architectural changes during a TDD refactor phase.
   It also contains guides when starting a new project.
 version: 0.1.0
