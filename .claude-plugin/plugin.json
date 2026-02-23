@@ -1,6 +1,6 @@
 {
   "name": "tdder",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Guides AI agents through disciplined coding practices. Language and build-system agnostic core with extensible language/build skills.",
   "author": {
     "name": "Rüdiger zu Dohna",
