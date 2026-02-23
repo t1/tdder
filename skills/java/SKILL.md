@@ -26,9 +26,11 @@ var count = items.size();
 ### Static Imports
 
 Prefer static imports when they do not reduce readability.
+This includes constants like `MediaType.APPLICATION_JSON` — when used in context (e.g., `@Produces(APPLICATION_JSON)`), the domain is already obvious from the annotation.
 Exception: do not statically import `List.of(...)`, `Map.of(...)`, etc., as the context is lost.
 
 ```java
+import static jakarta.ws.rs.core.MediaType.APPLICATION_JSON;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.mockito.BDDMockito.given;
 ```
@@ -84,7 +86,9 @@ Use BDD-style method names:
 @Test void shouldReturnEmptyForInvalidInput() { ...}
 ```
 
-### BDD Assertions (AssertJ)
+### BDD Assertions
+
+For verifications, use `assertj-core`.
 
 Use `then(...)` instead of `assertThat(...)`:
 
