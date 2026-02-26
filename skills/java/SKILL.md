@@ -5,7 +5,7 @@ description: >
   "add a Java class", "fix Java code", or when TDD or clean code skills are active in a project
   containing .java files. Provides Java-specific coding conventions that complement the
   language-agnostic TDD and clean code skills.
-version: 0.1.0
+version: 0.2.0
 ---
 
 # Java Conventions

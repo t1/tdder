@@ -65,6 +65,17 @@ Add this repo as a marketplace, then install the plugin:
 Note that the official docs are not very clear about this, but you actually need a `marketplace.json`,
 even if you have only a single plugin.
 
+## Updating
+
+As of Claude Code v2.1.44, it's not an easy task to update the plugin; even uninstalling and reinstalling doesn't help.
+The problem is that the marketplace is checked out to `~/.claude/plugins/marketplaces/t1/`,
+while the plugins are cached in `~/.claude/plugins/cache/t1/tdder/`.
+So to update to a new version of the plugin, you'll have to do this:
+
+```bash
+cd ~/.claude/plugins/marketplaces/t1/ && git pull && rm -r ~/.claude/plugins/cache/t1/tdder/ && cd -
+```
+
 ## Extending
 
 To add a new language or build system, create `skills/<name>/SKILL.md` with the relevant conventions
