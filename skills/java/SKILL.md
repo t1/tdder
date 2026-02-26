@@ -25,9 +25,11 @@ var count = items.size();
 
 ### Static Imports
 
-Prefer static imports when they do not reduce readability.
-This includes constants like `MediaType.APPLICATION_JSON` — when used in context (e.g., `@Produces(APPLICATION_JSON)`), the domain is already obvious from the annotation.
-Exception: do not statically import `List.of(...)`, `Map.of(...)`, etc., as the context is lost.
+**Important**: Prefer static imports when they do not reduce readability.
+This includes constants like `MediaType.APPLICATION_JSON`.
+The domain is generally obvious from the context, e.g., `@Produces(APPLICATION_JSON)`.
+Exception: do not statically import `List.of(...)`, `Map.of(...)`, or the like, as then the context is lost.
+The number of usages of the import is *not* relevant!
 
 ```java
 import static jakarta.ws.rs.core.MediaType.APPLICATION_JSON;
