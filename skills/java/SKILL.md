@@ -11,6 +11,7 @@ version: 0.2.0
 # Java Conventions
 
 Java-specific coding conventions complementing the TDD and Clean Code skills.
+We use modern language features to reduce boiler plate and get more to the point.
 
 ## Code Style
 
@@ -39,7 +40,7 @@ import static org.mockito.BDDMockito.given;
 
 ### Javadoc
 
-Use **Markdown** for Javadoc to improve in-IDE readability.
+**IMPORTANT** Use **Markdown** for Javadoc to improve in-IDE readability.
 
 ### Comments
 
@@ -52,12 +53,9 @@ Hide checked exceptions within a method by wrapping them in `RuntimeException` a
 
 ```java
 try{
-        return objectMapper.writeValueAsString(value);
-}catch(
-JsonProcessingException e){
-        throw new
-
-RuntimeException("could not write value as string",e);
+    return objectMapper.writeValueAsString(value);
+} catch(JsonProcessingException e) {
+    throw new RuntimeException("could not write value as string",e);
 }
 ```
 
@@ -67,14 +65,20 @@ RuntimeException("could not write value as string",e);
 `System.err` output is only acceptable for warnings and diagnostics (logs) in CLI tools.
 In all other cases, use some logging API (preferably slf4j) and a library (preferably logback).
 
-### Dependency Injection
+### Constructors and Dependency Injection
 
-Prefer constructor injection over setters.
+When available, use the capabilities of a Dependency Injection framework like CDI.
+Even though constructor injection is not commonly used in CDI,
+it makes, e.g., unit-testing (when DI is *not* available) easier than field injection does.
+Injecting with setters is very seldom a sensible option to choose.
+
+If the value of a field doesn't depend on constructor parameters, then use a **Field initializer**,
+e.g. `private final HttpClient httpClient = HttpClient.newHttpClient();`
 
 ### Visibility
 
-Internals are not `public` but have limited visibility.
-Only well-defined APIs are `public`.
+Only well-defined APIs are `public`. Internals are not, but have limited visibility,
+i.e. `private` if possible, or "default scope" if necessary. `protected` is only rarely necessary.
 
 ## Testing Conventions
 

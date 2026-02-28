@@ -56,10 +56,12 @@ When reviewing or refactoring code, follow this priority order:
 
 - Evaluate all names for descriptiveness and intent
 - Check abstraction level of names
-- Rename if purpose has evolved through new tests
+- Rename if purpose has evolved, e.g., through new tests
 - Ensure names reveal side effects if any exist
 - No encodings or prefixes (no Hungarian notation, no `I` prefix for interfaces)
 - Long names for long scopes, short names for short scopes
+- **Name helpers by what they do, not what they omit** — e.g. `repositoryWithLocalTempDir()` (describes the
+  distinguishing characteristic) instead of `repositoryWithDefaults()` (vague, describes absence of configuration)
 
 ### Priority 2: Code Smells Detection
 
@@ -143,4 +145,6 @@ Example: `if (timer.hasExpired() && !timer.isRecurrent())` becomes `if (shouldBe
 ## Quick Reference Checklist
 
 For a complete refactoring checklist, consult:
-- **`references/checklist.md`** - Read this checklist to verify all clean code principles have been applied during refactoring
+
+- **`references/checklist.md`** - Read this checklist to verify all clean code principles have been applied during
+  refactoring
