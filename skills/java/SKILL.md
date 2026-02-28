@@ -15,6 +15,11 @@ We use modern language features to reduce boiler plate and get more to the point
 
 ## Code Style
 
+### Line Breaks
+
+* Annotations can often go in the same line as the field or method they apply to;
+  e.g. `@Override void foo() {` or `@Test void should() {`
+
 ### Local Type Inference
 
 Use `var` for local variable type inference where the type is clear from context.
@@ -28,9 +33,10 @@ var count = items.size();
 
 **Important**: Prefer static imports when they do not reduce readability.
 This includes constants like `MediaType.APPLICATION_JSON`.
-The domain is generally obvious from the context, e.g., `@Produces(APPLICATION_JSON)`.
-Exception: do not statically import `List.of(...)`, `Map.of(...)`, or the like, as then the context is lost.
-The number of usages of the import is *not* relevant!
+The context is most often sufficient to understand what it is, e.g., `@Produces(APPLICATION_JSON)`.
+Exception: do not statically import `List.of(...)`, `Map.of(...)`, or the like,
+as a method name like `of` doesn't say, what it does.
+The number of usages of the import is **not** relevant!
 
 ```java
 import static jakarta.ws.rs.core.MediaType.APPLICATION_JSON;
@@ -63,7 +69,7 @@ try{
 
 `System.out` output is only acceptable for "normal" output in CLI tools.
 `System.err` output is only acceptable for warnings and diagnostics (logs) in CLI tools.
-In all other cases, use some logging API (preferably slf4j) and a library (preferably logback).
+In all other cases, use some logging API (preferably slf4j) and if necessary a library (preferably logback).
 
 ### Constructors and Dependency Injection
 
@@ -87,9 +93,9 @@ i.e. `private` if possible, or "default scope" if necessary. `protected` is only
 Use BDD-style method names:
 
 ```java
-@Test void shouldParseSemanticVersion() { ...}
+@Test void shouldParseSemanticVersion() { ... }
 
-@Test void shouldReturnEmptyForInvalidInput() { ...}
+@Test void shouldReturnEmptyForInvalidInput() { ... }
 ```
 
 ### BDD Assertions
@@ -99,15 +105,8 @@ For verifications, use `assertj-core`.
 Use `then(...)` instead of `assertThat(...)`:
 
 ```java
-then(result).
-
-isEqualTo(expected);
-
-then(list).
-
-hasSize(3).
-
-containsExactly("a","b","c");
+then(result).isEqualTo(expected);
+then(list).hasSize(3).containsExactly("a","b","c");
 ```
 
 ### BDD Mockito
@@ -116,15 +115,11 @@ Use `given(...).willReturn(...)` instead of `when(...).thenReturn(...)`.
 Place Mockito `given()` calls in the "given" block:
 
 ```java
-given(repository.findById(id)).
-
-willReturn(Optional.of(entity));
+given(repository.findById(id)).willReturn(Optional.of(entity));
 
 var result = service.process(id);
 
-then(result).
-
-isNotNull();
+then(result).isNotNull();
 ```
 
 If the `then` of AssertJ is imported, too, fall back to `verify`.
@@ -151,7 +146,7 @@ Use `@Disabled` for pending tests in the TDD test list:
 
 ```java
 @Disabled("TODO handle the edge case")
-@Test void shouldHandleEdgeCase() { ...}
+@Test void shouldHandleEdgeCase() { ... }
 ```
 
 ### Test Structure
