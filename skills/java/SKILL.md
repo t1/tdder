@@ -15,6 +15,11 @@ We use modern language features to reduce boiler plate and get more to the point
 
 ## Code Style
 
+### Logic Expressions
+
+* Try to prevent negating expressions, e.g., instead of `a != b ? doX() : doY()`
+  use `a == b ? doY() : doX()`.
+
 ### Line Breaks
 
 * Annotations can often go in the same line as the field or method they apply to;
