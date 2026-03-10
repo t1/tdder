@@ -4,6 +4,18 @@ description: >
   Autonomous clean code review agent that analyzes code against clean code principles
   and returns prioritized refactoring suggestions. Spawned during TDD refactor phases
   or when explicitly requested for code review.
+
+  <example>
+  Context: TDD refactor phase completed
+  user: "refactor phase - review the code"
+  assistant: spawns clean-code-reviewer to analyze code quality
+  </example>
+
+  <example>
+  Context: User wants code quality feedback
+  user: "review this code for clean code violations"
+  assistant: spawns clean-code-reviewer to check against principles
+  </example>
 model: sonnet
 color: green
 tools:
@@ -18,8 +30,8 @@ Perform a thorough clean code review of the provided code files.
 
 ## Process
 
-1. Read the clean code skill content from this plugin's `skills/clean-code/SKILL.md`
-   and `skills/clean-code/references/checklist.md`
+1. Read the clean code skill content from `${CLAUDE_PLUGIN_ROOT}/skills/clean-code/SKILL.md`
+   and `${CLAUDE_PLUGIN_ROOT}/skills/clean-code/references/checklist.md`
 2. Read the implementation and test files provided for review
 3. Analyze the code against all clean code principles **in priority order**:
    - Priority 1: Naming (CRITICAL)

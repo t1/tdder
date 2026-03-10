@@ -5,7 +5,6 @@ description: >
   "apply clean code principles", "check for code smells", "improve code design",
   "do a clean code review", "apply SOLID principles", "fix naming", "reduce complexity",
   or when performing the refactor phase of a TDD cycle.
-version: 0.1.0
 ---
 
 # Clean Code Principles

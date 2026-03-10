@@ -6,7 +6,6 @@ description: >
   "start TDD", "test first approach", "TDD loop", "TDD cycle",
   or mentions TDD workflow, baby steps, guessing game, or red-green-refactor cycles.
   Not applicable for pure refactoring without new tests.
-version: 0.1.0
 ---
 
 # Test-Driven Development (TDD)
@@ -51,15 +50,9 @@ Do not add features for future tests. Do not optimize or refactor yet.
 
 **Must** attempt at least one refactoring. If no improvement is possible, document why.
 
-Trigger a **Clean Code Review**: use the Task tool with `subagent_type=general-purpose` to spawn
-a clean code review subagent. Instruct it to:
-
-1. Read the clean-code skill at `skills/clean-code/SKILL.md` and `skills/clean-code/references/checklist.md`
-   (relative to the tdder plugin root)
-2. Read the implementation and test files modified in this TDD cycle
-3. Analyze the code against all clean code principles in priority order
-   (naming, code smells, SOLID, method design, structure)
-4. Return a prioritized list of specific, actionable refactoring suggestions
+Trigger a **Clean Code Review**: use the Agent tool with `subagent_type=clean-code-reviewer` to spawn
+the clean code review agent. Pass it the paths of the implementation and test files modified in this
+TDD cycle.
 
 Apply the returned suggestions, ensuring all tests continue to pass after each change.
 
