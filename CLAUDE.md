@@ -1,8 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in **this** repository.
-
-Read `README.md` for project overview, architecture, and conventions.
+Read `README.md` before starting any task — it has project overview, architecture, and conventions.
 
 Do **NOT** read the `TODO.md`, unless instructed to.
 
