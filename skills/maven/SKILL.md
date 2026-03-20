@@ -84,3 +84,22 @@ This is typically configured in the Maven compiler plugin:
     </configuration>
 </plugin>
 ```
+
+## JDT and Maven Output Isolation
+
+If the jdtls plugin (based on the Eclipse JDT, which is used by VS Code Java, Eclipse IDE)
+then **Always check**: `.settings/org.eclipse.jdt.core.prefs` compiler compliance matches the
+pom's `maven.compiler.source`/`maven.compiler.target`. A mismatch (e.g., JDT on Java 17,
+pom on Java 21) causes JDT to flag valid API calls as errors.
+
+And it can compile into the same `target/classes` directory as Maven. This causes intermittent build failures:
+
+- **Symptom**: `java.lang.Error: Unresolved compilation problems` at runtime, despite
+  `mvn compile` succeeding (says "Nothing to compile — all classes are up to date")
+- **Root cause**: JDT overwrites Maven's class files. Maven sees the newer class and skips
+  recompilation. JDT's class files embed errors as runtime throws (unlike javac, which
+  fails at compile time).
+- **Fix**: Ensure `.classpath` output paths don't overlap with Maven's `target/classes`:
+  ```xml
+  <classpathentry kind="output" path="target/eclipse-classes"/>
+  ```
