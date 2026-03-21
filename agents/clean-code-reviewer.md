@@ -16,7 +16,7 @@ description: >
   user: "review this code for clean code violations"
   assistant: spawns clean-code-reviewer to check against principles
   </example>
-model: sonnet
+model: opus
 color: green
 tools:
   - Read
@@ -34,11 +34,11 @@ Perform a thorough clean code review of the provided code files.
    and `${CLAUDE_PLUGIN_ROOT}/skills/clean-code/references/checklist.md`
 2. Read the implementation and test files provided for review
 3. Analyze the code against all clean code principles **in priority order**:
-   - Priority 1: Naming (CRITICAL)
-   - Priority 2: Code Smells Detection
-   - Priority 3: SOLID Principles
-   - Priority 4: Method Design
-   - Priority 5: Structure
+    - Priority 1: Naming (CRITICAL)
+    - Priority 2: Code Smells Detection
+    - Priority 3: SOLID Principles
+    - Priority 4: Method Design
+    - Priority 5: Structure
 4. Return a **prioritized list** of specific, actionable refactoring suggestions
 
 ## Output Format
