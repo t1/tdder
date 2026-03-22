@@ -28,12 +28,23 @@ when matching files are detected.
 | `unfolding-architecture`   | Progressive architectural decisions (start simple, unfold on demand)           |
 | `integration-architecture` | Integration messaging patterns (commands vs events, push vs pull, reliability) |
 | `maven`                    | Maven-specific conventions (test execution, project structure)                 |
+| `nested-fixture-pattern`   | JUnit nested fixture pattern for layered test preconditions                    |
 
 ## Agents
 
 | Agent                 | Purpose                                       |
 |-----------------------|-----------------------------------------------|
 | `clean-code-reviewer` | Autonomous code review during refactor phases |
+
+## Hooks
+
+The plugin includes a `PreToolUse` hook that reminds the agent to load language/build-system skills
+before editing matching files:
+
+| File pattern | Skill reminded |
+|--------------|----------------|
+| `*.java`     | `java`         |
+| `pom.xml`    | `maven`        |
 
 ## Configuration
 

@@ -32,6 +32,16 @@ For background, rationale, and tradeoffs, see the [blog post](https://codeberg.o
 - Fast, isolated unit tests: overhead of fixtures and nesting isn't worth it
 - Precondition hierarchies still in flux: refactoring fixtures is more expensive than flat setup
 
+## Suggesting the Pattern
+
+When you detect layered test setup (2+ levels of dependent `@BeforeAll`/`@BeforeEach`, or test classes
+with complex shared state), use `AskUserQuestion`:
+
+- **Question:** "This test has layered preconditions. Want to apply the nested fixture pattern?"
+- **Options:**
+  - "Yes, refactor to nested fixtures" — briefly describe what the fixture tree would look like
+  - "No, keep flat setup" — acknowledge the trade-off (simpler structure, more setup duplication)
+
 ## The Pattern
 
 Each `@Nested` class is a `Given` clause. Each `@RegisterExtension static` field is a fixture

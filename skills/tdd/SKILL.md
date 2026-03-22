@@ -21,7 +21,16 @@ Create a list of test cases for **base functionality only** before writing any i
 Use the language's equivalent of pending/todo tests (e.g., `it.todo()`, `@Disabled`, `@Ignore`).
 Focus on core functionality, not advanced features.
 
-### 2. One Test at a Time
+### 2. Test List Approval
+
+After creating the test list, use `AskUserQuestion` to present it:
+
+- **Question:** "Here's the test list for base functionality. Want to adjust before we start?"
+- **Options:**
+  - "Looks good, start" — proceed with the first test
+  - "Let me adjust" — wait for the user to modify the list
+
+### 3. One Test at a Time
 
 Convert exactly **one** pending test to executable test code at a time.
 All other tests remain as pending descriptions.
@@ -29,7 +38,7 @@ Never have more than one failing test in the red phase.
 Implement only what is needed to make that single test pass.
 Do not think ahead or implement features for future tests.
 
-### 3. Red-Green-Refactor Cycle
+### 4. Red-Green-Refactor Cycle
 
 #### Red Phase (Compilation Error)
 
@@ -66,7 +75,7 @@ Apply the 4 Rules of Simple Design: tests pass, no duplication, reveals intent, 
 
 If no refactoring improves the code, document why the current state is optimal and move on.
 
-### 4. Guessing Game
+### 5. Guessing Game
 
 Before running tests, explicitly state:
 
@@ -77,7 +86,7 @@ Before running tests, explicitly state:
 
 Run the test, then compare the actual result with the prediction.
 
-### 5. Baby Steps
+### 6. Baby Steps
 
 Make the smallest possible change to get to green.
 If a test fails, make it pass with the simplest implementation.
@@ -86,7 +95,14 @@ Do not try to solve multiple problems at once.
 ## Human-in-the-Loop
 
 Check the project's `.claude/tdder.local.md` settings file (in the project root) for the
-human-in-the-loop level. If no settings file exists, default to `every-phase`.
+human-in-the-loop level. If no settings file exists, use `AskUserQuestion` to ask:
+
+- **Question:** "How much involvement do you want during TDD cycles?"
+- **Options:**
+  - "Every phase (Recommended)" — stop after each Red, Green, Refactor phase
+  - "End of cycle" — stop after each complete Red-Green-Refactor cycle
+  - "Off" — run autonomously, report results at the end
+- Persist the choice in `.claude/tdder.local.md` so subsequent sessions reuse it.
 
 ### Level: `every-phase`
 

@@ -191,9 +191,16 @@ Unfolding happens during the **TDD refactor phase**:
 
 1. **Complete the Red-Green cycle** — get the test passing first
 2. **During refactoring**, check if any dimension is under pressure
-3. **Unfold one dimension at a time** — never unfold two dimensions simultaneously
-4. **Verify**: all tests still pass after unfolding
-5. **Document the reason**: state in one sentence why this unfolding was necessary
+3. **Before unfolding**, use `AskUserQuestion` to confirm:
+   - **Question:** "I see pressure on [dimension] to unfold from Level N to N+1. Should we?"
+   - **Options:**
+     - "Yes, unfold (Recommended)" — include a one-line reason derived from the code
+       (e.g., "Two independent algorithms now operate on the same data structure")
+     - "No, keep current level" — explain what trade-off the user is accepting
+     - "Let's discuss" — elaborate on the pressure signals before deciding
+4. **Unfold one dimension at a time** — never unfold two dimensions simultaneously
+5. **Verify**: all tests still pass after unfolding
+6. **Document the reason**: state in one sentence why this unfolding was necessary
 
 The decision checklist at `references/decision-checklist.md` provides a quick rubric.
 

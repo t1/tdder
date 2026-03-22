@@ -47,6 +47,17 @@ Code should be easy to delete, not just easy to add.
 Functions: one screen or less. Classes: under 100 lines as a guideline.
 If it cannot be held in working memory, it is too big.
 
+## Refactoring Scope
+
+When multiple code smells or improvements are found, use `AskUserQuestion` (multi-select) to let the
+user choose which to address now:
+
+- **Question:** "I found these improvement opportunities. Which do you want to address now?"
+- List each finding as an option with a short description of what it is and where
+- The user can select multiple items or skip all
+
+This avoids surprise refactorings and lets the user control scope.
+
 ## Refactoring Priority Order
 
 When reviewing or refactoring code, follow this priority order:

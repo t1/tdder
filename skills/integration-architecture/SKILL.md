@@ -43,6 +43,15 @@ Neither is strictly better.
 **Key insight:** Events don't remove coupling, they move it. The receiver now needs to understand the
 sender's context to react. This is worthwhile when senders change less often than the set of receivers.
 
+**When introducing cross-boundary communication**, use `AskUserQuestion` with a code-based recommendation:
+
+- **Question:** "Should this be a command or an event?"
+- **Options:** Put the recommended option first with "(Recommended)". Use the option `description`
+  to explain *why* based on the code — e.g., "The method name `orderCompleted` and the lack of a
+  return value suggest a notification, not a directive" or "There is exactly one receiver
+  (`PaymentService`) that needs to confirm the action."
+- If the code signals are ambiguous, don't recommend — present both options neutrally.
+
 ### Request-Reply
 
 A hybrid pattern: the sender sends a command and waits for a response, but communication is
@@ -106,6 +115,15 @@ the unfolding principle: start at Level 0, unfold only when concrete problems fo
 | 0     | Fire and forget          | Send and assume success. No retries. Simple, appropriate when loss is acceptable or communication is in-process.                                                           |
 | 1     | Retry + idempotency      | Retry on failure; receivers are idempotent so duplicates are harmless. At-least-once delivery. Techniques: deduplication (message IDs), upserts, deterministic operations. |
 | 2     | Transactional guarantees | Strongest guarantees, highest complexity. See techniques below.                                                                                                            |
+
+**When choosing a reliability level**, use `AskUserQuestion` with a code-based recommendation:
+
+- **Question:** "What reliability level does this communication need?"
+- **Options:** Put the recommended option first with "(Recommended)". Use the option `description`
+  to explain *why* based on the code — e.g., "This is an in-process call; failure means process
+  crash anyway, so fire-and-forget is appropriate" or "This payment flow has business consequences
+  on message loss; retry + idempotency is the minimum."
+- If the code signals are ambiguous, don't recommend — present all options neutrally.
 
 **Unfold to Level 1 when:**
 
