@@ -10,7 +10,8 @@ Don't apologize for any mistakes, just tell me what went wrong and how we can st
 
 ## Development
 
-There is no build system, test suite, or linter. All content is Markdown. To test changes, load the plugin locally:
+There is no build system, test suite, or linter. All content is Markdown or JSON.
+To test changes, load the plugin locally:
 
 ```bash
 claude --plugin-dir /path/to/tdder

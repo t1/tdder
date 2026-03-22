@@ -1,0 +1,16 @@
+{
+  "description": "Remind to load language/framework skills before editing code",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // \"\"'); case \"$f\" in *.java) echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"REMINDER: Have you loaded the tdder:java skill this session? If not, stop and invoke it before editing Java files.\"}}' ;; */pom.xml) echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"REMINDER: Have you loaded the tdder:maven skill this session? If not, stop and invoke it before editing pom.xml.\"}}' ;; esac"
+          }
+        ]
+      }
+    ]
+  }
+}
