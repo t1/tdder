@@ -16,7 +16,6 @@ description: >
   user: "review this code for clean code violations"
   assistant: spawns clean-code-reviewer to check against principles
   </example>
-model: opus
 color: green
 tools:
   - Read
