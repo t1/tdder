@@ -229,9 +229,9 @@ If in doubt, start with a Fake.
 
 ## IDE Integration
 
-Always check with the IDE for:
+After editing Java files, always check with the IDE for:
 
-- Warnings (not just errors)
+- Warnings, not just errors (with IntelliJ you'll have to use `get_file_problems` with `errorsOnly: false`)
 - All qualified names replaced by imports (if possible)
 - Unused imports removed
 
