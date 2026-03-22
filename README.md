@@ -50,7 +50,8 @@ before editing matching files:
 
 ### Human-in-the-Loop
 
-Create a `.claude/tdder.local.md` file in your project root:
+If no settings file exists, the TDD skill will ask on first use and persist your choice.
+You can also create `.claude/tdder.local.md` manually in your project root:
 
 ```markdown
 ---
@@ -60,7 +61,7 @@ hitl: every-phase
 
 | Level          | Behavior                                              |
 |----------------|-------------------------------------------------------|
-| `every-phase`  | Stop after every Red, Green, Refactor phase (default) |
+| `every-phase`  | Stop after every Red, Green, Refactor phase            |
 | `end-of-cycle` | Stop after each complete Red-Green-Refactor cycle     |
 | `off`          | Run autonomously, report at end                       |
 

@@ -50,7 +50,8 @@ sender's context to react. This is worthwhile when senders change less often tha
   to explain *why* based on the code — e.g., "The method name `orderCompleted` and the lack of a
   return value suggest a notification, not a directive" or "There is exactly one receiver
   (`PaymentService`) that needs to confirm the action."
-- If the code signals are ambiguous, don't recommend — present both options neutrally.
+- "Let's discuss" — elaborate on the trade-offs before deciding
+- If the code signals are ambiguous, don't recommend — present all options neutrally.
 
 ### Request-Reply
 
@@ -123,6 +124,7 @@ the unfolding principle: start at Level 0, unfold only when concrete problems fo
   to explain *why* based on the code — e.g., "This is an in-process call; failure means process
   crash anyway, so fire-and-forget is appropriate" or "This payment flow has business consequences
   on message loss; retry + idempotency is the minimum."
+- "Let's discuss" — elaborate on the trade-offs before deciding
 - If the code signals are ambiguous, don't recommend — present all options neutrally.
 
 **Unfold to Level 1 when:**

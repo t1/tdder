@@ -49,14 +49,16 @@ If it cannot be held in working memory, it is too big.
 
 ## Refactoring Scope
 
-When multiple code smells or improvements are found, use `AskUserQuestion` (multi-select) to let the
-user choose which to address now:
+When multiple code smells or improvements are found, present them as a prioritized markdown list,
+then use `AskUserQuestion` to let the user decide how to proceed:
 
-- **Question:** "I found these improvement opportunities. Which do you want to address now?"
-- List each finding as an option with a short description of what it is and where
-- The user can select multiple items or skip all
+- **Question:** "How do you want to handle these findings?"
+- **Options:**
+  - "Fix all" — apply all suggestions in priority order
+  - "Discuss one by one" — walk through each finding for individual approval
 
-This avoids surprise refactorings and lets the user control scope.
+This avoids surprise refactorings and lets the user control scope. This process applies regardless
+of whether findings come from direct review or from the `clean-code-reviewer` agent.
 
 ## Refactoring Priority Order
 

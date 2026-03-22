@@ -23,12 +23,12 @@ Focus on core functionality, not advanced features.
 
 ### 2. Test List Approval
 
-After creating the test list, use `AskUserQuestion` to present it:
+After creating the test list, present it as markdown, then use `AskUserQuestion`:
 
-- **Question:** "Here's the test list for base functionality. Want to adjust before we start?"
+- **Question:** "Want to adjust the test list before we start?"
 - **Options:**
   - "Looks good, start" — proceed with the first test
-  - "Let me adjust" — wait for the user to modify the list
+  - "Add more tests" — wait for the user to specify additional tests
 
 ### 3. One Test at a Time
 
@@ -63,7 +63,9 @@ Trigger a **Clean Code Review**: use the Agent tool with `subagent_type=clean-co
 the clean code review agent. Pass it the paths of the implementation and test files modified in this
 TDD cycle.
 
-Apply the returned suggestions, ensuring all tests continue to pass after each change.
+Present the agent's findings using the **Refactoring Scope** process from the Clean Code skill
+(present as markdown, then ask via `AskUserQuestion`). Apply approved suggestions, ensuring all
+tests continue to pass after each change.
 
 **Naming evaluation (first priority):**
 
