@@ -64,6 +64,23 @@ Dependencies are declared in `pom.xml`. When adding a new dependency:
 
 Version properties follow the pattern `<artifactId.version>` or `<groupId.version>`.
 
+## Resolving Dependency Sources
+
+To read the source code of a dependency, locate its sources JAR in the local Maven repository:
+
+```
+~/.m2/repository/{groupId with '.' replaced by '/'}/{artifactId}/{version}/{artifactId}-{version}-sources.jar
+```
+
+For example, `org.example:my-lib:2.3.1` resolves to:
+`~/.m2/repository/org/example/my-lib/2.3.1/my-lib-2.3.1-sources.jar`
+
+### Finding the correct version
+
+- For direct dependencies: check the project's `pom.xml` `<dependencies>` section.
+- For transitive dependencies: use `mvn dependency:tree` because the resolution rules are complex.
+- Always use the version matching the project's dependency tree, not whatever SNAPSHOT etc. happens to be cached.
+
 ## Preview Features
 
 If the project uses Java preview features, pass `--enable-preview` when running:
