@@ -23,12 +23,13 @@ Focus on core functionality, not advanced features.
 
 ### 2. Test List Approval
 
-After creating the test list, present it as markdown, then use `AskUserQuestion`:
+After creating the test list, present it as markdown.
+Then, if the `human-in-the-loop` is not `off`, use `AskUserQuestion`:
 
 - **Question:** "Want to adjust the test list before we start?"
 - **Options:**
-  - "Looks good, start" — proceed with the first test
-  - "Add more tests" — wait for the user to specify additional tests
+    - "Looks good, start" — proceed with the first test
+    - "Add more tests" — wait for the user to specify additional tests
 
 ### 3. One Test at a Time
 
@@ -64,8 +65,8 @@ the clean code review agent. Pass it the paths of the implementation and test fi
 TDD cycle.
 
 Present the agent's findings using the **Refactoring Scope** process from the Clean Code skill
-(present as markdown, then ask via `AskUserQuestion`). Apply approved suggestions, ensuring all
-tests continue to pass after each change.
+(present as markdown, then, if the `human-in-the-loop` is not `off`, ask via `AskUserQuestion`).
+Apply approved suggestions, ensuring all tests continue to pass after each change.
 
 **Naming evaluation (first priority):**
 
@@ -101,9 +102,9 @@ human-in-the-loop level. If no settings file exists, use `AskUserQuestion` to as
 
 - **Question:** "How much involvement do you want during TDD cycles?"
 - **Options:**
-  - "Every phase (Recommended)" — stop after each Red, Green, Refactor phase
-  - "End of cycle" — stop after each complete Red-Green-Refactor cycle
-  - "Off" — run autonomously, report results at the end
+    - "Every phase (Recommended)" — stop after each Red, Green, Refactor phase
+    - "End of cycle" — stop after each complete Red-Green-Refactor cycle
+    - "Off" — run autonomously, report results at the end
 - Persist the choice in `.claude/tdder.local.md` so subsequent sessions reuse it.
 
 ### Level: `every-phase`
@@ -135,16 +136,19 @@ or continue.
 When stopping for human review, include:
 
 **After Red Phase:**
+
 - Which test was activated
 - Prediction made and whether it was correct
 - Type of failure achieved (compilation/runtime error)
 
 **After Green Phase:**
+
 - Implementation approach taken (minimal code added)
 - Confirmation that test now passes
 - Trade-offs or decisions made
 
 **After Refactor Phase:**
+
 - Naming changes made
 - Mass calculations (before/after, if APP skill is available)
 - Structural improvements
@@ -169,4 +173,5 @@ and recovery strategies, see `references/failure-modes.md`.
 ### Reference Files
 
 For detailed guidance on specific aspects:
+
 - **`references/failure-modes.md`** - Detailed failure mode analysis and recovery strategies
