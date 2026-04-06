@@ -127,6 +127,16 @@ Only do this if it also simplifies the code.
 Never break tests during refactoring. Make tiny changes, run tests.
 If tests fail, undo and take smaller steps.
 
+### Extract Inner Class — Check Visibility First
+
+Before suggesting extraction of an inner class to a top-level class, verify:
+1. Is the inner class used outside the enclosing class? If not, it can be `private`.
+2. Making a `private` inner class top-level *increases* its visibility to package-private.
+3. Prefer tightening visibility (`private`) over extracting, unless the class is already
+   used by other classes or extraction enables meaningful independent testing.
+
+File length alone is not sufficient justification for extraction when it widens visibility.
+
 ### Encapsulate Conditionals
 
 Extract complex conditions into well-named methods.

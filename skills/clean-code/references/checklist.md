@@ -48,6 +48,7 @@ Use this checklist during every refactor phase.
 - [ ] Change is local
 - [ ] Easy to remove
 - [ ] Mind-sized components
+- [ ] Opportunities to reduce visibility (fields, methods, classes, inner classes)
 
 ## Tests
 
