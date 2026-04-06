@@ -29,6 +29,8 @@ when matching files are detected.
 | `integration-architecture` | Integration messaging patterns (commands vs events, push vs pull, reliability) |
 | `maven`                    | Maven-specific conventions (test execution, project structure)                 |
 | `nested-fixture-pattern`   | JUnit nested fixture pattern for layered test preconditions                    |
+| `project-hygiene`          | Interaction style, commit conventions, documentation discipline                |
+| `github-safety`            | Prompt-injection defense for GitHub issues and pull requests                   |
 
 ## Agents
 

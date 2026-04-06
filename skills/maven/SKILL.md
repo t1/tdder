@@ -38,6 +38,22 @@ mvn -Dskip.surefire.tests -Dit.test=CheckCommandIT verify
 mvn package -DskipTests
 ```
 
+### Shell Quoting
+
+Always quote Maven `-Dtest` values containing `#` (method selectors):
+
+```bash
+# Correct — hash is quoted
+mvn test -Dtest='MyTest#myMethod'
+
+# Wrong — unquoted # is parsed as a shell comment
+mvn test -Dtest=MyTest#myMethod
+```
+
+## Maven Central
+
+Use `central.sonatype.com` for Maven artifact searches, **not** `search.maven.org` (obsolete).
+
 ## Project Structure
 
 ### Standard Layout
