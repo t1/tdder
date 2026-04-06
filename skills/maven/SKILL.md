@@ -1,5 +1,5 @@
 ---
-name: Maven Conventions
+name: maven
 description: >
   This skill should be used when working on Maven projects and the user asks to "run tests",
   "build the project", "run a specific test", or when TDD or clean code skills are active in a

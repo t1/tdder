@@ -1,5 +1,5 @@
 ---
-name: Absolute Priority Premise (APP)
+name: app
 description: >
   This skill should be used when the user asks to "calculate code mass", "measure code complexity
   with APP", "compare implementations using APP", "apply Absolute Priority Premise",

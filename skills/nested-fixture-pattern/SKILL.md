@@ -1,5 +1,5 @@
 ---
-name: Nested Fixture Pattern
+name: nested-fixture-pattern
 description: >
   This skill should be used when working on Java projects with JUnit tests that have layered
   preconditions, expensive shared setup (servers, databases, provisioned users), or complex

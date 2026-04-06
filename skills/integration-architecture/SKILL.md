@@ -1,5 +1,5 @@
 ---
-name: Integration Architecture
+name: integration-architecture
 description: >
   This skill should be used when the user asks about "messaging patterns", "command vs event",
   "push vs pull", "message reliability", "at-least-once delivery", "idempotency",

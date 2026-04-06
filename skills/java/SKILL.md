@@ -1,5 +1,5 @@
 ---
-name: Java Conventions
+name: java
 description: >
   This skill should be used when working on Java projects and the user asks to "write Java code",
   "add a Java class", "fix Java code", or when TDD or clean code skills are active in a project

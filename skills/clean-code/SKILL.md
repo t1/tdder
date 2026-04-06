@@ -1,5 +1,5 @@
 ---
-name: Clean Code
+name: clean-code
 description: >
   This skill should be used when the user asks to "refactor code", "review code quality",
   "apply clean code principles", "check for code smells", "improve code design",

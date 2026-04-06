@@ -1,6 +1,6 @@
 # tdd'er
 
-A Claude Code plugin that guides AI agents through disciplined Test-Driven Development
+A plugin for Claude Code and OpenCode that guides AI agents through disciplined Test-Driven Development
 and Clean Code practices.
 
 ## Features
@@ -36,9 +36,9 @@ when matching files are detected.
 |-----------------------|-----------------------------------------------|
 | `clean-code-reviewer` | Autonomous code review during refactor phases |
 
-## Hooks
+## Hooks (Claude Code only)
 
-The plugin includes a `PreToolUse` hook that reminds the agent to load language/build-system skills
+The Claude Code plugin includes a `PreToolUse` hook that reminds the agent to load language/build-system skills
 before editing matching files:
 
 | File pattern | Skill reminded |
@@ -67,6 +67,8 @@ hitl: every-phase
 
 ## Installation
 
+### Claude Code
+
 Add this repo as a marketplace, then install the plugin:
 
 ```bash
@@ -77,7 +79,21 @@ Add this repo as a marketplace, then install the plugin:
 Note that the official docs are not very clear about this, but you actually need a `marketplace.json`,
 even if you have only a single plugin.
 
+### OpenCode
+
+Add tdder to the `plugin` array in your `opencode.json` (global or project-level):
+
+```json
+{
+  "plugin": ["tdder@git+https://github.com/t1/tdder.git"]
+}
+```
+
+Restart OpenCode. The plugin auto-installs and registers all skills.
+
 ## Updating
+
+### Claude Code
 
 As of Claude Code v2.1.44, it's not an easy task to update the plugin; even uninstalling and reinstalling doesn't help.
 The problem is that the marketplace is checked out to `~/.claude/plugins/marketplaces/t1/`,
@@ -87,6 +103,10 @@ So to update to a new version of the plugin, you'll have to do this:
 ```bash
 cd ~/.claude/plugins/marketplaces/t1/ && git pull && rm -r ~/.claude/plugins/cache/t1/tdder/ && cd -
 ```
+
+### OpenCode
+
+tdder updates automatically when you restart OpenCode.
 
 ## Extending
 

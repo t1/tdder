@@ -1,5 +1,5 @@
 ---
-name: Unfolding Architecture
+name: unfolding-architecture
 description: >
   This skill should be used when the user asks to "design the architecture", "should I add a service layer",
   "add an abstraction", "introduce an interface", "separate concerns", "add a repository",

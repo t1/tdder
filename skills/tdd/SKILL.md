@@ -1,5 +1,5 @@
 ---
-name: Test-Driven Development
+name: tdd
 description: >
   This skill should be used when the user asks to "add a feature using TDD", "fix a bug with TDD",
   "do TDD", "red-green-refactor", "write a failing test first", "use test-driven development",
