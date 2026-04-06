@@ -4,7 +4,7 @@ description: >
   and returns prioritized refactoring suggestions. Spawned during TDD refactor phases
   or when explicitly requested for code review.
 mode: subagent
-color: green
+color: success
 permission:
   edit: deny
   bash: deny

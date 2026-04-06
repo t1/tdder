@@ -17,6 +17,14 @@ To test changes, load the plugin locally:
 claude --plugin-dir /path/to/tdder
 ```
 
+## Dual-platform agents
+
+The `clean-code-reviewer` agent exists in two copies with different formats:
+- `agents/clean-code-reviewer.md` — Claude Code format
+- `.opencode/agents/clean-code-reviewer.md` — OpenCode format
+
+Keep them in sync when changing review criteria.
+
 ## Commits
 
 - Keep commit messages short (single line, no body).
