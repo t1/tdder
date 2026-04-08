@@ -28,6 +28,7 @@ Use this checklist during every refactor phase.
 - [ ] No dead code
 - [ ] No commented-out code
 - [ ] No long methods
+- [ ] No inline comments grouping lines (extract to methods instead)
 - [ ] No long parameter lists
 - [ ] No feature envy
 - [ ] No primitive obsession

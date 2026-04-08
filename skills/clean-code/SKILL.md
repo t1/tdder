@@ -60,6 +60,11 @@ then use `AskUserQuestion` to let the user decide how to proceed:
 This avoids surprise refactorings and lets the user control scope. This process applies regardless
 of whether findings come from direct review or from the `clean-code-reviewer` agent.
 
+When re-evaluating subagent findings, give due weight to the principle the subagent applied.
+"It's short enough" or "extraction adds indirection" are not rebuttals — they're rationalizations
+unless you name the specific principle that outweighs the one being violated. The bias should be
+toward applying the principle, not toward leaving code as-is.
+
 ## Refactoring Priority Order
 
 When reviewing or refactoring code, follow this priority order:
@@ -79,6 +84,7 @@ When reviewing or refactoring code, follow this priority order:
 
 - Duplication (DRY principle)
 - Long methods (>20 lines is suspicious)
+- Inline comments grouping lines (each group is a method waiting to be extracted)
 - Complex conditionals (can they be encapsulated?)
 - Feature envy (methods using other classes more than their own)
 - Primitive obsession (should primitives be objects?)
@@ -95,7 +101,8 @@ When reviewing or refactoring code, follow this priority order:
 
 ### Priority 4: Method Design
 
-- One thing per method at one level of abstraction
+- One thing per method at one level of abstraction — "short" is not "clean";
+  a method that does four short things is still doing four things
 - Argument count: 0-2 ideal, 3+ needs refactoring
 - No flag/boolean arguments (split into separate methods)
 - No output arguments (change object state instead)
