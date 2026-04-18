@@ -66,6 +66,43 @@ src/
 └── test/resources/     # Test resources
 ```
 
+## System Tests
+
+System Tests (STs) are named `*ST.java`. This naming is not matched by
+Surefire's default includes (`**/Test*.java`, `**/*Test.java`,
+`**/*Tests.java`, `**/*TestCase.java`), so no Surefire exclusion is needed.
+
+STs run via the Failsafe plugin (post-packaging) in a dedicated profile:
+
+```xml
+<profile>
+    <id>st</id>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <includes>
+                        <include>**/*ST.java</include>
+                    </includes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</profile>
+```
+
+Run STs with: `mvn verify -Pst`
+
 ## POM Conventions
 
 ### Dependencies

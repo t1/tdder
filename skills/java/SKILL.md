@@ -227,6 +227,15 @@ or an H2 database).
 
 If in doubt, start with a Fake.
 
+## System Tests
+
+System Tests (STs) go in the `test.system` package under the test root.
+Sub-structure this package as the project grows.
+
+Name ST classes with the suffix `ST` (e.g., `BookResourceST.java`). This
+naming is not recognized by Surefire's default includes, so STs are
+automatically excluded from normal test runs.
+
 ## IDE Integration
 
 After editing Java files, always check with the IDE for:
