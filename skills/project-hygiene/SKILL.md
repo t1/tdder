@@ -49,3 +49,8 @@ skill can be updated — don't work around it by reading source.
 When executing a plan: if a technology or dependency from the plan doesn't work as expected,
 **STOP and discuss with the user.** Do not substitute alternative libraries, frameworks, or
 architectural approaches. The plan's tech choices are constraints, not suggestions.
+
+## Temporary Folders
+
+**Never** use the global `/tmp` folder; create (and ignore) a folder within the project.
+If there is already a natural temporary folder, e.g. `target/` for a maven project, use that.
