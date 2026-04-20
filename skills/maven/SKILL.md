@@ -53,6 +53,9 @@ mvn test -Dtest=MyTest#myMethod
 ## Maven Central
 
 Use `central.sonatype.com` for Maven artifact searches, **not** `search.maven.org` (obsolete).
+All dependency versions — including frameworks like Quarkus — are published to Maven Central.
+Always fetch the actual Maven Central page to verify the latest version. Never trust version
+numbers from web search snippets or other secondary sources.
 
 ## Project Structure
 
