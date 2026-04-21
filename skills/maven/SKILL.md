@@ -52,10 +52,24 @@ mvn test -Dtest=MyTest#myMethod
 
 ## Maven Central
 
-Use `central.sonatype.com` for Maven artifact searches, **not** `search.maven.org` (obsolete).
 All dependency versions — including frameworks like Quarkus — are published to Maven Central.
-Always fetch the actual Maven Central page to verify the latest version. Never trust version
+Always fetch from the actual Maven Central to verify the latest version. Never trust version
 numbers from web search snippets or other secondary sources.
+
+Use the Maven repository metadata to look up artifact versions:
+
+`curl -s "https://repo1.maven.org/maven2/{groupId with '.' replaced by '/'}/{artifactId}/maven-metadata.xml"`
+
+For example, org.assertj:assertj-core resolves to:
+https://repo1.maven.org/maven2/org/assertj/assertj-core/maven-metadata.xml
+
+The <release> element contains the latest release. Filter out milestones
+(M1, CR1, Alpha, Beta, RC) if you need a stable version:
+
+`curl -s "https://repo1.maven.org/maven2/org/assertj/assertj-core/maven-metadata.xml" \
+    | grep '<version>' | grep -v 'M[0-9]\|Alpha\|Beta\|RC\|CR\|SNAPSHOT' | tail -1`
+
+DO NOT USE search.maven.org! It's obsolete and returns outdated versions!!!
 
 ## Project Structure
 
