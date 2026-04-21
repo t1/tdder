@@ -190,3 +190,11 @@ And it can compile into the same `target/classes` directory as Maven. This cause
   ```xml
   <classpathentry kind="output" path="target/eclipse-classes"/>
   ```
+
+## Resolving Dependency APIs
+
+When you need to find out how a dependency's API works (method signatures, builder methods, interface contracts), use
+IDE tools (`get_symbol_info`, `search_symbol`) or the `jdtls-lsp` (`goToDefinition`, et.al.) instead of manually
+decompiling jars with `javap` or reading files from `~/.m2/repository`. Both already index all dependencies and
+provide richer context including documentation and declarations. If neither are available, suggest to the user to
+install one or the other, including a short how-to. Only if the user denies, fall back to working manually.
