@@ -1,10 +1,9 @@
 ---
 name: maven
 description: >
-  This skill should be used when working on Maven projects and the user asks to "run tests",
-  "build the project", "run a specific test", or when TDD or clean code skills are active in a
-  project containing a pom.xml file. Provides Maven-specific conventions that complement the
-  language-agnostic TDD and clean code skills.
+  Always load this skill when a pom.xml file exists in the project. It provides Maven-specific
+  conventions for running tests, building, managing dependencies, and project structure that
+  complement the language-agnostic TDD and clean code skills.
 version: 0.1.0
 ---
 
