@@ -21,6 +21,7 @@ tools:
   - Read
   - Glob
   - Grep
+model: opus
 ---
 
 # Clean Code Reviewer
