@@ -55,20 +55,20 @@ All dependency versions — including frameworks like Quarkus — are published 
 Always fetch from the actual Maven Central to verify the latest version. Never trust version
 numbers from web search snippets or other secondary sources.
 
-Use the Maven repository metadata to look up artifact versions:
+Use `WebFetch` to look up artifact versions on central.sonatype.com:
 
-`curl -s "https://repo1.maven.org/maven2/{groupId with '.' replaced by '/'}/{artifactId}/maven-metadata.xml"`
+```
+WebFetch(url: "https://central.sonatype.com/artifact/{groupId}/{artifactId}", prompt: "What is the latest version?")
+```
 
-For example, org.assertj:assertj-core resolves to:
-https://repo1.maven.org/maven2/org/assertj/assertj-core/maven-metadata.xml
+For example, to find the latest version of `org.assertj:assertj-core`:
 
-The <release> element contains the latest release. Filter out milestones
-(M1, CR1, Alpha, Beta, RC) if you need a stable version:
-
-`curl -s "https://repo1.maven.org/maven2/org/assertj/assertj-core/maven-metadata.xml" \
-    | grep '<version>' | grep -v 'M[0-9]\|Alpha\|Beta\|RC\|CR\|SNAPSHOT' | tail -1`
+```
+WebFetch(url: "https://central.sonatype.com/artifact/org.assertj/assertj-core", prompt: "What is the latest stable version? Ignore milestones, alphas, betas, and RCs.")
+```
 
 DO NOT USE search.maven.org! It's obsolete and returns outdated versions!!!
+DO NOT USE `curl` to fetch from repo1.maven.org — the sandbox blocks it.
 
 ## Project Structure
 
@@ -120,6 +120,26 @@ STs run via the Failsafe plugin (post-packaging) in a dedicated profile:
 Run STs with: `mvn verify -Pst`
 
 ## Running Maven in the Claude Code Sandbox
+
+### Downloading new dependencies
+
+The sandbox blocks DNS resolution for processes spawned by Bash, so Maven
+cannot download new dependencies from the internet. When Maven fails with
+a DNS/network error like `nodename nor servname provided, or not known`,
+retry the command with `dangerouslyDisableSandbox: true`.
+
+Prefer a targeted `dependency:resolve` over re-running the full build
+without sandbox:
+
+```bash
+# First: resolve dependencies with sandbox disabled
+Bash(command: "mvn dependency:resolve", dangerouslyDisableSandbox: true)
+
+# Then: run the actual build/test in the sandbox
+Bash(command: "mvn test")
+```
+
+### Testcontainers
 
 Maven with Testcontainers (Docker-based tests) requires sandbox configuration
 to work. Three problems must be solved:
