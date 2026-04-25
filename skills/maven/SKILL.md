@@ -119,6 +119,53 @@ STs run via the Failsafe plugin (post-packaging) in a dedicated profile:
 
 Run STs with: `mvn verify -Pst`
 
+## Running Maven in the Claude Code Sandbox
+
+Maven with Testcontainers (Docker-based tests) requires sandbox configuration
+to work. Three problems must be solved:
+
+### 1. Temp files
+
+Maven, Surefire, and Quarkus all create temp files. Redirect `java.io.tmpdir`
+to `target/tmp` for both the Maven JVM and forked test JVMs:
+
+- **Maven JVM**: set `MAVEN_OPTS="-Djava.io.tmpdir=target/tmp"` in
+  `.claude/settings.local.json` `env`
+- **Forked JVMs** (Surefire/Failsafe): set `<argLine>` in the plugin config:
+  ```xml
+  <argLine>-Djava.io.tmpdir=${project.build.directory}/tmp</argLine>
+  ```
+- **Native code** (e.g. jansi): set `TMPDIR=target/tmp` in
+  `.claude/settings.local.json` `env`
+- **Directory creation**: add a `SessionStart` hook to run `mkdir -p target/tmp`
+
+### 2. Docker socket
+
+On macOS, Docker Desktop exposes two socket paths. The sandbox must allow both:
+
+```json
+"allowUnixSockets": [
+    "/var/run/docker.sock",
+    "~/.docker/run/docker.sock"
+]
+```
+
+`/var/run/docker.sock` is often a symlink to `~/.docker/run/docker.sock`;
+the sandbox resolves symlinks, so both paths are needed.
+
+### 3. Localhost TCP
+
+Testcontainers connects to started containers via `localhost:<random-port>`.
+Enable this with:
+
+```json
+"allowLocalBinding": true,
+"allowedDomains": ["localhost"]
+```
+
+If Docker images are not cached locally, also add `"registry-1.docker.io"`
+to `allowedDomains`.
+
 ## POM Conventions
 
 ### Dependencies
