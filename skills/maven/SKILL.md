@@ -58,13 +58,13 @@ numbers from web search snippets or other secondary sources.
 Use `WebFetch` to look up artifact versions on central.sonatype.com:
 
 ```
-WebFetch(url: "https://central.sonatype.com/artifact/{groupId}/{artifactId}", prompt: "What is the latest version?")
+WebFetch(url: "https://central.sonatype.com/artifact/{groupId}/{artifactId}", prompt: "What is the latest stable version of {groupId}:{artifactId}? Ignore milestones, alphas, betas, and RCs.")
 ```
 
 For example, to find the latest version of `org.assertj:assertj-core`:
 
 ```
-WebFetch(url: "https://central.sonatype.com/artifact/org.assertj/assertj-core", prompt: "What is the latest stable version? Ignore milestones, alphas, betas, and RCs.")
+WebFetch(url: "https://central.sonatype.com/artifact/org.assertj/assertj-core", prompt: "What is the latest stable version of org.assertj:assertj-core? Ignore milestones, alphas, betas, and RCs.")
 ```
 
 DO NOT USE search.maven.org! It's obsolete and returns outdated versions!!!
@@ -126,16 +126,18 @@ Run STs with: `mvn verify -Pst`
 The sandbox blocks DNS resolution for processes spawned by Bash, so Maven
 cannot download new dependencies from the internet. When Maven fails with
 a DNS/network error like `nodename nor servname provided, or not known`,
-retry the command with `dangerouslyDisableSandbox: true`.
+use `dangerouslyDisableSandbox: true` — but **ONLY** for `dependency:resolve`.
 
-Prefer a targeted `dependency:resolve` over re-running the full build
-without sandbox:
+**NEVER** run builds, tests, or plugin goals with the sandbox disabled.
+The sandbox exists to prevent arbitrary code execution by build plugins and
+test code. Disabling it for anything beyond dependency download is a
+security violation. Always split into two steps:
 
 ```bash
-# First: resolve dependencies with sandbox disabled
+# Step 1: resolve dependencies with sandbox disabled — ONLY this goal
 Bash(command: "mvn dependency:resolve", dangerouslyDisableSandbox: true)
 
-# Then: run the actual build/test in the sandbox
+# Step 2: run the actual build/test IN the sandbox
 Bash(command: "mvn test")
 ```
 
