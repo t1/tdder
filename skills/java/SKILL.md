@@ -13,6 +13,18 @@ version: 0.2.0
 Java-specific coding conventions complementing the TDD and Clean Code skills.
 We use modern language features to reduce boiler plate and get more to the point.
 
+## Java Version
+
+When you need to know the latest Java version (e.g. for new projects, upgrades, or Dockerfiles),
+query the Adoptium API:
+
+```
+https://api.adoptium.net/v3/info/available_releases
+```
+
+Use `most_recent_feature_release` (latest GA) by default.
+Use `most_recent_lts` only when explicitly asked for LTS.
+
 ## Code Style
 
 ### Logic Expressions
