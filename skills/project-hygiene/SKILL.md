@@ -44,6 +44,9 @@ Skills encode conventions (imports, naming, idioms) that apply to every change, 
 The skill is the authoritative reference. If the skill is missing something, report it so the
 skill can be updated — don't work around it by reading source.
 
+**VERY IMPORTANT**: if any skill you where instructed to load can't be loaded, stop immediately!
+Something's wrong that needs to be fixed first.
+
 ## Plan Execution
 
 When executing a plan: if a technology or dependency from the plan doesn't work as expected,
@@ -52,5 +55,13 @@ architectural approaches. The plan's tech choices are constraints, not suggestio
 
 ## Temporary Folders
 
-**Never** use the global `/tmp` folder; create (and ignore) a folder within the project.
+**Never** use the global `/tmp` folder; create an ignored folder within the project.
 If there is already a natural temporary folder, e.g. `target/` for a maven project, use that.
+
+## Tool Use
+
+*Always* prefer to use the `WebFetch` tool over `curl`.
+
+*Always* prefer the `Write` tool over `cat > file << EOF`.
+
+*Never* use `find ... -exec`; it triggers a question that can't be auto-allowed.
