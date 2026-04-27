@@ -91,42 +91,42 @@ src/
 └── test/resources/     # Test resources
 ```
 
-## System Tests
+## System Tests, Acceptance Tests, etc.
 
-System Tests (STs) are named `*ST.java`. This naming is not matched by
-Surefire's default includes (`**/Test*.java`, `**/*Test.java`,
-`**/*Tests.java`, `**/*TestCase.java`), so no Surefire exclusion is needed.
+Tests that require a running service (e.g. a Quarkus application) **must** use
+the Failsafe plugin, not Surefire. Failsafe runs during the `integration-test`
+phase, which has `pre-integration-test` and `post-integration-test` lifecycle
+phases where frameworks like Quarkus can automatically start and stop a test
+instance. Surefire's `test` phase has no such hooks.
 
-STs run via the Failsafe plugin (post-packaging) in a dedicated profile:
+Integration Tests (ITs) are named `*IT.java`, so they are picked up by surefire by default.
+
+System Tests (STs) are named `*ST.java`, Acceptance Test (ATs) `*AT.java`.
+This naming is not matched by Surefire's default includes (`**/Test*.java`, `**/*Test.java`,
+`**/*Tests.java`, `**/*TestCase.java`), so no Surefire exclusion is needed. But they also
+don't match Failsafe's default includes, so the necessary pattern have to be added, e.g.:
 
 ```xml
-<profile>
-    <id>st</id>
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-failsafe-plugin</artifactId>
-                <configuration>
-                    <includes>
-                        <include>**/*ST.java</include>
-                    </includes>
-                </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>integration-test</goal>
-                            <goal>verify</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
-</profile>
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-failsafe-plugin</artifactId>
+    <configuration>
+        <includes>
+            <include>**/*IT.java</include>
+            <include>**/*AT.java</include>
+            <include>**/*ST.java</include>
+        </includes>
+    </configuration>
+    <executions>
+        <execution>
+            <goals>
+                <goal>integration-test</goal>
+                <goal>verify</goal>
+            </goals>
+        </execution>
+    </executions>
+</plugin>
 ```
-
-Run STs with: `mvn verify -Pst`
 
 ## Running Maven in the Claude Code Sandbox
 
