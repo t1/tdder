@@ -158,17 +158,16 @@ to work. Three problems must be solved:
 ### 1. Temp files
 
 Maven, Surefire, and Quarkus all create temp files. Redirect `java.io.tmpdir`
-to `target/tmp` for both the Maven JVM and forked test JVMs:
+to `target` for both the Maven JVM and forked test JVMs:
 
-- **Maven JVM**: set `MAVEN_OPTS="-Djava.io.tmpdir=target/tmp"` in
+- **Maven JVM**: set `MAVEN_OPTS="-Djava.io.tmpdir=target"` in
   `.claude/settings.local.json` `env`
 - **Forked JVMs** (Surefire/Failsafe): set `<argLine>` in the plugin config:
   ```xml
-  <argLine>-Djava.io.tmpdir=${project.build.directory}/tmp</argLine>
+  <argLine>-Djava.io.tmpdir=${project.build.directory}</argLine>
   ```
-- **Native code** (e.g. jansi): set `TMPDIR=target/tmp` in
+- **Native code** (e.g. jansi): set `TMPDIR=target` in
   `.claude/settings.local.json` `env`
-- **Directory creation**: add a `SessionStart` hook to run `mkdir -p target/tmp`
 
 ### 2. Docker socket
 
