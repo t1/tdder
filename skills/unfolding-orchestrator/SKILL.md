@@ -111,14 +111,14 @@ Spawn prompts should contain only:
     - "During AT verification, do NOT investigate why tests fail. Do not
       read source code, stack traces, or test implementations. Report
       failures in business terms only — the Architect diagnoses the cause."
-  Current reinforcements for the **Architect**:
+      Current reinforcements for the **Architect**:
     - (none yet)
-  Current reinforcements for the **Coder**:
+      Current reinforcements for the **Coder**:
     - "Do NOT read, run, or modify System Tests (*ST.java). They belong
       to the Architect. Write your own TDD tests to drive implementation."
     - "If the code reviewer raises issues outside your changes (pre-existing
       issues), forward them to the Architect — don't just reject them."
-  Current reinforcements for the **Code Reviewer**:
+      Current reinforcements for the **Code Reviewer**:
     - (none yet)
 
 #### Code Reviewer
@@ -174,15 +174,15 @@ pre-existing failures.
 
 Shut down each agent when their **direct commissioner** is satisfied:
 
-| Agent        | Shut down when                          |
-|--------------|-----------------------------------------|
-| Coder        | Architect confirms STs pass             |
-| Code Reviewer| Coder confirms review is done           |
-| UI Expert    | Architect accepts the mapping           |
-| UX Designer  | PO accepts the design AND UX review     |
-| API Designer | PO accepts the API spec                 |
-| Architect    | PO verifies ATs pass                    |
-| PO           | Feature verified (ATs pass)             |
+| Agent         | Shut down when                      |
+|---------------|-------------------------------------|
+| Coder         | Architect confirms STs pass         |
+| Code Reviewer | Coder confirms review is done       |
+| UI Expert     | Architect accepts the mapping       |
+| UX Designer   | PO accepts the design AND UX review |
+| API Designer  | PO accepts the API spec             |
+| Architect     | PO verifies ATs pass                |
+| PO            | Feature verified (ATs pass)         |
 
 Use `SendMessage` with `type: "shutdown_request"` to shut down an agent.
 If a later failure requires the same role, spawn a fresh agent.
@@ -209,7 +209,9 @@ requested Playwright action and send the result back:
 - **click** → call `browser_click`, confirm the action and send
   the updated snapshot
 
-The UX Designer interprets the results.
+The UX Designer interprets the results. Do NOT analyze screenshots
+or snapshots yourself — report what the tool returned (snapshot text,
+file path) without adding your own observations or judgments.
 
 #### Test Execution (PO, Architect)
 
@@ -248,22 +250,22 @@ checklist:
 
 ## Artifact Locations
 
-| Artifact                      | Location            | Owned by     |
-|-------------------------------|---------------------|--------------|
-| Product brief                 | `docs/product.md`   | PO           |
-| Feature Design Decisions      | `docs/fdd/`         | PO           |
-| Architecture Decision Records | `docs/adr/`         | Architect    |
-| Process state                 | `docs/state.yaml`   | Orchestrator |
-| Acceptance Tests (ATs)        | `docs/ats/`         | PO           |
-| AT index (incl. Roles)        | `docs/ats/INDEX.md` | PO           |
-| AT step catalog               | `docs/ats/steps/`   | PO           |
-| Business Rules                | `docs/rules/`       | PO           |
-| Business Rules index          | `docs/rules/INDEX.md` | PO         |
-| Business Rule step catalog    | `docs/rules/steps/` | PO           |
-| UX component catalog          | `docs/ux/`          | UX Designer  |
-| UX tech mappings              | `docs/ux-mapping/`  | Architect    |
-| API resource catalog          | `docs/api/`         | API Designer |
-| System Tests (STs)            | In code             | Architect    |
+| Artifact                      | Location              | Owned by     |
+|-------------------------------|-----------------------|--------------|
+| Product brief                 | `docs/product.md`     | PO           |
+| Feature Design Decisions      | `docs/fdd/`           | PO           |
+| Architecture Decision Records | `docs/adr/`           | Architect    |
+| Process state                 | `docs/state.yaml`     | Orchestrator |
+| Acceptance Tests (ATs)        | `docs/ats/`           | PO           |
+| AT index (incl. Roles)        | `docs/ats/INDEX.md`   | PO           |
+| AT step catalog               | `docs/ats/steps/`     | PO           |
+| Business Rules                | `docs/rules/`         | PO           |
+| Business Rules index          | `docs/rules/INDEX.md` | PO           |
+| Business Rule step catalog    | `docs/rules/steps/`   | PO           |
+| UX component catalog          | `docs/ux/`            | UX Designer  |
+| UX tech mappings              | `docs/ux-mapping/`    | Architect    |
+| API resource catalog          | `docs/api/`           | API Designer |
+| System Tests (STs)            | In code               | Architect    |
 
 **Isolation rules:**
 
