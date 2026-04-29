@@ -223,7 +223,65 @@ requesting agent. The agent interprets the results.
 This is a coordination task — you are acting as a tool proxy, not making
 product decisions or diagnosing test failures.
 
-### 6. Post-Milestone Checks
+### 6. Manage Service Lifecycle for UX Reviews
+
+When the UX Designer needs to review the implementation, the application/service
+must be running so Playwright can navigate to pages and interact with the UI.
+
+**When to start the service:**
+
+The PO creates a `[UX-REVIEW]` task after the Architect completes implementation.
+At that point, before confirming the UX Designer is active, start the service.
+
+**How to start the service:**
+
+1. Read `docs/COMMANDS.md` and extract the command between the `<start-service>` tags
+2. Execute that command as a background process using the Bash tool with
+   `run_in_background: true`
+3. **Save the task ID** returned by the Bash tool - you'll need it to stop the service later
+4. Wait a few seconds for the service to initialize (e.g., 5-10 seconds,
+   or check logs for a "started" message)
+5. Confirm to the requesting agent (PO or UX Designer) that the service is running
+
+Example:
+
+```
+If the content between <start-service> tags is: mvn quarkus:dev
+
+Then: 
+  result = Bash(command: "mvn quarkus:dev", run_in_background: true)
+  # Save the task_id from result for later
+  Wait for Quarkus startup logs to confirm "Listening on: http://localhost:..."
+```
+
+**Service not running error:**
+
+If the UX Designer messages you with **"Service not running:"**, it means they
+tried to navigate to a page but got a connection error. Follow the startup
+procedure above, then confirm the service is running.
+
+**When to stop the service:**
+
+After the UX Designer completes the review and the PO confirms the design is
+implemented correctly, stop the service:
+
+1. Use the task ID you saved when starting the service
+2. Call `TaskStop(task_id: "<the-saved-task-id>")` to terminate the background process
+
+The `<stop-service>` section in `docs/COMMANDS.md` tells you to use TaskStop - the
+manual instruction ("Press Ctrl+C") is only for humans running the service outside
+of the agent workflow.
+
+**Service lifecycle notes:**
+
+The service runs in dev mode with auto-reload (like Quarkus dev mode), so it
+stays running across code changes. Only stop it when:
+- The UX review is complete AND accepted, OR
+- You're shutting down the team after Feature verification
+
+Do NOT restart the service for each code change - dev mode handles that automatically.
+
+### 7. Post-Milestone Checks
 
 After major milestones (Feature complete, AT verified), run through this
 checklist:

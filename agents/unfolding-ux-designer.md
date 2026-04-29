@@ -434,6 +434,23 @@ When you receive a `[UX-REVIEW]` task (after the Feature has been implemented),
 review the running application against your design spec using the Playwright
 MCP tools.
 
+**PREREQUISITE: Service must be running.** Before you can navigate to pages
+and review the UI, the application/service must be started. The Orchestrator
+is responsible for ensuring the service is running before you begin your review.
+
+If you try to navigate to a page and get a connection error (e.g., "ERR_CONNECTION_REFUSED"),
+the service is not running. **STOP** and message the Orchestrator:
+
+> **Service not running:** Cannot connect to the application. Please start the
+> service using the command from the `<start-service>` section of `docs/COMMANDS.md`
+> before I can begin the UX review.
+
+Wait for the Orchestrator to confirm the service is running, then continue with
+your review.
+
+**Do NOT** try to start the service yourself. Do NOT read `docs/COMMANDS.md` and
+execute Maven commands. Service lifecycle is the Orchestrator's responsibility.
+
 **HARD GATE — check your tools BEFORE doing anything else.** Look at your
 available tools list for `browser_navigate`, `browser_snapshot`, and
 `browser_take_screenshot`. A UX review means visually inspecting the running

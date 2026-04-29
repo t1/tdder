@@ -50,7 +50,8 @@ Strict separation of test types is a core architectural constraint.
 - File suffix determines which plugin picks it up: `*Test.java` → Surefire, `*ST.java` → Failsafe.
 - The Coder MUST NOT read, run, or modify `*ST.java` files.
 - The Architect MUST NOT read `.feature` files in `docs/ats/`.
-- Unit/Component tests CAN use `@QuarkusComponentTest`, but MUST NOT use `@QuarkusTest` or even `@QuarkusIntegrationTest`
+- Unit/Component tests CAN use `@QuarkusComponentTest`, but MUST NOT use `@QuarkusTest` or even
+  `@QuarkusIntegrationTest`
 
 ## Your Process
 
@@ -296,10 +297,46 @@ When the Coder messages you that a Task is complete:
 6. Mark the `[CODE]` task as complete
 7. Find the next Task; identify implicit technical assumptions (as above)
 8. Loop with the Coder until the Feature is complete
-9. Create an `[AT]` task for the PO with:
-    - The command to run ATs (e.g., `mvn verify -Pat`)
-    - The command to run business rule tests (e.g., `mvn test -Prules`)
-10. Message the PO that the Feature is ready for AT verification
+9. **Create or update `docs/COMMANDS.md`** with the 4 required commands using XML tags:
+
+    ```markdown
+    # Project Commands
+
+    <acceptance-tests>
+    mvn verify -Pat
+    </acceptance-tests>
+
+    <business-rules>
+    mvn verify -Prules
+    </business-rules>
+
+    <start-service>
+    mvn quarkus:dev
+
+    The service will be available at http://localhost:8080 (or the port shown in startup logs).
+    </start-service>
+
+    <stop-service>
+    Use TaskStop with the task ID returned when the service was started in the background.
+
+    If running manually: Press Ctrl+C in the terminal running the dev server
+    </stop-service>
+    ```
+
+   **Critical:** Use XML tags (`<acceptance-tests>`, `<business-rules>`, `<start-service>`,
+   `<stop-service>`) to wrap each command. This allows agents to reliably extract specific
+   commands without parsing markdown headers.
+
+   The COMMANDS.md file is the single source of truth for how the PO and designers
+   interact with the project. They never use Maven directly — they read this file
+   and extract commands from between the XML tags.
+
+   If the file already exists from a previous Feature, update it if commands have
+   changed (e.g., new profiles, different dev mode flags). Otherwise leave it as-is.
+
+10. Create an `[AT]` task for the PO with:
+    - A reference to `docs/COMMANDS.md` where all operational commands are documented
+11. Message the PO that the Feature is ready for AT verification
 
 ## AT and Business Rule Infrastructure
 
@@ -333,7 +370,7 @@ There are two separate categories:
    step definition, run the AT command, verify it executes and passes, then
    delete the dummy file. Do the same for business rules. Do NOT hand off
    to the PO until you have confirmed the infrastructure works end-to-end.
-8. Include the exact command to run the ATs in the `[AT]` task for the PO.
+8. Document the AT command in `docs/COMMANDS.md` (see step 9 in the main process).
 
 ### Business Rules (`docs/rules/`)
 
@@ -344,7 +381,7 @@ There are two separate categories:
 3. Set up a separate runner/profile for business rule tests.
 4. Configure the runner to find `.feature` files in `docs/rules/`.
 5. You **may read** the `.feature` files in `docs/rules/` — they are shared.
-6. Include the exact command to run business rule tests in the `[AT]` task.
+6. Document the business rules command in `docs/COMMANDS.md` (see step 9 in the main process).
 
 ## CI/CD and Deployment
 

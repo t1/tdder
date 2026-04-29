@@ -334,12 +334,6 @@ optimize for passing them rather than truly understanding the problem.
 
 Message the Orchestrator: "Please ensure Architect is active for task #X."
 
-You cannot run ATs or business rule tests until the Architect has set up
-the infrastructure and returned the commands to execute them. Do NOT guess
-or invent run commands. When the Architect provides the commands, persist
-them in `docs/ats/COMMANDS.md` and `docs/rules/COMMANDS.md` so they
-survive across sessions.
-
 ### 9. Commission UX Review (UI Features)
 
 When the Architect reports that STs pass and creates an `[AT]` task,
@@ -363,10 +357,34 @@ When the Architect reports that STs pass and creates an `[AT]` task,
 
 When the UX review is complete (or was not needed), verify the Feature:
 
-Run **all** ATs and **all** business rule tests using the commands in
-`docs/ats/COMMANDS.md` and `docs/rules/COMMANDS.md` — not just the ones
-for the current Feature. Regression
+**Step 1: Read the documented commands**
+
+Read `docs/COMMANDS.md` to get the exact commands for running tests. This file
+was created by the Architect and contains the correct commands with proper
+profiles and configuration.
+
+The file uses XML tags to structure 4 commands:
+
+- `<acceptance-tests>` — command to run all ATs
+- `<business-rules>` — command to run all business rule tests
+- `<start-service>` — (not used during AT verification)
+- `<stop-service>` — (not used during AT verification)
+
+Extract the commands by reading the content between the tags.
+
+**CRITICAL:** Do NOT construct commands yourself. Do NOT guess.
+Use the exact commands from between the XML tags in `docs/COMMANDS.md`.
+If that file does not exist, tell the Architect that you need it.
+
+**Step 2: Run the tests**
+
+Run **all** ATs and **all** business rule tests using the commands extracted from
+`docs/COMMANDS.md` — not just the ones for the current Feature. Regression
 across the full suite must be caught before a Feature is considered verified.
+
+Example: If the content between `<acceptance-tests>` tags is `mvn verify -Pat`, use
+exactly that. If the content between `<business-rules>` tags is `mvn verify -Prules`,
+use exactly that.
 
 **Playwright sandbox fallback:** If test execution fails because
 Playwright/Chromium cannot launch (e.g., `MachPortRendezvousServer:
