@@ -9,7 +9,8 @@ version: 0.1.0
 
 # Maven Conventions
 
-Maven-specific conventions complementing the TDD and Clean Code skills.
+Use the Maven lifecycle phase that matches what the test actually needs
+(compiled classes vs. packaged artifact vs. integration environment).
 
 ## Running Tests
 
@@ -28,8 +29,21 @@ mvn test -Dtest=VersionTest
 ### Specific Integration Test (no unit tests)
 
 ```bash
-mvn -Dskip.surefire.tests -Dit.test=CheckCommandIT verify
+mvn verify -Dskip.surefire.tests -Dit.test=CheckCommandIT
 ```
+
+### Specific Integration Test Method (no unit tests)
+
+```bash
+mvn verify -Dskip.surefire.tests -Dit.test='CheckCommandIT#shouldHandlePropertyBasedVersions'
+```
+
+### Integration Tests That Execute the Built JAR
+
+`mvn test` does **not** build the final JAR in `target/`.
+Integration tests that execute the built application JAR must run on `verify`, not `test`.
+If you changed the code and then run such an IT with `mvn test`, it may use a stale JAR from
+an earlier build or fail because the JAR does not exist yet.
 
 ### Build Without Tests
 
@@ -94,14 +108,18 @@ src/
 ## System Tests, Acceptance Tests, etc.
 
 Tests that require a running service (e.g. a Quarkus application) **must** use
-the Failsafe plugin, not Surefire. Failsafe runs during the `integration-test`
+the Failsafe plugin, not Surefire.
+
+Failsafe runs during the `integration-test`
 phase, which has `pre-integration-test` and `post-integration-test` lifecycle
 phases where frameworks like Quarkus can automatically start and stop a test
 instance. Surefire's `test` phase has no such hooks.
 
-Integration Tests (ITs) are named `*IT.java`, so they are picked up by surefire by default.
+Integration Tests (ITs) are typically named `*IT.java`.
+They are **not** picked up by Surefire's default includes.
+Run them with Failsafe on the `verify` lifecycle.
 
-System Tests (STs) are named `*ST.java`, Acceptance Test (ATs) `*AT.java`.
+System Tests (STs) are named `*ST.java`, Acceptance Tests (ATs) `*AT.java`.
 This naming is not matched by Surefire's default includes (`**/Test*.java`, `**/*Test.java`,
 `**/*Tests.java`, `**/*TestCase.java`), so no Surefire exclusion is needed. But they also
 don't match Failsafe's default includes, so the necessary pattern have to be added, e.g.:
