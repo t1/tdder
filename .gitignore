@@ -1,5 +1,7 @@
 /.idea/
 /.envrc
 /TODO.md
+/package-lock.json
+/node_modules/
 
 /docs/superpowers/

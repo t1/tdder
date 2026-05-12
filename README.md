@@ -75,7 +75,7 @@ Tab-completion lists all subcommands.
 ¹ `open` and `devui` derive the URL from the port reported by `quarkus_status` and use the
 default paths (`/` and `/q/dev-ui`). They do not honour `quarkus.http.root-path` or
 `quarkus.http.non-application-root-path` overrides — this is a known limitation tracked in
-[quarkusio/quarkus-agent-mcp#…](https://github.com/quarkusio/quarkus-agent-mcp/issues)
+[quarkusio/quarkus-agent-mcp#…](https://github.com/quarkusio/quarkus-agent-mcp/issues/132)
 and will be fixed once upstream exposes `sendInput('w')` / `sendInput('d')` as MCP tools.
 
 **Dispatch strategy:** direct subcommands call the MCP tool immediately and show the result as a
