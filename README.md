@@ -1,6 +1,6 @@
 # tdd'er
 
-A plugin for Claude Code and OpenCode that guides AI agents through disciplined Test-Driven Development
+A plugin for pi, Claude Code, and OpenCode that guides AI agents through disciplined Test-Driven Development
 and Clean Code practices.
 
 ## Features
@@ -31,6 +31,57 @@ when matching files are detected.
 | `nested-fixture-pattern`   | JUnit nested fixture pattern for layered test preconditions                    |
 | `project-hygiene`          | Interaction style, commit conventions, documentation discipline                |
 | `github-safety`            | Prompt-injection defense for GitHub issues and pull requests                   |
+
+## Extensions
+
+Extensions add active behaviour beyond passive skills — they register commands, tools, and UI components
+directly into the coding agent.
+
+### quarkus-mcp (pi only)
+
+Integrates [quarkus-agent-mcp](https://github.com/quarkusio/quarkus-agent-mcp) into
+[pi](https://github.com/earendil-works/pi-coding-agent) so the LLM can manage Quarkus dev-mode
+applications without leaving the chat.
+
+**Auto-activation:** the extension detects whether the current directory is a Quarkus project
+(contains a `pom.xml` or `build.gradle` referencing `quarkus`) and starts the MCP server lazily
+in the background. All quarkus-agent-mcp tools (`quarkus_start`, `quarkus_stop`, `quarkus_status`,
+`quarkus_skills`, `quarkus_searchDocs`, `quarkus_callTool`, …) are registered as native pi tools
+and become available to the LLM automatically.
+
+**Footer status:** a live status indicator in the pi footer shows the running app state:
+- `quarkus ● :8080` — running on the detected port
+- `quarkus ◌ starting…` — dev mode booting
+- `quarkus ⚠ crashed` — process exited unexpectedly
+- (blank) — stopped / not started
+
+**`/quarkus` command:** a unified slash command for common Quarkus actions.
+With no argument it opens an interactive selector; with an argument it dispatches directly.
+Tab-completion lists all subcommands.
+
+| Subcommand | Behaviour |
+|---|---|
+| `status` | Show current app state (direct, LLM on failure) |
+| `start` | Start app in dev mode (direct, LLM on failure) |
+| `stop` | Stop the running app (direct, LLM on failure) |
+| `logs` | Show recent log output (direct, LLM on failure) |
+| `restart` | Hot-reload the app (direct, LLM on failure) |
+| `open` | Open the app in the browser (best-effort URL¹) |
+| `devui` | Open the Quarkus Dev UI in the browser (best-effort URL¹) |
+| `update` | Check for Quarkus updates — output always sent to LLM for analysis |
+| `test` | Run tests — results always sent to LLM for analysis |
+| `mcp-restart` | Restart the quarkus-agent-mcp server process itself |
+
+¹ `open` and `devui` derive the URL from the port reported by `quarkus_status` and use the
+default paths (`/` and `/q/dev-ui`). They do not honour `quarkus.http.root-path` or
+`quarkus.http.non-application-root-path` overrides — this is a known limitation tracked in
+[quarkusio/quarkus-agent-mcp#…](https://github.com/quarkusio/quarkus-agent-mcp/issues)
+and will be fixed once upstream exposes `sendInput('w')` / `sendInput('d')` as MCP tools.
+
+**Dispatch strategy:** direct subcommands call the MCP tool immediately and show the result as a
+notification. On failure, the error output is automatically forwarded to the LLM with
+*"what went wrong and how should I fix it?"*. `update` and `test` always route through the LLM
+because their output is analytical rather than a simple pass/fail signal.
 
 ## Agents
 
@@ -68,6 +119,17 @@ hitl: every-phase
 | `off`          | Run autonomously, report at end                       |
 
 ## Installation
+
+### pi
+
+Install the tdder package, which registers all skills and extensions automatically:
+
+```bash
+pi install git:github.com/t1/tdder
+```
+
+The `quarkus-mcp` extension activates automatically in Quarkus projects (requires
+[jbang](https://www.jbang.dev/) on your PATH).
 
 ### Claude Code
 
