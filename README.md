@@ -3,6 +3,10 @@
 A plugin for pi, Claude Code, and OpenCode that guides AI agents through disciplined Test-Driven Development
 and Clean Code practices.
 
+Note that currently this is **WORK IN PROGRESS**! I'm not even trying to keep it stable or tested.
+At the moment, I'm writing it only for my personal use; it may also work for you, but be ready to have issues;
+I'd be happy to hear about them!
+
 ## Features
 
 - **TDD discipline**: Strict Red-Green-Refactor cycles with baby steps and guessing game
@@ -50,6 +54,7 @@ in the background. All quarkus-agent-mcp tools (`quarkus_start`, `quarkus_stop`,
 and become available to the LLM automatically.
 
 **Footer status:** a live status indicator in the pi footer shows the running app state:
+
 - `quarkus ● :8080` — running on the detected port
 - `quarkus ◌ starting…` — dev mode booting
 - `quarkus ⚠ crashed` — process exited unexpectedly
@@ -59,18 +64,18 @@ and become available to the LLM automatically.
 With no argument it opens an interactive selector; with an argument it dispatches directly.
 Tab-completion lists all subcommands.
 
-| Subcommand | Behaviour |
-|---|---|
-| `status` | Show current app state (direct, LLM on failure) |
-| `start` | Start app in dev mode (direct, LLM on failure) |
-| `stop` | Stop the running app (direct, LLM on failure) |
-| `logs` | Show recent log output (direct, LLM on failure) |
-| `restart` | Hot-reload the app (direct, LLM on failure) |
-| `open` | Open the app in the browser (best-effort URL¹) |
-| `devui` | Open the Quarkus Dev UI in the browser (best-effort URL¹) |
-| `update` | Check for Quarkus updates — output always sent to LLM for analysis |
-| `test` | Run tests — results always sent to LLM for analysis |
-| `mcp-restart` | Restart the quarkus-agent-mcp server process itself |
+| Subcommand    | Behaviour                                                          |
+|---------------|--------------------------------------------------------------------|
+| `status`      | Show current app state (direct, LLM on failure)                    |
+| `start`       | Start app in dev mode (direct, LLM on failure)                     |
+| `stop`        | Stop the running app (direct, LLM on failure)                      |
+| `logs`        | Show recent log output (direct, LLM on failure)                    |
+| `restart`     | Hot-reload the app (direct, LLM on failure)                        |
+| `open`        | Open the app in the browser (best-effort URL¹)                     |
+| `devui`       | Open the Quarkus Dev UI in the browser (best-effort URL¹)          |
+| `update`      | Check for Quarkus updates — output always sent to LLM for analysis |
+| `test`        | Run tests — results always sent to LLM for analysis                |
+| `mcp-restart` | Restart the quarkus-agent-mcp server process itself                |
 
 ¹ `open` and `devui` derive the URL from the port reported by `quarkus_status` and use the
 default paths (`/` and `/q/dev-ui`). They do not honour `quarkus.http.root-path` or
@@ -112,11 +117,11 @@ hitl: every-phase
 ---
 ```
 
-| Level          | Behavior                                              |
-|----------------|-------------------------------------------------------|
-| `every-phase`  | Stop after every Red, Green, Refactor phase            |
-| `end-of-cycle` | Stop after each complete Red-Green-Refactor cycle     |
-| `off`          | Run autonomously, report at end                       |
+| Level          | Behavior                                          |
+|----------------|---------------------------------------------------|
+| `every-phase`  | Stop after every Red, Green, Refactor phase       |
+| `end-of-cycle` | Stop after each complete Red-Green-Refactor cycle |
+| `off`          | Run autonomously, report at end                   |
 
 ## Installation
 
