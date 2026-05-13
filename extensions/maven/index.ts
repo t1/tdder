@@ -243,7 +243,9 @@ export default function (pi: ExtensionAPI) {
       const text = (context.lastComponent as import("@earendil-works/pi-tui").Text | undefined)
         ?? new Text("", 0, 0);
       const { action, project, selector } = args as { action: string; project?: string; selector?: string };
-      const command = buildMavenCommand({ action: action as import("./maven-run.ts").MavenAction, runner: "mvn", project, selector });
+      const info = getMavenProjectInfo(resolve(context.cwd));
+      const runner = info?.runner ?? "mvn";
+      const command = buildMavenCommand({ action: action as import("./maven-run.ts").MavenAction, runner, project, selector });
       text.setText(`${theme.fg("muted", "○")} ${theme.fg("dim", command)}`);
       return text;
     },
