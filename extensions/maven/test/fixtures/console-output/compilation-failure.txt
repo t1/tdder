@@ -1,0 +1,6 @@
+[INFO] Scanning for projects...
+[INFO] --- maven-compiler-plugin:3.11.0:compile (default-compile) @ my-app ---
+[ERROR] /home/user/project/src/main/java/com/example/App.java:[10,5] error: ';' expected
+[ERROR] /home/user/project/src/main/java/com/example/App.java:[15,1] error: class, interface, or enum expected
+[INFO] BUILD FAILURE
+[INFO] Total time: 1.234 s

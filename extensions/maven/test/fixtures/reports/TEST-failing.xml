@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.BarTest" tests="2" failures="1" errors="0" skipped="0" time="0.2">
+  <testcase name="shouldPass" classname="com.example.BarTest" time="0.05"/>
+  <testcase name="shouldFail" classname="com.example.BarTest" time="0.15">
+    <failure message="expected 200 but was 503" type="org.opentest4j.AssertionFailedError">
+expected 200 but was 503
+expected: &lt;200&gt;
+ but was: &lt;503&gt;
+    </failure>
+  </testcase>
+</testsuite>

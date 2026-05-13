@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.acme</groupId>
+    <artifactId>root</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>module-b</artifactId>
+  <packaging>jar</packaging>
+  <dependencies>
+    <dependency>
+      <groupId>org.example.other</groupId>
+      <artifactId>some-lib</artifactId>
+      <version>1.0</version>
+    </dependency>
+  </dependencies>
+</project>

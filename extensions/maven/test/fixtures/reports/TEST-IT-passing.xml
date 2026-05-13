@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.OrderIT" tests="1" failures="0" errors="0" skipped="0" time="1.5">
+  <testcase name="shouldRetry" classname="com.example.OrderIT" time="1.5"/>
+</testsuite>

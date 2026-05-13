@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>org.assertj</groupId>
+  <artifactId>assertj-core</artifactId>
+  <versioning>
+    <release>3.27.3</release>
+    <versions>
+      <version>3.26.0</version>
+      <version>3.27.0</version>
+      <version>3.27.3</version>
+    </versions>
+    <lastUpdated>20250101000000</lastUpdated>
+  </versioning>
+</metadata>

@@ -3,6 +3,13 @@
   "version": "0.4.0",
   "type": "module",
   "main": ".opencode/plugins/tdder.js",
+  "scripts": {
+    "test": "node --import tsx/esm --test extensions/maven/test/*.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "@earendil-works/pi-coding-agent": "*"
+  },
   "pi": {
     "extensions": ["./extensions"],
     "skills": ["./skills"]

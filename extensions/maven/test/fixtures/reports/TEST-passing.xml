@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.FooTest" tests="3" failures="0" errors="0" skipped="0" time="0.123">
+  <testcase name="shouldDoA" classname="com.example.FooTest" time="0.04"/>
+  <testcase name="shouldDoB" classname="com.example.FooTest" time="0.04"/>
+  <testcase name="shouldDoC" classname="com.example.FooTest" time="0.043"/>
+</testsuite>
