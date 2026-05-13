@@ -12,6 +12,6 @@
   },
   "pi": {
     "extensions": ["./extensions"],
-    "x-skills": ["./skills"]
+    "skills": ["./skills"]
   }
 }
