@@ -59,7 +59,7 @@ Tell the user and ask them to add the following to the POM before retrying:
 </plugin>
 ```
 
-Alternatively, suggest `testScope=all` if skipping unit tests is not essential.
+Do NOT fall back to `testScope=all` on your own — ask the user what they want to do.
 
 ### Integration Tests That Execute the Built JAR
 
