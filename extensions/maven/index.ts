@@ -291,7 +291,7 @@ export default function (pi: ExtensionAPI) {
       if (expanded) {
         // Use rawLogPathAbsolute as rawLogPath so the renderer can show the correct path.
         const result = { ...details.result, rawLogPath: details.rawLogPathAbsolute };
-        return renderMavenRunResult(result, true, theme);
+        return renderMavenRunResult(result, true, theme, false);
       }
       // Collapsed: show only the outcome summary (command already in renderCall).
       const summary = buildCollapsedSummary(details.result, theme);

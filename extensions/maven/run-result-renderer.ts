@@ -12,13 +12,17 @@ export function renderRunResult(
   result: MavenRunResult,
   expanded: boolean,
   theme: Theme,
+  showCommand = true,
 ): string {
-  const icon = result.success
-    ? theme.fg("success", "✓")
-    : theme.fg("error", "✗");
-  const cmd = theme.fg("dim", result.command);
+  const lines: string[] = [];
 
-  const lines: string[] = [`${icon} ${cmd}`];
+  if (showCommand) {
+    const icon = result.success
+      ? theme.fg("success", "✓")
+      : theme.fg("error", "✗");
+    const cmd = theme.fg("dim", result.command);
+    lines.push(`${icon} ${cmd}`);
+  }
 
   // Outcome summary line
   const summary = buildSummary(result, theme);
