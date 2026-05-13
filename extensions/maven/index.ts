@@ -7,7 +7,7 @@
  *   maven_lookup_version – Maven Central version lookup
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { Text } from "@earendil-works/pi-tui";
@@ -16,11 +16,12 @@ import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai";
 
 import { findProjectRoot, detectRunner, buildProjectTree, resolveCurrentProject } from "./project-info.ts";
+import { collectReportPaths, parseReports } from "./report-collector.ts";
 import { renderMavenMessage, renderMavenRunResult } from "./renderer.ts";
 import { formatProjectInfo } from "./formatter.ts";
 import { buildMavenArgs, buildMavenCommand, type MavenAction } from "./maven-run.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
-import { parseSurefireReport, extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
+import { extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
 import { saveRawLog } from "./log-store.ts";
 import { buildMetadataUrl, parseMetadata, selectVersion } from "./version-lookup.ts";
 import type { MavenProjectInfo, MavenRunResult, VersionLookupResult } from "./types.ts";
@@ -126,42 +127,6 @@ async function runMaven(
   return { rawOutput: rawChunks.join(""), exitCode };
 }
 
-function collectReportPaths(projectRoot: string, action: string): string[] {
-  const dirs: string[] = [];
-  const candidates =
-    action === "integration-test"
-      ? ["target/failsafe-reports"]
-      : ["target/surefire-reports"];
-
-  for (const rel of candidates) {
-    const abs = join(projectRoot, rel);
-    if (existsSync(abs)) dirs.push(rel);
-  }
-  return dirs;
-}
-
-function parseReports(reportPaths: string[], projectRoot: string) {
-  const summary = { testsRun: 0, failures: 0, errors: 0, skipped: 0, failedTests: [] as import("./report-parser.ts").FailedTest[] };
-
-  for (const rel of reportPaths) {
-    const dir = join(projectRoot, rel);
-    let xmlFiles: string[] = [];
-    try { xmlFiles = readdirSync(dir).filter((f) => f.endsWith(".xml") && f.startsWith("TEST-")); }
-    catch { continue; }
-
-    for (const file of xmlFiles) {
-      const xml = readFileSync(join(dir, file), "utf8");
-      const parsed = parseSurefireReport(xml);
-      summary.testsRun += parsed.testsRun;
-      summary.failures += parsed.failures;
-      summary.errors += parsed.errors;
-      summary.skipped += parsed.skipped;
-      summary.failedTests.push(...parsed.failedTests.map((t) => ({ ...t, reportFile: join(rel, file) })));
-    }
-  }
-  return summary;
-}
-
 // ---------------------------------------------------------------------------
 // Extension entry point
 // ---------------------------------------------------------------------------
@@ -248,7 +213,7 @@ export default function (pi: ExtensionAPI) {
       const rawLogPath = saveRawLog(info.projectRoot, action, rawOutput);
       const success = exitCode === 0;
 
-      const reportPaths = collectReportPaths(info.projectRoot, action);
+      const reportPaths = collectReportPaths(info.projectRoot, action, info.projectTree);
       const testSummary = parseReports(reportPaths, info.projectRoot);
       const compilationErrors = extractCompilationErrors(rawOutput);
       const buildErrors = extractBuildErrors(rawOutput);
