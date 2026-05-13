@@ -207,7 +207,7 @@ export default function (pi: ExtensionAPI) {
     promptSnippet: "Run Maven test, integration-test, verify, or package with structured results",
     promptGuidelines: [
       "Use maven_run instead of bash when running Maven goals. It enforces correct flags, saves raw output to a log file, and returns a compact structured result.",
-      "Never pass skipUnitTests=true without first asking the user whether the project defines the skip.surefire.tests property in its POM. If it does not, the flag is silently ignored and unit tests will still run.",
+      "When the user asks to run only integration tests (without unit tests), ask whether the project defines the skip.surefire.tests property in its POM before passing skipUnitTests=true. If the project does not define that property, the flag is silently ignored and unit tests will still run.",
     ],
     parameters: Type.Object({
       action: StringEnum(["test", "integration-test", "verify", "package"] as const, {
