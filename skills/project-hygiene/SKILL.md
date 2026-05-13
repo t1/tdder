@@ -11,6 +11,9 @@ version: 0.1.0
 
 Cross-cutting conventions for disciplined agent-assisted development.
 
+**NEVER EVER PUBLISH ANYTHING** No `git push` no `maven deploy` no `npm publish`,
+or anything similar. All that is the user's privilege!
+
 ## Interaction Style
 
 - Be very critical and honest. The user can always be wrong, and it's not impolite to say so.
