@@ -10,14 +10,20 @@ import type { TestScope } from "./maven-run.ts";
  * in submodules are included.
  */
 export function collectReportPaths(projectRoot: string, action: string, tree?: ProjectNode, testScope?: TestScope): string[] {
-  const reportDir = testScope === "failsafe" ? "target/failsafe-reports" : "target/surefire-reports";
+  const reportDirs = testScope === "failsafe"
+    ? ["target/failsafe-reports"]
+    : testScope === "all"
+      ? ["target/surefire-reports", "target/failsafe-reports"]
+      : ["target/surefire-reports"];
   const dirs: string[] = [];
 
   function walk(node: ProjectNode) {
-    const candidate = node.relativePath === "."
-      ? reportDir
-      : join(node.relativePath, reportDir);
-    if (existsSync(join(projectRoot, candidate))) dirs.push(candidate);
+    for (const reportDir of reportDirs) {
+      const candidate = node.relativePath === "."
+        ? reportDir
+        : join(node.relativePath, reportDir);
+      if (existsSync(join(projectRoot, candidate))) dirs.push(candidate);
+    }
     for (const child of node.children) walk(child);
   }
 
@@ -25,7 +31,9 @@ export function collectReportPaths(projectRoot: string, action: string, tree?: P
     walk(tree);
   } else {
     // Fallback when no tree is available: check root only.
-    if (existsSync(join(projectRoot, reportDir))) dirs.push(reportDir);
+    for (const reportDir of reportDirs) {
+      if (existsSync(join(projectRoot, reportDir))) dirs.push(reportDir);
+    }
   }
   return dirs;
 }

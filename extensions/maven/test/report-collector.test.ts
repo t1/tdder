@@ -83,6 +83,24 @@ describe("collectReportPaths — multi-module, only one module has reports", () 
 // collectReportPaths — failsafe reports
 // ---------------------------------------------------------------------------
 
+describe("collectReportPaths — both report dirs for testScope=all", () => {
+  const surefireDir = join(flatRoot, "module-a/target/surefire-reports");
+  const failsafeDir = join(flatRoot, "module-a/target/failsafe-reports");
+
+  before(() => {
+    mkdirSync(surefireDir, { recursive: true });
+    mkdirSync(failsafeDir, { recursive: true });
+  });
+  after(() => rmSync(join(flatRoot, "module-a/target"), { recursive: true, force: true }));
+
+  it("collects both surefire-reports and failsafe-reports when testScope is all", () => {
+    const tree = buildProjectTree(flatRoot);
+    const paths = collectReportPaths(flatRoot, "test", tree, "all");
+    assert.ok(paths.includes("module-a/target/surefire-reports"), `surefire missing in: ${paths}`);
+    assert.ok(paths.includes("module-a/target/failsafe-reports"), `failsafe missing in: ${paths}`);
+  });
+});
+
 describe("collectReportPaths — failsafe for testScope=failsafe", () => {
   const failsafeDir = join(flatRoot, "module-a/target/failsafe-reports");
 
