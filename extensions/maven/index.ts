@@ -10,12 +10,13 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
+import { Text } from "@earendil-works/pi-tui";
 import type { AgentToolUpdateCallback, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai";
 
 import { findProjectRoot, detectRunner, buildProjectTree, resolveCurrentProject } from "./project-info.ts";
-import { renderMavenMessage } from "./renderer.ts";
+import { renderMavenMessage, renderMavenRunResult } from "./renderer.ts";
 import { formatProjectInfo } from "./formatter.ts";
 import { buildMavenArgs, buildMavenCommand, type MavenAction } from "./maven-run.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
@@ -265,11 +266,21 @@ export default function (pi: ExtensionAPI) {
         rawLogPath,
       };
 
-      // Keep raw output OUT of LLM-facing content — only the structured summary goes in
+      // Keep raw output OUT of LLM-facing content — only the structured summary goes in.
+      // Store the full result in details so renderResult can use it for collapsed/expanded rendering.
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        details: { rawLogPath },
+        details: { ...result, rawLogPathAbsolute: join(info.projectRoot, rawLogPath) },
       };
+    },
+
+    renderResult(toolResult, { expanded }, theme) {
+      type RunDetails = import("./types.ts").MavenRunResult & { rawLogPathAbsolute: string };
+      const details = toolResult.details as RunDetails | undefined;
+      if (!details) return new Text("(no result)", 0, 0);
+      // Substitute the absolute log path so the renderer can read the file directly.
+      const result = { ...details, rawLogPath: details.rawLogPathAbsolute };
+      return renderMavenRunResult(result, expanded ?? false, theme);
     },
   });
 

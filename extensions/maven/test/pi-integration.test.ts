@@ -221,6 +221,8 @@ describe("maven_run tool", () => {
   let runJson: Record<string, unknown>;
   let contentText: string;
 
+  let resultDetails: Record<string, unknown>;
+
   before(async () => {
     const tool = mavenExtension.tools.get("maven_run")!;
     const ctx = makeCtx(singleModuleRoot);
@@ -233,11 +235,19 @@ describe("maven_run tool", () => {
     );
     contentText = (result.content[0] as { type: string; text: string }).text;
     runJson = JSON.parse(contentText);
+    resultDetails = result.details as Record<string, unknown>;
   });
 
   it("returns a result containing rawLogPath", () => {
     assert.ok(typeof runJson.rawLogPath === "string" && (runJson.rawLogPath as string).length > 0,
       "rawLogPath should be a non-empty string");
+  });
+
+  it("details contains rawLogPathAbsolute for the renderer", () => {
+    const abs = resultDetails.rawLogPathAbsolute as string;
+    assert.ok(typeof abs === "string" && abs.startsWith("/"),
+      `rawLogPathAbsolute should be an absolute path, got: ${abs}`);
+    assert.ok(existsSync(abs), `rawLogPathAbsolute file should exist at ${abs}`);
   });
 
   it("persists the raw log file to disk", () => {

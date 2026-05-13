@@ -1,5 +1,9 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { Text } from "@earendil-works/pi-tui";
 import type { ProjectInfoContext } from "./formatter.ts";
+import { renderRunResult } from "./run-result-renderer.ts";
+import type { MavenRunResult } from "./types.ts";
 
 export type { ProjectInfoContext };
 
@@ -96,6 +100,27 @@ function renderRun(details: Record<string, unknown>, theme: Theme): Text {
   lines.push(label(theme, "log") + theme.fg("dim", rawLogPath));
 
   return new Text(lines.join("\n"), 0, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Tool renderResult — called by the maven_run tool registration in index.ts
+// ---------------------------------------------------------------------------
+
+function readLog(rawLogPath: string): string {
+  try {
+    return readFileSync(rawLogPath, "utf8");
+  } catch {
+    return "(log not available)";
+  }
+}
+
+export function renderMavenRunResult(
+  result: MavenRunResult,
+  expanded: boolean,
+  theme: Theme,
+): Text {
+  const text = renderRunResult(result, expanded, readLog, theme);
+  return new Text(text, 0, 0);
 }
 
 function renderError(details: Record<string, unknown>, theme: Theme): Text {
