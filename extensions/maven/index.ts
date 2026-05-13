@@ -253,7 +253,7 @@ export default function (pi: ExtensionAPI) {
       const rawLogPath = saveRawLog(info.projectRoot, action, rawOutput);
       const success = exitCode === 0;
 
-      const reportPaths = collectReportPaths(info.projectRoot, action, info.projectTree);
+      const reportPaths = collectReportPaths(info.projectRoot, action, info.projectTree, testScope as TestScope | undefined);
       const testSummary = parseReports(reportPaths, info.projectRoot);
       const compilationErrors = extractCompilationErrors(rawOutput);
       const buildErrors = extractBuildErrors(rawOutput);

@@ -83,21 +83,21 @@ describe("collectReportPaths — multi-module, only one module has reports", () 
 // collectReportPaths — failsafe reports
 // ---------------------------------------------------------------------------
 
-describe("collectReportPaths — failsafe for integration-test action", () => {
+describe("collectReportPaths — failsafe for testScope=failsafe", () => {
   const failsafeDir = join(flatRoot, "module-a/target/failsafe-reports");
 
   before(() => mkdirSync(failsafeDir, { recursive: true }));
   after(() => rmSync(join(flatRoot, "module-a/target"), { recursive: true, force: true }));
 
-  it("looks for failsafe-reports when action is integration-test", () => {
+  it("looks for failsafe-reports when testScope is failsafe", () => {
     const tree = buildProjectTree(flatRoot);
-    const paths = collectReportPaths(flatRoot, "integration-test", tree);
+    const paths = collectReportPaths(flatRoot, "test", tree, "failsafe");
     assert.deepEqual(paths, ["module-a/target/failsafe-reports"]);
   });
 
-  it("does not find surefire-reports when action is integration-test", () => {
+  it("does not find surefire-reports when testScope is failsafe", () => {
     const tree = buildProjectTree(flatRoot);
-    const paths = collectReportPaths(flatRoot, "integration-test", tree);
+    const paths = collectReportPaths(flatRoot, "test", tree, "failsafe");
     assert.ok(!paths.some((p) => p.includes("surefire")), `unexpected surefire path in: ${paths}`);
   });
 });

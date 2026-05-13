@@ -2,14 +2,15 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ProjectNode } from "./project-info.ts";
 import { parseSurefireReport, type FailedTest } from "./report-parser.ts";
+import type { TestScope } from "./maven-run.ts";
 
 /**
  * Returns the relative paths (from projectRoot) of surefire/failsafe report
  * directories that exist on disk, walking the full module tree so that reports
  * in submodules are included.
  */
-export function collectReportPaths(projectRoot: string, action: string, tree?: ProjectNode): string[] {
-  const reportDir = action === "integration-test" ? "target/failsafe-reports" : "target/surefire-reports";
+export function collectReportPaths(projectRoot: string, action: string, tree?: ProjectNode, testScope?: TestScope): string[] {
+  const reportDir = testScope === "failsafe" ? "target/failsafe-reports" : "target/surefire-reports";
   const dirs: string[] = [];
 
   function walk(node: ProjectNode) {
