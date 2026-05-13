@@ -8,6 +8,8 @@ Do **NOT** read the `TODO.md`, unless instructed to.
 it's just a question, not a suggestion: don't start implementing, but start a discussion.
 Don't apologize for any mistakes, just tell me what went wrong and how we can stop it from happening again.
 
+**AND NEVER EVER PUSH ANYTHING** That's the user's privilege!
+
 ## Development
 
 There is no build system, test suite, or linter. All content is Markdown or JSON.
@@ -17,9 +19,16 @@ To test changes, load the plugin locally:
 claude --plugin-dir /path/to/tdder
 ```
 
+or
+
+```bash
+pi --extension /path/to/tdder
+```
+
 ## Dual-platform agents
 
 The `clean-code-reviewer` agent exists in two copies with different formats:
+
 - `agents/clean-code-reviewer.md` — Claude Code format
 - `.opencode/agents/clean-code-reviewer.md` — OpenCode format
 

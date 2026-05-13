@@ -38,6 +38,10 @@ mvn verify -Dskip.surefire.tests -Dit.test=CheckCommandIT
 mvn verify -Dskip.surefire.tests -Dit.test='CheckCommandIT#shouldHandlePropertyBasedVersions'
 ```
 
+> **Before using `-Dskip.surefire.tests`:** ask the user whether the project's POM defines
+> a `skip.surefire.tests` property wired to Surefire's `<skip>` configuration.
+> If it does not, the flag is silently ignored and unit tests will still run alongside the ITs.
+
 ### Integration Tests That Execute the Built JAR
 
 `mvn test` does **not** build the final JAR in `target/`.
