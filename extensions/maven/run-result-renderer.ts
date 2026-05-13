@@ -31,7 +31,7 @@ export function renderRunResult(
   return lines.join("\n");
 }
 
-function buildSummary(result: MavenRunResult, theme: Theme): string {
+export function buildSummary(result: MavenRunResult, theme: Theme): string {
   if (result.compilationErrors.length > 0) {
     const count = result.compilationErrors.length;
     return theme.fg("error", `${count} compilation error${count === 1 ? "" : "s"}`);

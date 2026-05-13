@@ -10,7 +10,7 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
-import { Text } from "@earendil-works/pi-tui";
+import { Container, Text } from "@earendil-works/pi-tui";
 import type { AgentToolUpdateCallback, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai";
@@ -18,6 +18,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { findProjectRoot, detectRunner, buildProjectTree, resolveCurrentProject } from "./project-info.ts";
 import { collectReportPaths, parseReports } from "./report-collector.ts";
 import { renderMavenMessage, renderMavenRunResult } from "./renderer.ts";
+import { buildSummary as buildCollapsedSummary } from "./run-result-renderer.ts";
 import { formatProjectInfo } from "./formatter.ts";
 import { buildMavenArgs, buildMavenCommand, type MavenAction } from "./maven-run.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
@@ -174,6 +175,27 @@ export default function (pi: ExtensionAPI) {
         details: info,
       };
     },
+
+    renderResult(toolResult, { expanded }, theme) {
+      const info = toolResult.details as MavenProjectInfo | { isMavenProject: false } | undefined;
+
+      if (!info || !info.isMavenProject) {
+        return new Text(theme.fg("warning", "Not a Maven project"), 0, 0);
+      }
+
+      if (expanded) {
+        return new Text(theme.fg("dim", JSON.stringify(info, null, 2)), 0, 0);
+      }
+
+      // Collapsed: same output as /maven info
+      const ctx = {
+        projectRoot: info.projectRoot,
+        runner: info.runner,
+        projectTree: info.projectTree,
+        currentProject: info.currentProject,
+      };
+      return renderMavenMessage({ kind: "info", ctx }, theme);
+    },
   });
 
   // ── maven_run ─────────────────────────────────────────────────────────────
@@ -247,17 +269,33 @@ export default function (pi: ExtensionAPI) {
       const info = getMavenProjectInfo(resolve(context.cwd));
       const runner = info?.runner ?? "mvn";
       const command = buildMavenCommand({ action: action as import("./maven-run.ts").MavenAction, runner, project, selector, skipUnitTests });
-      text.setText(`${theme.fg("muted", "○")} ${theme.fg("dim", command)}`);
+      // After the result is available, context.state.result is set by renderResult.
+      // Switch the pending icon to the final outcome icon so the command appears only once.
+      const result = (context.state as { result?: import("./types.ts").MavenRunResult }).result;
+      const icon = result
+        ? (result.success ? theme.fg("success", "✓") : theme.fg("error", "✗"))
+        : theme.fg("muted", "○");
+      text.setText(`${icon} ${theme.fg("dim", command)}`);
       return text;
     },
 
-    renderResult(toolResult, { expanded }, theme) {
+    renderResult(toolResult, { expanded }, theme, context) {
       type RunDetails = { result: import("./types.ts").MavenRunResult; rawLogPathAbsolute: string };
       const details = toolResult.details as RunDetails | undefined;
-      if (!details) return new Text("(no result)", 0, 0);
-      // Use rawLogPathAbsolute as rawLogPath so the renderer can show the correct path.
-      const result = { ...details.result, rawLogPath: details.rawLogPathAbsolute };
-      return renderMavenRunResult(result, expanded ?? false, theme);
+      // While executing there are no details yet — return nothing (the renderCall
+      // line and the progress widget already convey what is happening).
+      if (!details) return new Container();
+      // Share the result with renderCall so it can update its icon.
+      (context.state as { result?: import("./types.ts").MavenRunResult }).result = details.result;
+      if (expanded) {
+        // Use rawLogPathAbsolute as rawLogPath so the renderer can show the correct path.
+        const result = { ...details.result, rawLogPath: details.rawLogPathAbsolute };
+        return renderMavenRunResult(result, true, theme);
+      }
+      // Collapsed: show only the outcome summary (command already in renderCall).
+      const summary = buildCollapsedSummary(details.result, theme);
+      if (!summary) return new Container();
+      return new Text(summary, 0, 0);
     },
   });
 
