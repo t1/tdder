@@ -87,13 +87,21 @@ describe("renderRunResult — collapsed", () => {
 // ---------------------------------------------------------------------------
 
 describe("renderRunResult — expanded", () => {
-  it("includes the raw log content when expanded", () => {
+  it("shows the log path when expanded", () => {
+    const text = renderRunResult(makeResult(), true, noLog, theme);
+    assert.ok(
+      text.includes("target/pi/maven-logs/2026-05-13T12-00-00-package.log"),
+      `expected log path in expanded view: ${text}`,
+    );
+  });
+
+  it("does not inline raw log content when expanded", () => {
     const text = renderRunResult(makeResult(), true, fakeLog, theme);
-    assert.ok(text.includes("[INFO] BUILD SUCCESS"), `expected log content in: ${text}`);
+    assert.ok(!text.includes("[INFO] BUILD SUCCESS"), "expanded view must not inline raw log content");
   });
 
   it("still shows the command when expanded", () => {
-    const text = renderRunResult(makeResult(), true, fakeLog, theme);
+    const text = renderRunResult(makeResult(), true, noLog, theme);
     assert.ok(text.includes("mvn package -DskipTests"), `expected command in expanded: ${text}`);
   });
 });

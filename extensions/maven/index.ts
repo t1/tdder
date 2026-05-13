@@ -267,19 +267,19 @@ export default function (pi: ExtensionAPI) {
       };
 
       // Keep raw output OUT of LLM-facing content — only the structured summary goes in.
-      // Store the full result in details so renderResult can use it for collapsed/expanded rendering.
+      // details carries only the minimum needed for rendering: the compact result and the absolute log path.
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        details: { ...result, rawLogPathAbsolute: join(info.projectRoot, rawLogPath) },
+        details: { result, rawLogPathAbsolute: join(info.projectRoot, rawLogPath) },
       };
     },
 
     renderResult(toolResult, { expanded }, theme) {
-      type RunDetails = import("./types.ts").MavenRunResult & { rawLogPathAbsolute: string };
+      type RunDetails = { result: import("./types.ts").MavenRunResult; rawLogPathAbsolute: string };
       const details = toolResult.details as RunDetails | undefined;
       if (!details) return new Text("(no result)", 0, 0);
-      // Substitute the absolute log path so the renderer can read the file directly.
-      const result = { ...details, rawLogPath: details.rawLogPathAbsolute };
+      // Use rawLogPathAbsolute as rawLogPath so the renderer can show the correct path.
+      const result = { ...details.result, rawLogPath: details.rawLogPathAbsolute };
       return renderMavenRunResult(result, expanded ?? false, theme);
     },
   });
