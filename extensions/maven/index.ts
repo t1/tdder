@@ -239,6 +239,15 @@ export default function (pi: ExtensionAPI) {
       };
     },
 
+    renderCall(args, theme, context) {
+      const text = (context.lastComponent as import("@earendil-works/pi-tui").Text | undefined)
+        ?? new Text("", 0, 0);
+      const { action, project, selector } = args as { action: string; project?: string; selector?: string };
+      const command = buildMavenCommand({ action: action as import("./maven-run.ts").MavenAction, runner: "mvn", project, selector });
+      text.setText(`${theme.fg("muted", "○")} ${theme.fg("dim", command)}`);
+      return text;
+    },
+
     renderResult(toolResult, { expanded }, theme) {
       type RunDetails = { result: import("./types.ts").MavenRunResult; rawLogPathAbsolute: string };
       const details = toolResult.details as RunDetails | undefined;
