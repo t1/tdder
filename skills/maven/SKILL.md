@@ -26,21 +26,40 @@ mvn test
 mvn test -Dtest=VersionTest
 ```
 
-### Specific Integration Test (no unit tests)
+### Running Tests with `maven_run`
 
-```bash
-mvn verify -Dskip.surefire.tests -Dit.test=CheckCommandIT
+When the `maven_run` tool is available, always use it instead of raw `bash`.
+For `action=test`, `testScope` is **required**:
+
+| `testScope`  | What runs                        | Maven command                                        |
+|--------------|----------------------------------|------------------------------------------------------|
+| `surefire`   | Unit tests only                  | `mvn test`                                           |
+| `failsafe`   | Integration tests only           | `mvn verify -Dskip.surefire.tests=true -DskipITs=false` |
+| `all`        | Unit tests + integration tests   | `mvn verify -DskipITs=false`                         |
+
+#### `SUREFIRE_SKIP_NOT_CONFIGURED` error
+
+If you call `maven_run` with `testScope=failsafe` and the tool returns
+`SUREFIRE_SKIP_NOT_CONFIGURED`, it means the project POM does not define a
+`skip.surefire.tests` property wired to Surefire's `<skip>` configuration.
+Tell the user and ask them to add the following to the POM before retrying:
+
+```xml
+<properties>
+    <skip.surefire.tests>false</skip.surefire.tests>
+</properties>
 ```
 
-### Specific Integration Test Method (no unit tests)
-
-```bash
-mvn verify -Dskip.surefire.tests -Dit.test='CheckCommandIT#shouldHandlePropertyBasedVersions'
+```xml
+<plugin>
+    <artifactId>maven-surefire-plugin</artifactId>
+    <configuration>
+        <skip>${skip.surefire.tests}</skip>
+    </configuration>
+</plugin>
 ```
 
-> **When the user asks to run only ITs (skipping unit tests):** ask whether the project's POM
-> defines a `skip.surefire.tests` property wired to Surefire's `<skip>` configuration.
-> If it does not, the flag is silently ignored and unit tests will still run alongside the ITs.
+Alternatively, suggest `testScope=all` if skipping unit tests is not essential.
 
 ### Integration Tests That Execute the Built JAR
 

@@ -7,7 +7,7 @@
  *   maven_lookup_version – Maven Central version lookup
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { Container, Text } from "@earendil-works/pi-tui";
@@ -20,7 +20,7 @@ import { collectReportPaths, parseReports } from "./report-collector.ts";
 import { renderMavenMessage, renderMavenRunResult } from "./renderer.ts";
 import { buildSummary as buildCollapsedSummary } from "./run-result-renderer.ts";
 import { formatProjectInfo } from "./formatter.ts";
-import { buildMavenArgs, buildMavenCommand, type MavenAction } from "./maven-run.ts";
+import { buildMavenArgs, buildMavenCommand, type MavenAction, type TestScope } from "./maven-run.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
 import { saveRawLog } from "./log-store.ts";
@@ -203,19 +203,22 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "maven_run",
     label: "Maven Run",
-    description: "Runs a Maven workflow (test, integration-test, verify, package) with structured output. Prefer this over raw bash for Maven tasks.",
-    promptSnippet: "Run Maven test, integration-test, verify, or package with structured results",
+    description: "Runs a Maven workflow (test, package) with structured output. Prefer this over raw bash for Maven tasks.",
+    promptSnippet: "Run Maven test or package with structured results",
     promptGuidelines: [
       "Use maven_run instead of bash when running Maven goals. It enforces correct flags, saves raw output to a log file, and returns a compact structured result.",
-      "When the user asks to run only integration tests (without unit tests), ask whether the project defines the skip.surefire.tests property in its POM before passing skipUnitTests=true. If the project does not define that property, the flag is silently ignored and unit tests will still run.",
+      "For action=test, testScope is required: 'surefire' (unit tests only), 'failsafe' (ITs only), or 'all' (both).",
+      "If testScope='failsafe' and the project POM does not define skip.surefire.tests, the tool returns SUREFIRE_SKIP_NOT_CONFIGURED. Ask the user to add the property wiring to the POM, then retry.",
     ],
     parameters: Type.Object({
-      action: StringEnum(["test", "integration-test", "verify", "package"] as const, {
+      action: StringEnum(["test", "package"] as const, {
         description: "Maven workflow to run",
       }),
+      testScope: Type.Optional(StringEnum(["surefire", "failsafe", "all"] as const, {
+        description: "Required when action is 'test'. 'surefire'=unit tests only, 'failsafe'=ITs only (skips Surefire), 'all'=both.",
+      })),
       project: Type.Optional(Type.String({ description: "Project path or plSelector (e.g. services/service-a)" })),
       selector: Type.Optional(Type.String({ description: "Test selector: class name or Class#method" })),
-      skipUnitTests: Type.Optional(Type.Boolean({ description: "For integration-test action: pass -Dskip.surefire.tests=true to skip Surefire while Failsafe runs. Only works if the project defines this property in its POM — ask the user before setting this." })),
     }),
 
     async execute(_toolCallId, params, _signal, onUpdate, ctx) {
@@ -223,10 +226,23 @@ export default function (pi: ExtensionAPI) {
       const info = getMavenProjectInfo(cwd);
       if (!info) throw new Error("Not a Maven project");
 
-      const { action, selector, skipUnitTests } = params;
+      const { action, selector, testScope } = params;
       const project = params.project ?? info.currentProject?.plSelector;
 
-      const opts = { action: action as MavenAction, runner: info.runner, selector, project, skipUnitTests };
+      if (action === "test" && testScope === "failsafe") {
+        const pomContent = existsSync(info.pomPath) ? readFileSync(info.pomPath, "utf8") : "";
+        if (!pomContent.includes("skip.surefire.tests")) {
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify({
+              error: "SUREFIRE_SKIP_NOT_CONFIGURED",
+              message: "The project POM does not define a 'skip.surefire.tests' property wired to Surefire's <skip> configuration. Add it to the POM before running with testScope='failsafe', or use testScope='all' to run both Surefire and Failsafe.",
+            }, null, 2) }],
+            details: { error: "SUREFIRE_SKIP_NOT_CONFIGURED" },
+          };
+        }
+      }
+
+      const opts = { action: action as MavenAction, runner: info.runner, selector, project, testScope: testScope as TestScope | undefined };
       const command = buildMavenCommand(opts);
       const args = buildMavenArgs(opts);
 
@@ -266,10 +282,10 @@ export default function (pi: ExtensionAPI) {
     renderCall(args, theme, context) {
       const text = (context.lastComponent as import("@earendil-works/pi-tui").Text | undefined)
         ?? new Text("", 0, 0);
-      const { action, project, selector, skipUnitTests } = args as { action: string; project?: string; selector?: string; skipUnitTests?: boolean };
+      const { action, project, selector, testScope } = args as { action: string; project?: string; selector?: string; testScope?: TestScope };
       const info = getMavenProjectInfo(resolve(context.cwd));
       const runner = info?.runner ?? "mvn";
-      const command = buildMavenCommand({ action: action as import("./maven-run.ts").MavenAction, runner, project, selector, skipUnitTests });
+      const command = buildMavenCommand({ action: action as import("./maven-run.ts").MavenAction, runner, project, selector, testScope });
       // After the result is available, context.state.result is set by renderResult.
       // Switch the pending icon to the final outcome icon so the command appears only once.
       const result = (context.state as { result?: import("./types.ts").MavenRunResult }).result;
@@ -349,11 +365,11 @@ export default function (pi: ExtensionAPI) {
 
   // ── /maven command ────────────────────────────────────────────────────────
 
-  const SUBCOMMANDS = ["info", "test", "itest", "verify", "package", "version"] as const;
+  const SUBCOMMANDS = ["info", "test", "itest", "all", "package", "version"] as const;
   type Subcommand = (typeof SUBCOMMANDS)[number];
 
   pi.registerCommand("maven", {
-    description: "Maven actions: info | test [selector] | itest [selector] | verify | package | version <groupId>:<artifactId>",
+    description: "Maven actions: info | test [selector] | itest [selector] | all [selector] | package | version <groupId>:<artifactId>",
 
     getArgumentCompletions: (prefix: string) => {
       const items = SUBCOMMANDS.filter((s) => s.startsWith(prefix)).map((s) => ({
@@ -361,9 +377,9 @@ export default function (pi: ExtensionAPI) {
         label: s,
         description: {
           info:    "Show project info",
-          test:    "Run unit tests",
-          itest:   "Run integration tests",
-          verify:  "Run full verify",
+          test:    "Run unit tests (Surefire)",
+          itest:   "Run integration tests (Failsafe only)",
+          all:     "Run all tests (Surefire + Failsafe)",
           package: "Package without tests",
           version: "Look up artifact version",
         }[s],
@@ -423,15 +439,15 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      const actionMap: Record<string, MavenAction> = {
-        test:    "test",
-        itest:   "integration-test",
-        verify:  "verify",
-        package: "package",
+      const actionMap: Record<string, { action: MavenAction; testScope?: TestScope }> = {
+        test:    { action: "test", testScope: "surefire" },
+        itest:   { action: "test", testScope: "failsafe" },
+        all:     { action: "test", testScope: "all" },
+        package: { action: "package" },
       };
-      const action = actionMap[sub];
+      const { action, testScope } = actionMap[sub];
       const project = info.currentProject?.plSelector;
-      const opts = { action, runner: info.runner, selector, project };
+      const opts = { action, runner: info.runner, selector, project, testScope };
       const command = buildMavenCommand(opts);
       const mavenArgs = buildMavenArgs(opts);
 

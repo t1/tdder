@@ -3,44 +3,44 @@ import assert from "node:assert/strict";
 import { buildMavenCommand } from "../maven-run.ts";
 
 describe("buildMavenCommand", () => {
-  it("builds a plain test command", () => {
-    const cmd = buildMavenCommand({ action: "test", runner: "./mvnw" });
+  it("builds a surefire (unit test) command", () => {
+    const cmd = buildMavenCommand({ action: "test", runner: "./mvnw", testScope: "surefire" });
     assert.equal(cmd, "./mvnw test");
   });
 
-  it("adds -Dtest= for a class selector", () => {
-    const cmd = buildMavenCommand({ action: "test", runner: "./mvnw", selector: "MyTest" });
+  it("adds -Dtest= for a surefire class selector", () => {
+    const cmd = buildMavenCommand({ action: "test", runner: "./mvnw", testScope: "surefire", selector: "MyTest" });
     assert.equal(cmd, "./mvnw test -Dtest=MyTest");
   });
 
-  it("quotes the selector when it contains a # (method selector)", () => {
-    const cmd = buildMavenCommand({ action: "test", runner: "./mvnw", selector: "MyTest#myMethod" });
+  it("quotes the selector when it contains a # (surefire method selector)", () => {
+    const cmd = buildMavenCommand({ action: "test", runner: "./mvnw", testScope: "surefire", selector: "MyTest#myMethod" });
     assert.equal(cmd, "./mvnw test -Dtest='MyTest#myMethod'");
   });
 
-  it("builds an integration-test command with failsafe flags and no selector", () => {
-    const cmd = buildMavenCommand({ action: "integration-test", runner: "./mvnw" });
-    assert.equal(cmd, "./mvnw verify -DskipITs=false");
-  });
-
-  it("adds -Dskip.surefire.tests=true when skipUnitTests is set", () => {
-    const cmd = buildMavenCommand({ action: "integration-test", runner: "./mvnw", skipUnitTests: true });
+  it("builds a failsafe-only command with skip.surefire.tests", () => {
+    const cmd = buildMavenCommand({ action: "test", runner: "./mvnw", testScope: "failsafe" });
     assert.equal(cmd, "./mvnw verify -Dskip.surefire.tests=true -DskipITs=false");
   });
 
-  it("adds -Dit.test= with quoting for integration-test method selector", () => {
+  it("adds -Dit.test= with quoting for failsafe method selector", () => {
     const cmd = buildMavenCommand({
-      action: "integration-test",
+      action: "test",
       runner: "./mvnw",
+      testScope: "failsafe",
       selector: "MyIT#myMethod",
-      skipUnitTests: true,
     });
     assert.equal(cmd, "./mvnw verify -Dskip.surefire.tests=true -DskipITs=false -Dit.test='MyIT#myMethod'");
   });
 
-  it("builds a verify command", () => {
-    const cmd = buildMavenCommand({ action: "verify", runner: "mvn" });
-    assert.equal(cmd, "mvn verify");
+  it("builds an all-tests command (surefire + failsafe)", () => {
+    const cmd = buildMavenCommand({ action: "test", runner: "./mvnw", testScope: "all" });
+    assert.equal(cmd, "./mvnw verify -DskipITs=false");
+  });
+
+  it("adds -Dit.test= for all-tests selector", () => {
+    const cmd = buildMavenCommand({ action: "test", runner: "./mvnw", testScope: "all", selector: "MyIT" });
+    assert.equal(cmd, "./mvnw verify -DskipITs=false -Dit.test=MyIT");
   });
 
   it("builds a package command with -DskipTests", () => {
@@ -52,6 +52,7 @@ describe("buildMavenCommand", () => {
     const cmd = buildMavenCommand({
       action: "test",
       runner: "./mvnw",
+      testScope: "surefire",
       project: "services/service-a",
     });
     assert.equal(cmd, "./mvnw -pl services/service-a test");
