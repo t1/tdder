@@ -20,7 +20,12 @@ describe("buildMavenCommand", () => {
 
   it("builds an integration-test command with failsafe flags and no selector", () => {
     const cmd = buildMavenCommand({ action: "integration-test", runner: "./mvnw" });
-    assert.equal(cmd, "./mvnw verify -Dskip.surefire.tests -DskipITs=false");
+    assert.equal(cmd, "./mvnw verify -DskipITs=false");
+  });
+
+  it("adds -Dskip.surefire.tests=true when skipUnitTests is set", () => {
+    const cmd = buildMavenCommand({ action: "integration-test", runner: "./mvnw", skipUnitTests: true });
+    assert.equal(cmd, "./mvnw verify -Dskip.surefire.tests=true -DskipITs=false");
   });
 
   it("adds -Dit.test= with quoting for integration-test method selector", () => {
@@ -28,8 +33,9 @@ describe("buildMavenCommand", () => {
       action: "integration-test",
       runner: "./mvnw",
       selector: "MyIT#myMethod",
+      skipUnitTests: true,
     });
-    assert.equal(cmd, "./mvnw verify -Dskip.surefire.tests -DskipITs=false -Dit.test='MyIT#myMethod'");
+    assert.equal(cmd, "./mvnw verify -Dskip.surefire.tests=true -DskipITs=false -Dit.test='MyIT#myMethod'");
   });
 
   it("builds a verify command", () => {

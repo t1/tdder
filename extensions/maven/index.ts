@@ -192,6 +192,7 @@ export default function (pi: ExtensionAPI) {
       }),
       project: Type.Optional(Type.String({ description: "Project path or plSelector (e.g. services/service-a)" })),
       selector: Type.Optional(Type.String({ description: "Test selector: class name or Class#method" })),
+      skipUnitTests: Type.Optional(Type.Boolean({ description: "For integration-test action: pass -Dskip.surefire.tests=true to skip Surefire while Failsafe runs. Only works if the project defines this property in its POM — ask the user before setting this." })),
     }),
 
     async execute(_toolCallId, params, _signal, onUpdate, ctx) {
@@ -199,10 +200,10 @@ export default function (pi: ExtensionAPI) {
       const info = getMavenProjectInfo(cwd);
       if (!info) throw new Error("Not a Maven project");
 
-      const { action, selector } = params;
+      const { action, selector, skipUnitTests } = params;
       const project = params.project ?? info.currentProject?.plSelector;
 
-      const opts = { action: action as MavenAction, runner: info.runner, selector, project };
+      const opts = { action: action as MavenAction, runner: info.runner, selector, project, skipUnitTests };
       const command = buildMavenCommand(opts);
       const args = buildMavenArgs(opts);
 
@@ -242,10 +243,10 @@ export default function (pi: ExtensionAPI) {
     renderCall(args, theme, context) {
       const text = (context.lastComponent as import("@earendil-works/pi-tui").Text | undefined)
         ?? new Text("", 0, 0);
-      const { action, project, selector } = args as { action: string; project?: string; selector?: string };
+      const { action, project, selector, skipUnitTests } = args as { action: string; project?: string; selector?: string; skipUnitTests?: boolean };
       const info = getMavenProjectInfo(resolve(context.cwd));
       const runner = info?.runner ?? "mvn";
-      const command = buildMavenCommand({ action: action as import("./maven-run.ts").MavenAction, runner, project, selector });
+      const command = buildMavenCommand({ action: action as import("./maven-run.ts").MavenAction, runner, project, selector, skipUnitTests });
       text.setText(`${theme.fg("muted", "○")} ${theme.fg("dim", command)}`);
       return text;
     },

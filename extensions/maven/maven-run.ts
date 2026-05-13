@@ -5,6 +5,9 @@ export interface MavenCommandOptions {
   runner: string;
   selector?: string;
   project?: string;
+  /** Pass -Dskip.surefire.tests=true when running integration-test action.
+   *  Only effective if the project defines this property in its POM. */
+  skipUnitTests?: boolean;
 }
 
 function quoteSelector(selector: string): string {
@@ -16,7 +19,7 @@ function quoteSelector(selector: string): string {
  * Selectors are passed as-is (no shell quoting needed).
  */
 export function buildMavenArgs(opts: MavenCommandOptions): string[] {
-  const { action, runner, selector, project } = opts;
+  const { action, runner, selector, project, skipUnitTests } = opts;
 
   const args: string[] = [runner];
   if (project) args.push("-pl", project);
@@ -27,7 +30,9 @@ export function buildMavenArgs(opts: MavenCommandOptions): string[] {
       if (selector) args.push(`-Dtest=${selector}`);
       break;
     case "integration-test":
-      args.push("verify", "-Dskip.surefire.tests", "-DskipITs=false");
+      args.push("verify");
+      if (skipUnitTests) args.push("-Dskip.surefire.tests=true");
+      args.push("-DskipITs=false");
       if (selector) args.push(`-Dit.test=${selector}`);
       break;
     case "verify":
@@ -46,7 +51,7 @@ export function buildMavenArgs(opts: MavenCommandOptions): string[] {
  * Selectors containing '#' are quoted for readability.
  */
 export function buildMavenCommand(opts: MavenCommandOptions): string {
-  const { action, runner, selector, project } = opts;
+  const { action, runner, selector, project, skipUnitTests } = opts;
 
   const parts: string[] = [runner];
   if (project) parts.push(`-pl ${project}`);
@@ -57,7 +62,9 @@ export function buildMavenCommand(opts: MavenCommandOptions): string {
       if (selector) parts.push(`-Dtest=${quoteSelector(selector)}`);
       break;
     case "integration-test":
-      parts.push("verify", "-Dskip.surefire.tests", "-DskipITs=false");
+      parts.push("verify");
+      if (skipUnitTests) parts.push("-Dskip.surefire.tests=true");
+      parts.push("-DskipITs=false");
       if (selector) parts.push(`-Dit.test=${quoteSelector(selector)}`);
       break;
     case "verify":
