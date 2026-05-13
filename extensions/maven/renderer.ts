@@ -109,7 +109,7 @@ export function renderMavenRunResult(
   expanded: boolean,
   theme: Theme,
 ): Text {
-  const text = renderRunResult(result, expanded, () => "", theme);
+  const text = renderRunResult(result, expanded, theme);
   return new Text(text, 0, 0);
 }
 

@@ -6,20 +6,11 @@ type Theme = { fg: (color: string, text: string) => string; bold: (text: string)
  * Renders a MavenRunResult as a plain string.
  *
  * collapsed — concise summary: icon, command, and a brief outcome line.
- * expanded  — same header plus the path to the raw log file on disk.
- *
- * The raw log content is intentionally never inlined — it lives in the log
- * file only, keeping the pi session lean. The log path is shown so the user
- * can open it directly.
- *
- * readLog is kept as an injected parameter so the signature stays testable;
- * it is not called in the current implementation but may be used for a future
- * log-tail feature without changing the test contract.
+ * expanded  — the full JSON payload that was sent to the LLM.
  */
 export function renderRunResult(
   result: MavenRunResult,
   expanded: boolean,
-  _readLog: (path: string) => string,
   theme: Theme,
 ): string {
   const icon = result.success
@@ -34,7 +25,7 @@ export function renderRunResult(
   if (summary) lines.push(summary);
 
   if (expanded) {
-    lines.push(theme.fg("muted", `log: ${result.rawLogPath}`));
+    lines.push("", JSON.stringify(result, null, 2));
   }
 
   return lines.join("\n");

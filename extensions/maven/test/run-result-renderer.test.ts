@@ -32,26 +32,23 @@ function makeResult(overrides: Partial<MavenRunResult> = {}): MavenRunResult {
   };
 }
 
-const noLog = (_path: string) => "";
-const fakeLog = (_path: string) => "[INFO] BUILD SUCCESS\n[INFO] Total time: 1.234 s\n";
-
 // ---------------------------------------------------------------------------
 // Collapsed view
 // ---------------------------------------------------------------------------
 
 describe("renderRunResult — collapsed", () => {
   it("shows the success icon when build succeeded", () => {
-    const text = renderRunResult(makeResult({ success: true }), false, noLog, theme);
+    const text = renderRunResult(makeResult({ success: true }), false, theme);
     assert.ok(text.includes("✓"), `expected ✓ in: ${text}`);
   });
 
   it("shows the failure icon when build failed", () => {
-    const text = renderRunResult(makeResult({ success: false }), false, noLog, theme);
+    const text = renderRunResult(makeResult({ success: false }), false, theme);
     assert.ok(text.includes("✗"), `expected ✗ in: ${text}`);
   });
 
   it("shows the command", () => {
-    const text = renderRunResult(makeResult(), false, noLog, theme);
+    const text = renderRunResult(makeResult(), false, theme);
     assert.ok(text.includes("mvn package -DskipTests"), `expected command in: ${text}`);
   });
 
@@ -61,7 +58,7 @@ describe("renderRunResult — collapsed", () => {
       command: "mvn test",
       testSummary: { testsRun: 5, failures: 1, errors: 0, skipped: 0, failedTests: [] },
     });
-    const text = renderRunResult(result, false, noLog, theme);
+    const text = renderRunResult(result, false, theme);
     assert.ok(text.includes("5"), `expected test count in: ${text}`);
     assert.ok(text.includes("1"), `expected failure count in: ${text}`);
   });
@@ -71,14 +68,13 @@ describe("renderRunResult — collapsed", () => {
       success: false,
       compilationErrors: ["App.java:[10,5] ';' expected", "App.java:[11,1] illegal start of expression"],
     });
-    const text = renderRunResult(result, false, noLog, theme);
+    const text = renderRunResult(result, false, theme);
     assert.ok(text.includes("2"), `expected error count in: ${text}`);
   });
 
-  it("does not include raw log content in collapsed view", () => {
-    const bigLog = (_path: string) => "[INFO] BUILD SUCCESS\n".repeat(100);
-    const text = renderRunResult(makeResult(), false, bigLog, theme);
-    assert.ok(!text.includes("[INFO] BUILD SUCCESS"), "collapsed view must not contain raw log lines");
+  it("does not include JSON in collapsed view", () => {
+    const text = renderRunResult(makeResult(), false, theme);
+    assert.ok(!text.includes("{"), "collapsed view must not contain JSON");
   });
 });
 
@@ -87,21 +83,22 @@ describe("renderRunResult — collapsed", () => {
 // ---------------------------------------------------------------------------
 
 describe("renderRunResult — expanded", () => {
-  it("shows the log path when expanded", () => {
-    const text = renderRunResult(makeResult(), true, noLog, theme);
+  it("shows the full JSON payload when expanded", () => {
+    const text = renderRunResult(makeResult(), true, theme);
+    assert.ok(text.includes('"success"'), `expected JSON key "success" in expanded view: ${text}`);
+    assert.ok(text.includes('"command"'), `expected JSON key "command" in expanded view: ${text}`);
+  });
+
+  it("JSON contains the rawLogPath", () => {
+    const text = renderRunResult(makeResult(), true, theme);
     assert.ok(
       text.includes("target/pi/maven-logs/2026-05-13T12-00-00-package.log"),
-      `expected log path in expanded view: ${text}`,
+      `expected rawLogPath in expanded JSON: ${text}`,
     );
   });
 
-  it("does not inline raw log content when expanded", () => {
-    const text = renderRunResult(makeResult(), true, fakeLog, theme);
-    assert.ok(!text.includes("[INFO] BUILD SUCCESS"), "expanded view must not inline raw log content");
-  });
-
-  it("still shows the command when expanded", () => {
-    const text = renderRunResult(makeResult(), true, noLog, theme);
+  it("still shows the command header when expanded", () => {
+    const text = renderRunResult(makeResult(), true, theme);
     assert.ok(text.includes("mvn package -DskipTests"), `expected command in expanded: ${text}`);
   });
 });
