@@ -36,6 +36,16 @@ describe("parseSurefireReport", () => {
     assert.equal(result.failures, 0);
     assert.deepEqual(result.failedTests, []);
   });
+
+  it("returns zero counts and empty failedTests for a no-tests-run report", () => {
+    const xml = readFileSync(join(reportsDir, "TEST-no-tests.xml"), "utf8");
+    const result = parseSurefireReport(xml);
+    assert.equal(result.testsRun, 0);
+    assert.equal(result.failures, 0);
+    assert.equal(result.errors, 0);
+    assert.equal(result.skipped, 0);
+    assert.deepEqual(result.failedTests, []);
+  });
 });
 
 describe("extractCompilationErrors", () => {
@@ -54,5 +64,25 @@ describe("extractBuildErrors", () => {
     const errors = extractBuildErrors(output);
     assert.ok(errors.length > 0);
     assert.ok(errors.some((e) => e.includes("Non-resolvable parent POM")));
+  });
+
+  it("extracts the resolution error from a dependency-resolution-failure log", () => {
+    const output = readFileSync(join(consoleDir, "dependency-resolution-failure.txt"), "utf8");
+    const errors = extractBuildErrors(output);
+    assert.ok(errors.length > 0);
+    assert.ok(errors.some((e) => e.includes("Could not resolve dependencies")));
+  });
+
+  it("extracts the forked-VM error from a test-failure-incomplete-report log", () => {
+    const output = readFileSync(join(consoleDir, "test-failure-incomplete-report.txt"), "utf8");
+    const errors = extractBuildErrors(output);
+    assert.ok(errors.length > 0);
+    assert.ok(errors.some((e) => e.includes("forked VM terminated")));
+  });
+
+  it("does not include blank [ERROR] lines", () => {
+    const output = "[ERROR] something went wrong\n[ERROR]\n[ERROR] another error\n";
+    const errors = extractBuildErrors(output);
+    assert.ok(errors.every((e) => e.length > 0));
   });
 });

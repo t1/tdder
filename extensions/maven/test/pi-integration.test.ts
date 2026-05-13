@@ -1,15 +1,18 @@
 /**
- * Milestone 2 — in-process contract tests for the Maven pi extension.
+ * Milestone 2 & 4 — in-process contract tests for the Maven pi extension.
  *
  * These tests load the extension via the pi SDK (no LLM involved) and verify:
  *   - the expected tools are registered
  *   - the /maven command is registered
  *   - maven_lookup_version returns the correct structured result (real network call)
  *   - maven_project_info works against a fixture project
+ *   - maven_run produces a structured result with raw log persisted to disk
+ *   - maven_run keeps raw Maven output out of LLM-facing content
  */
 
 import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
   createAgentSession,
@@ -39,6 +42,27 @@ function makeCtx(cwd: string): ExtensionContext {
   } as unknown as ExtensionContext;
 }
 
+interface WidgetCall {
+  key: string;
+  lines: string[] | undefined;
+}
+
+function makeRecordingCtx(cwd: string): { ctx: ExtensionContext; widgetCalls: WidgetCall[] } {
+  const widgetCalls: WidgetCall[] = [];
+  const ctx: ExtensionContext = {
+    cwd,
+    ui: {
+      notify: () => {},
+      setStatus: () => {},
+      setWidget: (key: string, lines: string[] | undefined) => { widgetCalls.push({ key, lines }); },
+      confirm: async () => false,
+      select: async () => undefined,
+      input: async () => undefined,
+    },
+  } as unknown as ExtensionContext;
+  return { ctx, widgetCalls };
+}
+
 // ---------------------------------------------------------------------------
 // Shared state loaded once
 // ---------------------------------------------------------------------------
@@ -55,6 +79,9 @@ async function setup() {
   const loader = new DefaultResourceLoader({
     cwd: process.cwd(),
     agentDir: getAgentDir(),
+    // noExtensions suppresses package-resolved extensions (e.g. the installed tdder).
+    // additionalExtensionPaths injects the local source, bundled by the SDK's esbuild.
+    noExtensions: true,
     additionalExtensionPaths: [extensionPath],
   });
   await loader.reload();
@@ -67,13 +94,9 @@ async function setup() {
 
   session = result.session;
 
-  // extensionsResult.runtime is a stub (action dispatchers only) — it does NOT expose
-  // registered tools or commands. Those live on extensions[N].tools / .commands.
-  // We find the maven extension by resolvedPath to avoid depending on load order.
-  const ext = result.extensionsResult.extensions.find((e) =>
-    e.resolvedPath.endsWith("maven/index.ts") || e.resolvedPath.endsWith("maven/index.js")
-  );
-  assert.ok(ext, `Maven extension not found in loaded extensions: ${result.extensionsResult.extensions.map(e => e.resolvedPath).join(", ")}`);
+  // additionalExtensionPaths with noExtensions means exactly one extension is loaded.
+  const ext = result.extensionsResult.extensions[0];
+  assert.ok(ext, `Maven extension not loaded. Errors: ${result.extensionsResult.errors.map(e => e.error).join(", ")}`);
   mavenExtension = ext;
 }
 
@@ -182,5 +205,112 @@ describe("maven_lookup_version tool", () => {
     const v: string = json.selectedVersion;
     const prereleasePattern = /[-.]?(SNAPSHOT|alpha|beta|RC\d*|M\d*|milestone)/i;
     assert.ok(!prereleasePattern.test(v), `selectedVersion "${v}" looks like a prerelease`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// maven_run — LLM context safety and result shape
+// ---------------------------------------------------------------------------
+
+const singleModuleRoot = join(fixturesDir, "single-module");
+
+describe("maven_run tool", () => {
+  before(setup);
+
+  // Run Maven once and share the result across all assertions in this suite.
+  let runJson: Record<string, unknown>;
+  let contentText: string;
+
+  before(async () => {
+    const tool = mavenExtension.tools.get("maven_run")!;
+    const ctx = makeCtx(singleModuleRoot);
+    const result = await tool.definition.execute(
+      "tc-run",
+      { action: "package" },
+      undefined,
+      undefined,
+      ctx,
+    );
+    contentText = (result.content[0] as { type: string; text: string }).text;
+    runJson = JSON.parse(contentText);
+  });
+
+  it("returns a result containing rawLogPath", () => {
+    assert.ok(typeof runJson.rawLogPath === "string" && (runJson.rawLogPath as string).length > 0,
+      "rawLogPath should be a non-empty string");
+  });
+
+  it("persists the raw log file to disk", () => {
+    const absLogPath = join(singleModuleRoot, runJson.rawLogPath as string);
+    assert.ok(existsSync(absLogPath), `log file should exist at ${absLogPath}`);
+  });
+
+  it("writes Maven output into the raw log file", () => {
+    const absLogPath = join(singleModuleRoot, runJson.rawLogPath as string);
+    const logContent = readFileSync(absLogPath, "utf8");
+    assert.ok(logContent.length > 0, "log file should be non-empty");
+    assert.ok(logContent.includes("[INFO]"), "log file should contain Maven [INFO] lines");
+  });
+
+  it("does not include raw Maven output in LLM-facing content", () => {
+    assert.ok(!contentText.includes("[INFO] Building"),
+      "raw Maven [INFO] Building lines must not appear in LLM-facing content");
+    assert.ok(!contentText.includes("[INFO] --- "),
+      "raw Maven goal lines must not appear in LLM-facing content");
+  });
+
+  it("reports success true for a package run on a minimal project", () => {
+    assert.equal(runJson.success, true);
+  });
+
+  it("echoes back the action in the result", () => {
+    assert.equal(runJson.action, "package");
+  });
+
+  it("includes the runner and goal in the command field", () => {
+    assert.ok(typeof runJson.command === "string" && (runJson.command as string).includes("package"),
+      `command should contain 'package', got: ${runJson.command}`);
+    assert.ok((runJson.command as string).includes("mvn"),
+      `command should contain runner 'mvn', got: ${runJson.command}`);
+  });
+
+  it("includes cwd in the result", () => {
+    assert.ok(typeof runJson.cwd === "string" && (runJson.cwd as string).length > 0,
+      "cwd should be a non-empty string");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// maven_run — live progress widget
+// ---------------------------------------------------------------------------
+
+describe("maven_run live progress widget", () => {
+  before(setup);
+
+  let widgetCalls: WidgetCall[];
+
+  before(async () => {
+    const tool = mavenExtension.tools.get("maven_run")!;
+    const { ctx, widgetCalls: calls } = makeRecordingCtx(singleModuleRoot);
+    widgetCalls = calls;
+    await tool.definition.execute("tc-widget", { action: "package" }, undefined, undefined, ctx);
+  });
+
+  it("sets a widget while Maven is running", () => {
+    const setCall = widgetCalls.find((c) => Array.isArray(c.lines) && c.lines.length > 0);
+    assert.ok(setCall, "setWidget should have been called with a non-empty lines array");
+  });
+
+  it("widget line contains the Maven spinner prefix", () => {
+    const setCall = widgetCalls.find((c) => Array.isArray(c.lines) && c.lines.length > 0)!;
+    assert.ok(setCall.lines![0].includes("Maven"),
+      `widget line should contain 'Maven', got: ${setCall.lines![0]}`);
+  });
+
+  it("clears the widget when Maven finishes", () => {
+    const lastCall = widgetCalls.at(-1);
+    assert.ok(lastCall, "setWidget should have been called at least once");
+    assert.equal(lastCall!.lines, undefined,
+      "last setWidget call should clear the widget (lines === undefined)");
   });
 });

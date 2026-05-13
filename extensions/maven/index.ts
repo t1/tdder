@@ -17,7 +17,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { findProjectRoot, detectRunner, buildProjectTree, resolveCurrentProject } from "./project-info.ts";
 import { renderMavenMessage } from "./renderer.ts";
 import { formatProjectInfo } from "./formatter.ts";
-import { buildMavenCommand, type MavenAction } from "./maven-run.ts";
+import { buildMavenArgs, buildMavenCommand, type MavenAction } from "./maven-run.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { parseSurefireReport, extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
 import { saveRawLog } from "./log-store.ts";
@@ -67,6 +67,7 @@ interface RunMavenResult {
  */
 async function runMaven(
   command: string,
+  args: string[],
   projectRoot: string,
   ctx: ExtensionContext,
   onUpdate?: AgentToolUpdateCallback,
@@ -94,10 +95,9 @@ async function runMaven(
   let exitCode = 0;
 
   await new Promise<void>((done) => {
-    const [cmd, ...args] = command.split(" ");
-    const child = spawn(cmd, args, {
+    const [cmd, ...spawnArgs] = args;
+    const child = spawn(cmd, spawnArgs, {
       cwd: projectRoot,
-      shell: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -236,11 +236,13 @@ export default function (pi: ExtensionAPI) {
       const { action, selector } = params;
       const project = params.project ?? info.currentProject?.plSelector;
 
-      const command = buildMavenCommand({ action: action as MavenAction, runner: info.runner, selector, project });
+      const opts = { action: action as MavenAction, runner: info.runner, selector, project };
+      const command = buildMavenCommand(opts);
+      const args = buildMavenArgs(opts);
 
       onUpdate?.({ content: [{ type: "text" as const, text: `Running: ${command}` }] });
 
-      const { rawOutput, exitCode } = await runMaven(command, info.projectRoot, ctx, onUpdate);
+      const { rawOutput, exitCode } = await runMaven(command, args, info.projectRoot, ctx, onUpdate);
 
       const rawLogPath = saveRawLog(info.projectRoot, action, rawOutput);
       const success = exitCode === 0;
@@ -402,9 +404,11 @@ export default function (pi: ExtensionAPI) {
       };
       const action = actionMap[sub];
       const project = info.currentProject?.plSelector;
-      const command = buildMavenCommand({ action, runner: info.runner, selector, project });
+      const opts = { action, runner: info.runner, selector, project };
+      const command = buildMavenCommand(opts);
+      const mavenArgs = buildMavenArgs(opts);
 
-      const { rawOutput, exitCode } = await runMaven(command, info.projectRoot, ctx);
+      const { rawOutput, exitCode } = await runMaven(command, mavenArgs, info.projectRoot, ctx);
       const rawLogPath = saveRawLog(info.projectRoot, action, rawOutput);
       const success = exitCode === 0;
 

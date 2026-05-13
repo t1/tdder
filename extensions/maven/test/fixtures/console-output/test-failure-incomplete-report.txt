@@ -1,0 +1,27 @@
+[INFO] Scanning for projects...
+[INFO]
+[INFO] -----------------< com.example:single-app >-----------------
+[INFO] Building single-app 1.0.0-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO]
+[INFO] --- maven-surefire-plugin:3.2.5:test (default-test) @ single-app ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO]
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[ERROR] The forked VM terminated without properly saying goodbye. VM crash or System.exit called?
+[ERROR] Command was /usr/lib/jvm/java-21/bin/java [...] com.example.AppTest
+[ERROR] Process Exit Code: 1
+[ERROR] org.apache.maven.surefire.booter.SurefireBooterForkException: The forked VM terminated without properly saying goodbye. VM crash or System.exit called?
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  3.456 s
+[INFO] Finished at: 2026-05-13T12:01:00Z
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.2.5:test (default-test) on project single-app: There are test failures.
+[ERROR]
+[ERROR] Please refer to target/surefire-reports for the individual test results.
+[ERROR] -> [Help 1]
