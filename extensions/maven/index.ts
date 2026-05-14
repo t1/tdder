@@ -177,13 +177,14 @@ export default function (pi: ExtensionAPI) {
         };
       }
 
-      const { pomPath: _, projectTree, ...infoRest } = info;
+      const { pomPath: _, projectTree, projectRoot, currentProject, ...infoRest } = info;
       const { modules, ...rootFields } = stripInternalFields(projectTree);
       const json = {
         ...infoRest,
+        rootPath: projectRoot,
         ...rootFields,
         ...(modules ? { modules } : {}),
-        currentProject: info.currentProject ? stripInternalFields(info.currentProject) : null,
+        currentPath: currentProject?.module ?? ".",
       };
       return {
         content: [{ type: "text" as const, text: JSON.stringify(json, null, 2) }],

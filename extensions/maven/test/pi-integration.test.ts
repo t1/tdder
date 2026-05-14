@@ -144,13 +144,13 @@ describe("maven_project_info tool", () => {
     assert.equal(json.isMavenProject, true);
   });
 
-  it("resolves currentProject to service-a when cwd is inside it", async () => {
+  it("resolves currentPath to service-a module when cwd is inside it", async () => {
     const tool = mavenExtension.tools.get("maven_project_info")!;
     const ctx = makeCtx(serviceACwd);
     const result = await tool.definition.execute("tc-2", {}, undefined, undefined, ctx);
 
     const json = JSON.parse((result.content[0] as { type: string; text: string }).text);
-    assert.equal(json.currentProject?.artifactId, "service-a");
+    assert.equal(json.currentPath, "services/service-a");
   });
 
   it("root node fields are promoted to top level and projectTree is absent", async () => {
@@ -161,6 +161,9 @@ describe("maven_project_info tool", () => {
     const json = JSON.parse((result.content[0] as { type: string; text: string }).text) as Record<string, unknown>;
     assert.equal(json.projectTree, undefined, "projectTree should not appear");
     assert.equal(json.pomPath, undefined, "top-level pomPath should not appear");
+    assert.equal(json.projectRoot, undefined, "projectRoot should not appear");
+    assert.ok("rootPath" in json, "rootPath should appear");
+    assert.ok("currentPath" in json, "currentPath should appear");
     assert.ok("artifactId" in json, "root artifactId should be promoted to top level");
     assert.ok("groupId" in json, "root groupId should be promoted to top level");
     function assertNoInternalFields(node: Record<string, unknown>): void {

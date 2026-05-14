@@ -8,7 +8,7 @@ export interface MavenProjectInfo {
   projectRoot: string;
   pomPath: string;
   runner: string;
-  currentProject: ProjectNode | null;
+  currentProject: ProjectNode | null; // internal; serialised as currentPath
   projectTree: ProjectNode;
 }
 

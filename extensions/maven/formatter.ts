@@ -17,9 +17,9 @@ export function formatProjectInfo(ctx: ProjectInfoContext | null): string {
   const { projectRoot, runner, projectTree, currentProject } = ctx;
   const header: string[] = [
     "Maven project",
-    `root:    ${projectRoot}`,
-    `runner:  ${runner}`,
-    `current: ${currentProject?.relativePath ?? "."}`,
+    `rootPath:    ${projectRoot}`,
+    `runner:      ${runner}`,
+    `currentPath: ${currentProject?.relativePath ?? "."}`,
     "projects:",
   ];
 

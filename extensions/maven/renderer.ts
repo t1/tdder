@@ -65,9 +65,9 @@ function renderInfo(details: Record<string, unknown>, theme: Theme, expanded = f
   const hint = theme.fg("dim", keyHint("app.tools.expand", "to expand"));
   const lines: string[] = [
     `${header}  ${hint}`,
-    label(theme, "root")    + theme.fg("text", projectRoot),
-    label(theme, "runner")  + theme.fg("text", runner),
-    label(theme, "current") + theme.fg("text", currentProject?.relativePath ?? "."),
+    label(theme, "rootPath")    + theme.fg("text", projectRoot),
+    label(theme, "runner")       + theme.fg("text", runner),
+    label(theme, "currentPath")  + theme.fg("text", currentProject?.relativePath ?? "."),
     theme.fg("muted", "projects:"),
   ];
 
