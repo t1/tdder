@@ -25,13 +25,27 @@ describe("formatProjectInfo — single-module project", () => {
     assert.ok(output.includes("single-app"));
     assert.ok(output.includes("[current]"));
   });
+
+  it("includes the project name when declared", () => {
+    const root = join(fixturesDir, "single-module");
+    const tree = buildProjectTree(root);
+    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: tree });
+    assert.ok(output.includes("Single App"));
+  });
+
+  it("formats the project entry as 'artifactId (name)' when name is declared", () => {
+    const root = join(fixturesDir, "single-module");
+    const tree = buildProjectTree(root);
+    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: tree });
+    assert.ok(output.includes("single-app (Single App)"), `expected 'single-app (Single App)' in: ${output}`);
+  });
 });
 
 describe("formatProjectInfo — flat multi-module project", () => {
   it("indents child modules under the root", () => {
     const root = join(fixturesDir, "flat-multi-module");
     const tree = buildProjectTree(root);
-    const current = tree.children[0]; // module-a
+    const current = tree.modules["module-a"]; // module-a
     const output = formatProjectInfo({ projectRoot: root, runner: "./mvnw", projectTree: tree, currentProject: current });
     const lines = output.split("\n");
     const rootLine = lines.find((l) => /^\s*-\s*root/.test(l));
@@ -50,7 +64,7 @@ describe("formatProjectInfo — nested multi-module project", () => {
   it("indents the nested tree at multiple levels", () => {
     const root = join(fixturesDir, "nested-multi-module");
     const tree = buildProjectTree(root);
-    const serviceA = tree.children[0].children[0]; // services/service-a
+    const serviceA = tree.modules["services"].modules["service-a"]; // services/service-a
     const output = formatProjectInfo({ projectRoot: root, runner: "./mvnw", projectTree: tree, currentProject: serviceA });
     const lines = output.split("\n");
     const rootLine    = lines.find((l) => /^\s*-\s*root/.test(l));

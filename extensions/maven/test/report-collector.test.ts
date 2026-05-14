@@ -1,9 +1,9 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildProjectTree } from "../project-info.ts";
-import { collectReportPaths } from "../report-collector.ts";
+import { collectReportPaths, parseReports } from "../report-collector.ts";
 
 const fixturesDir = new URL("fixtures/projects", import.meta.url).pathname;
 const flatRoot = join(fixturesDir, "flat-multi-module");
@@ -117,5 +117,110 @@ describe("collectReportPaths — failsafe for testScope=failsafe", () => {
     const tree = buildProjectTree(flatRoot);
     const paths = collectReportPaths(flatRoot, "test", tree, "failsafe");
     assert.ok(!paths.some((p) => p.includes("surefire")), `unexpected surefire path in: ${paths}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseReports
+// ---------------------------------------------------------------------------
+
+const reportsFixtures = join(import.meta.dirname, "fixtures/reports");
+
+describe("parseReports — single report dir with passing tests", () => {
+  const tmpDir = join(singleRoot, "target/surefire-reports-parse-passing");
+
+  before(() => {
+    mkdirSync(tmpDir, { recursive: true });
+    // Copy passing and failing fixtures into the temp dir
+    writeFileSync(
+      join(tmpDir, "TEST-FooTest.xml"),
+      readFileSync(join(reportsFixtures, "TEST-passing.xml"), "utf8")
+    );
+  });
+  after(() => rmSync(tmpDir, { recursive: true, force: true }));
+
+  it("aggregates test counts across XML files in the directory", () => {
+    const summary = parseReports(["target/surefire-reports-parse-passing"], singleRoot);
+    assert.equal(summary.testsRun, 3);
+    assert.equal(summary.failures, 0);
+    assert.equal(summary.errors, 0);
+    assert.deepEqual(summary.failedTests, []);
+  });
+});
+
+describe("parseReports — single report dir with failing test", () => {
+  const tmpDir = join(singleRoot, "target/surefire-reports-parse-failing");
+
+  before(() => {
+    mkdirSync(tmpDir, { recursive: true });
+    writeFileSync(
+      join(tmpDir, "TEST-BarTest.xml"),
+      readFileSync(join(reportsFixtures, "TEST-failing.xml"), "utf8")
+    );
+  });
+  after(() => rmSync(tmpDir, { recursive: true, force: true }));
+
+  it("populates failedTests from the failing report", () => {
+    const summary = parseReports(["target/surefire-reports-parse-failing"], singleRoot);
+    assert.equal(summary.failures, 1);
+    assert.equal(summary.failedTests.length, 1);
+    assert.equal(summary.failedTests[0].methodName, "shouldFail");
+  });
+
+  it("attaches the reportFile path to each failed test", () => {
+    const summary = parseReports(["target/surefire-reports-parse-failing"], singleRoot);
+    assert.ok(
+      summary.failedTests[0].reportFile?.includes("TEST-BarTest.xml"),
+      `expected reportFile to reference TEST-BarTest.xml, got: ${summary.failedTests[0].reportFile}`
+    );
+  });
+});
+
+describe("parseReports — multiple report dirs are aggregated", () => {
+  const dir1 = join(singleRoot, "target/surefire-reports-parse-multi-1");
+  const dir2 = join(singleRoot, "target/surefire-reports-parse-multi-2");
+
+  before(() => {
+    mkdirSync(dir1, { recursive: true });
+    mkdirSync(dir2, { recursive: true });
+    writeFileSync(join(dir1, "TEST-FooTest.xml"), readFileSync(join(reportsFixtures, "TEST-passing.xml"), "utf8"));
+    writeFileSync(join(dir2, "TEST-BarTest.xml"), readFileSync(join(reportsFixtures, "TEST-failing.xml"), "utf8"));
+  });
+  after(() => {
+    rmSync(dir1, { recursive: true, force: true });
+    rmSync(dir2, { recursive: true, force: true });
+  });
+
+  it("sums test counts across both dirs", () => {
+    const summary = parseReports(
+      ["target/surefire-reports-parse-multi-1", "target/surefire-reports-parse-multi-2"],
+      singleRoot
+    );
+    assert.equal(summary.testsRun, 5); // 3 + 2
+    assert.equal(summary.failures, 1);
+  });
+});
+
+describe("parseReports — directory with no TEST-*.xml files", () => {
+  const tmpDir = join(singleRoot, "target/surefire-reports-parse-empty");
+
+  before(() => {
+    mkdirSync(tmpDir, { recursive: true });
+    writeFileSync(join(tmpDir, "not-a-report.txt"), "ignored");
+  });
+  after(() => rmSync(tmpDir, { recursive: true, force: true }));
+
+  it("returns zero counts when no XML report files are present", () => {
+    const summary = parseReports(["target/surefire-reports-parse-empty"], singleRoot);
+    assert.equal(summary.testsRun, 0);
+    assert.deepEqual(summary.failedTests, []);
+  });
+});
+
+describe("parseReports — non-existent report dir", () => {
+  it("returns zero counts without throwing when the directory does not exist", () => {
+    const summary = parseReports(["target/does-not-exist-at-all"], singleRoot);
+    assert.equal(summary.testsRun, 0);
+    assert.deepEqual(summary.failedTests, []);
   });
 });

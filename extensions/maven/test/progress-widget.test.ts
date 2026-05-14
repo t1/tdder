@@ -33,6 +33,19 @@ describe("parsePhase", () => {
       "[orders] integration-test"
     );
   });
+
+  it("returns null for a Reactor Summary line", () => {
+    assert.equal(parsePhase("[INFO] Reactor Summary for root:"), null);
+  });
+
+  it("returns null for a BUILD SUCCESS line", () => {
+    assert.equal(parsePhase("[INFO] BUILD SUCCESS"), null);
+  });
+
+  it("returns null for a Building line whose name starts with a space (not matched by regex)", () => {
+    // The BUILDING_RE requires the first char to be a word char; a leading space does not match
+    assert.equal(parsePhase("[INFO] Building  service-api 1.0.0-SNAPSHOT"), null);
+  });
 });
 
 describe("formatWidgetLine", () => {

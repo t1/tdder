@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.BazTest" tests="2" failures="0" errors="1" skipped="0" time="0.3">
+  <testcase name="shouldPass" classname="com.example.BazTest" time="0.05"/>
+  <testcase name="shouldThrow" classname="com.example.BazTest" time="0.25">
+    <error message="NullPointerException" type="java.lang.NullPointerException">
+java.lang.NullPointerException
+	at com.example.BazTest.shouldThrow(BazTest.java:20)
+    </error>
+  </testcase>
+</testsuite>

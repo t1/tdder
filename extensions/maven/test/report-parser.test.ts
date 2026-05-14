@@ -37,8 +37,26 @@ describe("parseSurefireReport", () => {
     assert.deepEqual(result.failedTests, []);
   });
 
+  it("counts errors in the errors field but does not add them to failedTests", () => {
+    const xml = readFileSync(join(reportsDir, "TEST-error.xml"), "utf8");
+    const result = parseSurefireReport(xml);
+    assert.equal(result.errors, 1);
+    assert.equal(result.testsRun, 2);
+    assert.deepEqual(result.failedTests, []);
+  });
+
   it("returns zero counts and empty failedTests for a no-tests-run report", () => {
     const xml = readFileSync(join(reportsDir, "TEST-no-tests.xml"), "utf8");
+    const result = parseSurefireReport(xml);
+    assert.equal(result.testsRun, 0);
+    assert.equal(result.failures, 0);
+    assert.equal(result.errors, 0);
+    assert.equal(result.skipped, 0);
+    assert.deepEqual(result.failedTests, []);
+  });
+
+  it("returns zero counts for a minimal testsuite with no attributes", () => {
+    const xml = "<testsuite><testcase name=\"x\" classname=\"X\"/></testsuite>";
     const result = parseSurefireReport(xml);
     assert.equal(result.testsRun, 0);
     assert.equal(result.failures, 0);

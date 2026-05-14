@@ -36,6 +36,24 @@ describe("parseMetadata", () => {
     const result = parseMetadata(xml);
     assert.equal(result.latestVersion, "1.2.0");
   });
+
+  it("returns an RC as latestVersion when release points to an RC", () => {
+    const xml = loadFixture("latest-is-rc.xml");
+    const result = parseMetadata(xml);
+    assert.equal(result.latestVersion, "2.0.0.RC2");
+  });
+
+  it("falls back to last version when release is absent and last version is a SNAPSHOT", () => {
+    const xml = loadFixture("latest-is-snapshot.xml");
+    const result = parseMetadata(xml);
+    assert.equal(result.latestVersion, "1.2.0-SNAPSHOT");
+  });
+
+  it("includes all versions from the versions list", () => {
+    const xml = loadFixture("latest-is-rc.xml");
+    const result = parseMetadata(xml);
+    assert.deepEqual(result.versions, ["1.9.0", "2.0.0.M1", "2.0.0.RC1", "2.0.0.RC2"]);
+  });
 });
 
 describe("selectVersion", () => {

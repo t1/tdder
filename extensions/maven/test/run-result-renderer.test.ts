@@ -27,7 +27,7 @@ function makeResult(overrides: Partial<MavenRunResult> = {}): MavenRunResult {
     compilationErrors: [],
     buildErrors: [],
     reportPaths: [],
-    rawLogPath: "target/pi/maven-logs/2026-05-13T12-00-00-package.log",
+    rawMavenOut: "target/pi/maven-logs/2026-05-13T12-00-00-package.log",
     ...overrides,
   };
 }
@@ -79,6 +79,49 @@ describe("renderRunResult — collapsed", () => {
 });
 
 // ---------------------------------------------------------------------------
+// buildSummary edge cases
+// ---------------------------------------------------------------------------
+
+describe("renderRunResult — showCommand=false", () => {
+  it("omits the command line when showCommand is false", () => {
+    const text = renderRunResult(makeResult(), false, theme, false);
+    assert.ok(!text.includes("mvn package -DskipTests"), `command must be absent when showCommand=false: ${text}`);
+  });
+
+  it("still shows the outcome summary when showCommand is false", () => {
+    const result = makeResult({
+      testSummary: { testsRun: 3, failures: 0, errors: 0, skipped: 0, failedTests: [] },
+    });
+    const text = renderRunResult(result, false, theme, false);
+    assert.ok(text.includes("3"), `expected test count in: ${text}`);
+  });
+});
+
+describe("buildSummary — compilation errors take priority over test counts", () => {
+  it("shows compilation error count and not test counts when both are present", () => {
+    const result = makeResult({
+      success: false,
+      compilationErrors: ["App.java:[10,5] ';' expected"],
+      testSummary: { testsRun: 2, failures: 1, errors: 0, skipped: 0, failedTests: [] },
+    });
+    const text = renderRunResult(result, false, theme);
+    assert.ok(text.includes("compilation error"), `expected compilation error label in: ${text}`);
+    assert.ok(!text.includes("2 tests") && !text.includes("tests,"), `test counts must not appear when compilation errors exist: ${text}`);
+  });
+});
+
+describe("buildSummary — errors count as failures", () => {
+  it("counts errors in the 'bad' total and marks the result as failed", () => {
+    const result = makeResult({
+      success: false,
+      testSummary: { testsRun: 3, failures: 0, errors: 2, skipped: 0, failedTests: [] },
+    });
+    const text = renderRunResult(result, false, theme);
+    assert.ok(text.includes("2 failed"), `expected '2 failed' in: ${text}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Expanded view
 // ---------------------------------------------------------------------------
 
@@ -89,11 +132,11 @@ describe("renderRunResult — expanded", () => {
     assert.ok(text.includes('"command"'), `expected JSON key "command" in expanded view: ${text}`);
   });
 
-  it("JSON contains the rawLogPath", () => {
+  it("JSON contains the rawMavenOut", () => {
     const text = renderRunResult(makeResult(), true, theme);
     assert.ok(
       text.includes("target/pi/maven-logs/2026-05-13T12-00-00-package.log"),
-      `expected rawLogPath in expanded JSON: ${text}`,
+      `expected rawMavenOut in expanded JSON: ${text}`,
     );
   });
 

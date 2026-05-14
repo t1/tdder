@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildMavenCommand } from "../maven-run.ts";
+import { buildMavenArgs, buildMavenCommand } from "../maven-run.ts";
 
 describe("buildMavenCommand", () => {
   it("builds a surefire (unit test) command", () => {
@@ -56,5 +56,52 @@ describe("buildMavenCommand", () => {
       project: "services/service-a",
     });
     assert.equal(cmd, "./mvnw -pl services/service-a test");
+  });
+});
+
+describe("buildMavenArgs", () => {
+  it("builds surefire argv array", () => {
+    const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire" });
+    assert.deepEqual(args, ["./mvnw", "test"]);
+  });
+
+  it("adds -Dtest= for a surefire class selector without quoting", () => {
+    const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire", selector: "MyTest" });
+    assert.deepEqual(args, ["./mvnw", "test", "-Dtest=MyTest"]);
+  });
+
+  it("passes method selector raw (no shell quoting) for surefire", () => {
+    const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire", selector: "MyTest#myMethod" });
+    assert.deepEqual(args, ["./mvnw", "test", "-Dtest=MyTest#myMethod"]);
+  });
+
+  it("builds failsafe argv array", () => {
+    const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "failsafe" });
+    assert.deepEqual(args, ["./mvnw", "verify", "-Dskip.surefire.tests=true", "-DskipITs=false"]);
+  });
+
+  it("passes method selector raw (no shell quoting) for failsafe", () => {
+    const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "failsafe", selector: "MyIT#myMethod" });
+    assert.deepEqual(args, ["./mvnw", "verify", "-Dskip.surefire.tests=true", "-DskipITs=false", "-Dit.test=MyIT#myMethod"]);
+  });
+
+  it("builds all-tests argv array", () => {
+    const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "all" });
+    assert.deepEqual(args, ["./mvnw", "verify", "-DskipITs=false"]);
+  });
+
+  it("adds -Dit.test= for all-tests selector without quoting", () => {
+    const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "all", selector: "MyIT" });
+    assert.deepEqual(args, ["./mvnw", "verify", "-DskipITs=false", "-Dit.test=MyIT"]);
+  });
+
+  it("builds package argv array", () => {
+    const args = buildMavenArgs({ action: "package", runner: "./mvnw" });
+    assert.deepEqual(args, ["./mvnw", "package", "-DskipTests"]);
+  });
+
+  it("adds -pl when project is specified", () => {
+    const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire", project: "services/service-a" });
+    assert.deepEqual(args, ["./mvnw", "-pl", "services/service-a", "test"]);
   });
 });
