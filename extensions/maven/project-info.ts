@@ -6,6 +6,7 @@ export interface PomInfo {
   artifactId: string;
   version: string;
   name: string;
+  description: string;
   packaging: string;
   modules: string[];
 }
@@ -15,6 +16,7 @@ export interface ProjectNode {
   artifactId: string;
   version: string;
   name: string;
+  description: string;
   packaging: string;
   pomPath: string;
   relativePath: string;
@@ -92,10 +94,11 @@ export function parsePom(pomPath: string): PomInfo {
   const artifactId = extractTag(coords, "artifactId");
   const version = extractTag(coords, "version") || parentVersion;
   const name = extractTag(coords, "name");
+  const description = extractTag(coords, "description");
   const packaging = extractTag(xml, "packaging") || "jar";
   const modules = extractModules(xml);
 
-  return { groupId, artifactId, version, name, packaging, modules };
+  return { groupId, artifactId, version, name, description, packaging, modules };
 }
 
 // ---------------------------------------------------------------------------
@@ -133,6 +136,7 @@ function buildNode(
     artifactId: pom.artifactId,
     version: pom.version,
     name: pom.name,
+    description: pom.description,
     packaging: pom.packaging,
     pomPath,
     relativePath: relPath,
@@ -146,11 +150,15 @@ function buildNode(
 
 /** Strip internal fields (`relativePath`, `pomPath`, `module`) from a node and recursively from all its children. */
 export function stripInternalFields(node: ProjectNode): Omit<ProjectNode, "relativePath" | "pomPath" | "module"> & { modules?: Record<string, ReturnType<typeof stripInternalFields>> } {
-  const { relativePath: _, pomPath: __, module: ___, modules, ...rest } = node;
+  const { relativePath: _, pomPath: __, module: ___, modules, description, ...rest } = node;
   const strippedModules = modules
     ? Object.fromEntries(Object.entries(modules).map(([k, v]) => [k, stripInternalFields(v)]))
     : undefined;
-  return { ...rest, ...(strippedModules ? { modules: strippedModules } : {}) };
+  return {
+    ...rest,
+    ...(description ? { description } : {}),
+    ...(strippedModules ? { modules: strippedModules } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------
