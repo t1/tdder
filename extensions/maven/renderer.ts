@@ -47,12 +47,13 @@ function renderInfo(details: Record<string, unknown>, theme: Theme, expanded = f
 
   if (expanded) {
     const { modules, ...rootFields } = stripInternalFields(ctx.projectTree);
+    const { projectRoot, currentProject, projectTree: _, ...ctxRest } = ctx;
     const flat = {
-      ...ctx,
+      ...ctxRest,
+      rootPath: projectRoot,
       ...rootFields,
       ...(modules ? { modules } : {}),
-      currentProject: ctx.currentProject ? stripInternalFields(ctx.currentProject) : null,
-      projectTree: undefined,
+      currentPath: currentProject?.relativePath ?? ".",
     };
     const lines = [
       header,
