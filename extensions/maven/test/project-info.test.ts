@@ -130,7 +130,7 @@ describe("flattenProjectTree", () => {
     const flat = flattenProjectTree(tree);
     assert.equal(flat.length, 1);
     assert.equal(flat[0].artifactId, "single-app");
-    assert.equal(flat[0].relativePath, ".");
+    assert.equal((flat[0] as Record<string, unknown>).relativePath, undefined);
     assert.equal((flat[0] as Record<string, unknown>).modules, undefined);
   });
 

@@ -152,12 +152,12 @@ function buildNode(
 // Flatten project tree
 // ---------------------------------------------------------------------------
 
-export type FlatProjectNode = Omit<ProjectNode, "modules">;
+export type FlatProjectNode = Omit<ProjectNode, "modules" | "relativePath">;
 
 export function flattenProjectTree(root: ProjectNode): FlatProjectNode[] {
   const result: FlatProjectNode[] = [];
   function visit(node: ProjectNode): void {
-    const { modules: _, ...flat } = node;
+    const { modules: _, relativePath: __, ...flat } = node;
     result.push(flat);
     for (const child of Object.values(node.modules ?? {})) {
       visit(child);
