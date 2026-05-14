@@ -1,4 +1,5 @@
 import { Text } from "@earendil-works/pi-tui";
+import { formatLabel } from "./formatter.ts";
 import type { ProjectInfoContext } from "./formatter.ts";
 import { renderRunResult } from "./run-result-renderer.ts";
 import type { MavenRunResult } from "./types.ts";
@@ -58,16 +59,24 @@ function renderNodeThemed(
   depth: number,
   current: ProjectInfoContext["currentProject"],
   theme: Theme,
-  lines: string[]
+  lines: string[],
+  moduleKey?: string,
+  parent?: ProjectInfoContext["projectTree"],
 ): void {
   const indent = "  ".repeat(depth);
   const isCurrent = current !== null && node.relativePath === current.relativePath;
-  const name = isCurrent
-    ? theme.fg("success", `${node.artifactId} [current]`)
-    : theme.fg("text", node.artifactId);
-  lines.push(`${indent}${theme.fg("dim", "-")} ${name}`);
-  for (const child of Object.values(node.modules ?? {})) {
-    renderNodeThemed(child, depth + 1, current, theme, lines);
+  const plain = formatLabel(node, moduleKey, parent);
+  const key = moduleKey ?? node.artifactId;
+  // Re-colour the key portion: success when current, text otherwise.
+  // formatLabel returns "<key> [badges] name" — split off the key prefix.
+  const rest = plain.slice(key.length);
+  const keyColored = isCurrent
+    ? theme.fg("success", key)
+    : theme.fg("text", key);
+  const marker = isCurrent ? theme.fg("success", " [current]") : "";
+  lines.push(`${indent}${theme.fg("dim", "-")} ${keyColored}${theme.fg("muted", rest)}${marker}`);
+  for (const [k, child] of Object.entries(node.modules ?? {})) {
+    renderNodeThemed(child, depth + 1, current, theme, lines, k, node);
   }
 }
 
