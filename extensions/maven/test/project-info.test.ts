@@ -6,6 +6,7 @@ import {
   detectRunner,
   parsePom,
   buildProjectTree,
+  flattenProjectTree,
   resolveCurrentProject,
 } from "../project-info.ts";
 
@@ -119,6 +120,48 @@ describe("buildProjectTree", () => {
     assert.equal(Object.keys(services.modules).length, 1);
     assert.equal(services.modules["service-a"].artifactId, "service-a");
     assert.equal(services.modules["service-a"].relativePath, "services/service-a");
+  });
+});
+
+describe("flattenProjectTree", () => {
+  it("returns a single-element array for a single-module project", () => {
+    const root = join(fixturesDir, "single-module");
+    const tree = buildProjectTree(root);
+    const flat = flattenProjectTree(tree);
+    assert.equal(flat.length, 1);
+    assert.equal(flat[0].artifactId, "single-app");
+    assert.equal(flat[0].relativePath, ".");
+    assert.equal((flat[0] as Record<string, unknown>).modules, undefined);
+  });
+
+  it("returns all nodes in a flat array for a multi-module project", () => {
+    const root = join(fixturesDir, "flat-multi-module");
+    const tree = buildProjectTree(root);
+    const flat = flattenProjectTree(tree);
+    assert.equal(flat.length, 3);
+    const artifactIds = flat.map((n) => n.artifactId);
+    assert.ok(artifactIds.includes("root"));
+    assert.ok(artifactIds.includes("module-a"));
+    assert.ok(artifactIds.includes("module-b"));
+  });
+
+  it("flattens a nested multi-module project depth-first", () => {
+    const root = join(fixturesDir, "nested-multi-module");
+    const tree = buildProjectTree(root);
+    const flat = flattenProjectTree(tree);
+    assert.equal(flat.length, 3);
+    assert.equal(flat[0].artifactId, "root");
+    assert.equal(flat[1].artifactId, "services");
+    assert.equal(flat[2].artifactId, "service-a");
+  });
+
+  it("omits the modules property from every node", () => {
+    const root = join(fixturesDir, "flat-multi-module");
+    const tree = buildProjectTree(root);
+    const flat = flattenProjectTree(tree);
+    for (const node of flat) {
+      assert.equal((node as Record<string, unknown>).modules, undefined);
+    }
   });
 });
 

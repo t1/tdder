@@ -1,4 +1,5 @@
 import { Text } from "@earendil-works/pi-tui";
+import { keyHint } from "@earendil-works/pi-coding-agent";
 import { nodeColumns, collectRows } from "./formatter.ts";
 import type { ProjectInfoContext, Row } from "./formatter.ts";
 import { renderRunResult } from "./run-result-renderer.ts";
@@ -15,12 +16,13 @@ type Theme = { fg: (color: string, text: string) => string; bold: (text: string)
 
 export function renderMavenMessage(
   details: Record<string, unknown>,
-  theme: Theme
+  theme: Theme,
+  expanded = false,
 ): Text {
   const kind = details.kind as string | undefined;
 
   switch (kind) {
-    case "info":    return renderInfo(details, theme);
+    case "info":    return renderInfo(details, theme, expanded);
     case "version": return renderVersion(details, theme);
     case "run":     return renderRun(details, theme);
     case "error":   return renderError(details, theme);
@@ -33,16 +35,27 @@ function label(theme: Theme, key: string): string {
   return theme.fg("muted", `${key}: `);
 }
 
-function renderInfo(details: Record<string, unknown>, theme: Theme): Text {
+function renderInfo(details: Record<string, unknown>, theme: Theme, expanded = false): Text {
   const ctx = details.ctx as ProjectInfoContext | null;
 
   if (!ctx) {
     return new Text(theme.fg("warning", "Not a Maven project"), 0, 0);
   }
 
+  const header = theme.fg("accent", theme.bold("Maven project"));
+
+  if (expanded) {
+    const lines = [
+      header,
+      theme.fg("dim", JSON.stringify(ctx, null, 2)),
+    ];
+    return new Text(lines.join("\n"), 0, 0);
+  }
+
   const { projectRoot, runner, currentProject, projectTree } = ctx;
+  const hint = theme.fg("dim", keyHint("app.tools.expand", "to expand"));
   const lines: string[] = [
-    theme.fg("accent", theme.bold("Maven project")),
+    `${header}  ${hint}`,
     label(theme, "root")    + theme.fg("text", projectRoot),
     label(theme, "runner")  + theme.fg("text", runner),
     label(theme, "current") + theme.fg("text", currentProject?.relativePath ?? "."),

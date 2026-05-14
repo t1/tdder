@@ -1,15 +1,21 @@
-import type { ProjectNode } from "./project-info.ts";
+import type { FlatProjectNode, ProjectNode } from "./project-info.ts";
 import type { FailedTest, TestSummary } from "./report-parser.ts";
 
-export type { ProjectNode, FailedTest, TestSummary };
+export type { FlatProjectNode, ProjectNode, FailedTest, TestSummary };
 
+/** Internal shape — projectTree retains tree structure for rendering/report collection. */
 export interface MavenProjectInfo {
   isMavenProject: boolean;
   projectRoot: string;
   pomPath: string;
   runner: string;
-  currentProject: ProjectNode | null;
+  currentProject: Omit<ProjectNode, "modules"> | null;
   projectTree: ProjectNode;
+}
+
+/** JSON-serialisable shape — projectTree is a flat ordered array of nodes. */
+export interface MavenProjectInfoJson extends Omit<MavenProjectInfo, "projectTree"> {
+  projectTree: FlatProjectNode[];
 }
 
 export interface MavenRunResult {

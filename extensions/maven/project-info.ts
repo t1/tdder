@@ -149,6 +149,25 @@ function buildNode(
 }
 
 // ---------------------------------------------------------------------------
+// Flatten project tree
+// ---------------------------------------------------------------------------
+
+export type FlatProjectNode = Omit<ProjectNode, "modules">;
+
+export function flattenProjectTree(root: ProjectNode): FlatProjectNode[] {
+  const result: FlatProjectNode[] = [];
+  function visit(node: ProjectNode): void {
+    const { modules: _, ...flat } = node;
+    result.push(flat);
+    for (const child of Object.values(node.modules ?? {})) {
+      visit(child);
+    }
+  }
+  visit(root);
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Current project resolution
 // ---------------------------------------------------------------------------
 

@@ -11,11 +11,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { Container, Text } from "@earendil-works/pi-tui";
+import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import type { AgentToolUpdateCallback, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai";
 
-import { findProjectRoot, detectRunner, buildProjectTree, resolveCurrentProject } from "./project-info.ts";
+import { findProjectRoot, detectRunner, buildProjectTree, flattenProjectTree, resolveCurrentProject } from "./project-info.ts";
 import { collectReportPaths, parseReports } from "./report-collector.ts";
 import { renderMavenMessage, renderMavenRunResult } from "./renderer.ts";
 import { buildSummary as buildCollapsedSummary } from "./run-result-renderer.ts";
@@ -25,7 +26,7 @@ import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
 import { saveRawLog } from "./log-store.ts";
 import { buildMetadataUrl, parseMetadata, selectVersion } from "./version-lookup.ts";
-import type { MavenProjectInfo, MavenRunResult, VersionLookupResult } from "./types.ts";
+import type { MavenProjectInfo, MavenProjectInfoJson, MavenRunResult, VersionLookupResult } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -140,9 +141,15 @@ export default function (pi: ExtensionAPI) {
   // ── Message renderer ───────────────────────────────────────────────────────
   // All /maven command output goes through here — styled, no LLM involved.
 
-  pi.registerMessageRenderer(MAVEN_MSG_TYPE, (message, _options, theme) =>
-    renderMavenMessage(message.details as Record<string, unknown>, theme)
-  );
+  pi.registerMessageRenderer(MAVEN_MSG_TYPE, (message, options, theme) => {
+    const border = (s: string) => theme.fg("borderMuted", s);
+    const content = renderMavenMessage(message.details as Record<string, unknown>, theme, options.expanded);
+    const container = new Container();
+    container.addChild(new DynamicBorder(border));
+    container.addChild(content);
+    container.addChild(new DynamicBorder(border));
+    return container;
+  });
 
   /** Emit a styled /maven result into the chat transcript without triggering the LLM. */
   function mavenMessage(details: Record<string, unknown>): void {
@@ -170,8 +177,9 @@ export default function (pi: ExtensionAPI) {
         };
       }
 
+      const json: MavenProjectInfoJson = { ...info, projectTree: flattenProjectTree(info.projectTree) };
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(info, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify(json, null, 2) }],
         details: info,
       };
     },
