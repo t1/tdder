@@ -152,24 +152,13 @@ function buildNode(
 // Flatten project tree
 // ---------------------------------------------------------------------------
 
-export type FlatProjectNode = Omit<ProjectNode, "modules" | "relativePath">;
-
-export function flattenNode(node: ProjectNode): FlatProjectNode {
-  const { modules: _, relativePath: __, ...flat } = node;
-  return flat;
-}
-
-export function flattenProjectTree(root: ProjectNode): FlatProjectNode[] {
-  const result: FlatProjectNode[] = [];
-  function visit(node: ProjectNode): void {
-    const { modules: _, relativePath: __, ...flat } = node;
-    result.push(flat);
-    for (const child of Object.values(node.modules ?? {})) {
-      visit(child);
-    }
-  }
-  visit(root);
-  return result;
+/** Strip `relativePath` from a node and recursively from all its children. */
+export function stripRelativePath(node: ProjectNode): ProjectNode {
+  const { relativePath: _, modules, ...rest } = node;
+  const strippedModules = modules
+    ? Object.fromEntries(Object.entries(modules).map(([k, v]) => [k, stripRelativePath(v)]))
+    : undefined;
+  return { ...rest, ...(strippedModules ? { modules: strippedModules } : {}) };
 }
 
 // ---------------------------------------------------------------------------

@@ -153,19 +153,20 @@ describe("maven_project_info tool", () => {
     assert.equal(json.currentProject?.artifactId, "service-a");
   });
 
-  it("projectTree is a flat array", async () => {
+  it("projectTree has no relativePath on any node", async () => {
     const tool = mavenExtension.tools.get("maven_project_info")!;
     const ctx = makeCtx(serviceACwd);
-    const result = await tool.definition.execute("tc-flat", {}, undefined, undefined, ctx);
+    const result = await tool.definition.execute("tc-no-relpath", {}, undefined, undefined, ctx);
 
     const json = JSON.parse((result.content[0] as { type: string; text: string }).text);
-    assert.ok(Array.isArray(json.projectTree), "projectTree should be an array");
-    const artifactIds = (json.projectTree as Array<{ artifactId: string }>).map((n) => n.artifactId);
-    assert.ok(artifactIds.includes("root"), "projectTree should contain root");
-    assert.ok(artifactIds.includes("service-a"), "projectTree should contain service-a");
-    for (const node of json.projectTree as Array<Record<string, unknown>>) {
-      assert.equal(node.modules, undefined, "no node should have a modules property");
+    assert.ok(!Array.isArray(json.projectTree), "projectTree should be an object");
+    function assertNoRelativePath(node: Record<string, unknown>): void {
+      assert.equal(node.relativePath, undefined, `node ${node.artifactId} should not have relativePath`);
+      for (const child of Object.values((node.modules ?? {}) as Record<string, Record<string, unknown>>)) {
+        assertNoRelativePath(child);
+      }
     }
+    assertNoRelativePath(json.projectTree as Record<string, unknown>);
   });
 
   it("returns isMavenProject false for a non-Maven directory", async () => {

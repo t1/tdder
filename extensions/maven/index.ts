@@ -16,7 +16,7 @@ import type { AgentToolUpdateCallback, ExtensionAPI, ExtensionContext } from "@e
 import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai";
 
-import { findProjectRoot, detectRunner, buildProjectTree, flattenNode, flattenProjectTree, resolveCurrentProject } from "./project-info.ts";
+import { findProjectRoot, detectRunner, buildProjectTree, stripRelativePath, resolveCurrentProject } from "./project-info.ts";
 import { collectReportPaths, parseReports } from "./report-collector.ts";
 import { renderMavenMessage, renderMavenRunResult } from "./renderer.ts";
 import { buildSummary as buildCollapsedSummary } from "./run-result-renderer.ts";
@@ -26,7 +26,7 @@ import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
 import { saveRawLog } from "./log-store.ts";
 import { buildMetadataUrl, parseMetadata, selectVersion } from "./version-lookup.ts";
-import type { MavenProjectInfo, MavenProjectInfoJson, MavenRunResult, VersionLookupResult } from "./types.ts";
+import type { MavenProjectInfo, MavenRunResult, VersionLookupResult } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -177,10 +177,10 @@ export default function (pi: ExtensionAPI) {
         };
       }
 
-      const json: MavenProjectInfoJson = {
+      const json = {
         ...info,
-        currentProject: info.currentProject ? flattenNode(info.currentProject) : null,
-        projectTree: flattenProjectTree(info.projectTree),
+        currentProject: info.currentProject ? stripRelativePath(info.currentProject) : null,
+        projectTree: stripRelativePath(info.projectTree),
       };
       return {
         content: [{ type: "text" as const, text: JSON.stringify(json, null, 2) }],

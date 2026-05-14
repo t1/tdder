@@ -1,6 +1,6 @@
 import { Text } from "@earendil-works/pi-tui";
 import { keyHint } from "@earendil-works/pi-coding-agent";
-import { flattenNode, flattenProjectTree } from "./project-info.ts";
+import { stripRelativePath } from "./project-info.ts";
 import { nodeColumns, collectRows } from "./formatter.ts";
 import type { ProjectInfoContext, Row } from "./formatter.ts";
 import { renderRunResult } from "./run-result-renderer.ts";
@@ -48,8 +48,8 @@ function renderInfo(details: Record<string, unknown>, theme: Theme, expanded = f
   if (expanded) {
     const flat = {
       ...ctx,
-      currentProject: ctx.currentProject ? flattenNode(ctx.currentProject) : null,
-      projectTree: flattenProjectTree(ctx.projectTree),
+      currentProject: ctx.currentProject ? stripRelativePath(ctx.currentProject) : null,
+      projectTree: stripRelativePath(ctx.projectTree),
     };
     const lines = [
       header,
