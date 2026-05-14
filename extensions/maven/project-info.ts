@@ -154,6 +154,11 @@ function buildNode(
 
 export type FlatProjectNode = Omit<ProjectNode, "modules" | "relativePath">;
 
+export function flattenNode(node: ProjectNode): FlatProjectNode {
+  const { modules: _, relativePath: __, ...flat } = node;
+  return flat;
+}
+
 export function flattenProjectTree(root: ProjectNode): FlatProjectNode[] {
   const result: FlatProjectNode[] = [];
   function visit(node: ProjectNode): void {

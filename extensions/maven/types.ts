@@ -9,13 +9,14 @@ export interface MavenProjectInfo {
   projectRoot: string;
   pomPath: string;
   runner: string;
-  currentProject: Omit<ProjectNode, "modules"> | null;
+  currentProject: ProjectNode | null;
   projectTree: ProjectNode;
 }
 
 /** JSON-serialisable shape — projectTree is a flat ordered array of nodes. */
-export interface MavenProjectInfoJson extends Omit<MavenProjectInfo, "projectTree"> {
+export interface MavenProjectInfoJson extends Omit<MavenProjectInfo, "projectTree" | "currentProject"> {
   projectTree: FlatProjectNode[];
+  currentProject: FlatProjectNode | null;
 }
 
 export interface MavenRunResult {
