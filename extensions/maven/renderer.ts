@@ -1,5 +1,6 @@
 import { Text } from "@earendil-works/pi-tui";
 import { keyHint } from "@earendil-works/pi-coding-agent";
+import { flattenProjectTree } from "./project-info.ts";
 import { nodeColumns, collectRows } from "./formatter.ts";
 import type { ProjectInfoContext, Row } from "./formatter.ts";
 import { renderRunResult } from "./run-result-renderer.ts";
@@ -45,9 +46,10 @@ function renderInfo(details: Record<string, unknown>, theme: Theme, expanded = f
   const header = theme.fg("accent", theme.bold("Maven project"));
 
   if (expanded) {
+    const flat = { ...ctx, projectTree: flattenProjectTree(ctx.projectTree) };
     const lines = [
       header,
-      theme.fg("dim", JSON.stringify(ctx, null, 2)),
+      theme.fg("dim", JSON.stringify(flat, null, 2)),
     ];
     return new Text(lines.join("\n"), 0, 0);
   }
