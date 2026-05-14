@@ -63,13 +63,14 @@ export function collectRows(
   currentPath: string,
   moduleKey?: string,
   parent?: JsonNode,
+  nodePath = ".",
 ): Row[] {
   const cols = nodeColumns(node, depth, moduleKey, parent);
-  const nodePath = node.module ?? ".";
   const isCurrent = nodePath === currentPath;
   const rows: Row[] = [{ ...cols, isCurrent }];
   for (const [key, child] of Object.entries(node.modules ?? {})) {
-    rows.push(...collectRows(child, depth + 1, currentPath, key, node));
+    const childPath = nodePath === "." ? key : `${nodePath}/${key}`;
+    rows.push(...collectRows(child, depth + 1, currentPath, key, node, childPath));
   }
   return rows;
 }
