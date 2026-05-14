@@ -24,7 +24,7 @@ export function collectReportPaths(projectRoot: string, action: string, tree?: P
         : join(node.relativePath, reportDir);
       if (existsSync(join(projectRoot, candidate))) dirs.push(candidate);
     }
-    for (const child of node.children) walk(child);
+    for (const child of Object.values(node.modules ?? {})) walk(child);
   }
 
   if (tree) {

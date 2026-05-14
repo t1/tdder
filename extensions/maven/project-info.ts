@@ -5,6 +5,7 @@ export interface PomInfo {
   groupId: string;
   artifactId: string;
   version: string;
+  name: string;
   packaging: string;
   modules: string[];
 }
@@ -13,11 +14,12 @@ export interface ProjectNode {
   groupId: string;
   artifactId: string;
   version: string;
+  name: string;
   packaging: string;
   pomPath: string;
   relativePath: string;
-  plSelector: string | undefined;
-  children: ProjectNode[];
+  module: string | undefined;
+  modules?: Record<string, ProjectNode>;
 }
 
 // ---------------------------------------------------------------------------
@@ -90,10 +92,11 @@ export function parsePom(pomPath: string): PomInfo {
   const groupId = extractTag(coords, "groupId") || parentGroupId;
   const artifactId = extractTag(coords, "artifactId");
   const version = extractTag(coords, "version") || parentVersion;
+  const name = extractTag(coords, "name");
   const packaging = extractTag(xml, "packaging") || "jar";
   const modules = extractModules(xml);
 
-  return { groupId, artifactId, version, packaging, modules };
+  return { groupId, artifactId, version, name, packaging, modules };
 }
 
 // ---------------------------------------------------------------------------
@@ -112,27 +115,36 @@ function buildNode(
   const pomPath = join(nodeDir, "pom.xml");
   const pom = parsePom(pomPath);
 
-  // plSelector is the path-based reactor selector used with `-pl`.
+  if (pom.modules.length > 0 && pom.packaging !== "pom") {
+    throw new Error(
+      `${pomPath}: declares <modules> but packaging is '${pom.packaging}' (expected 'pom')`
+    );
+  }
+
+  // module is the path-based reactor selector used with `-pl`.
   // Only leaf projects (non-aggregators, not the root) get one.
   const isLeaf = pom.modules.length === 0;
   const isRoot = relPath === ".";
-  const plSelector = isLeaf && !isRoot ? relPath : undefined;
+  const module = isLeaf && !isRoot ? relPath : undefined;
 
-  const children: ProjectNode[] = pom.modules.map((mod) => {
-    const childDir = join(nodeDir, mod);
-    const childRel = relPath === "." ? mod : `${relPath}/${mod}`;
-    return buildNode(projectRoot, childDir, childRel);
-  });
+  const modules: Record<string, ProjectNode> = Object.fromEntries(
+    pom.modules.map((mod) => {
+      const childDir = join(nodeDir, mod);
+      const childRel = relPath === "." ? mod : `${relPath}/${mod}`;
+      return [mod, buildNode(projectRoot, childDir, childRel)];
+    })
+  );
 
   return {
     groupId: pom.groupId,
     artifactId: pom.artifactId,
     version: pom.version,
+    name: pom.name,
     packaging: pom.packaging,
     pomPath,
     relativePath: relPath,
-    plSelector,
-    children,
+    module,
+    ...(Object.keys(modules).length > 0 ? { modules } : {}),
   };
 }
 
@@ -154,7 +166,7 @@ function findByRelativePath(
   targetRel: string
 ): ProjectNode | null {
   if (node.relativePath === targetRel) return node;
-  for (const child of node.children) {
+  for (const child of Object.values(node.modules ?? {})) {
     const found = findByRelativePath(child, targetRel);
     if (found) return found;
   }

@@ -4,5 +4,6 @@
   <groupId>com.example</groupId>
   <artifactId>single-app</artifactId>
   <version>1.0.0-SNAPSHOT</version>
+  <name>Single App</name>
   <packaging>jar</packaging>
 </project>

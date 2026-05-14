@@ -41,6 +41,18 @@ describe("detectRunner", () => {
 });
 
 describe("parsePom", () => {
+  it("parses name when declared", () => {
+    const pomPath = join(fixturesDir, "single-module/pom.xml");
+    const pom = parsePom(pomPath);
+    assert.equal(pom.name, "Single App");
+  });
+
+  it("returns empty string for name when not declared", () => {
+    const pomPath = join(fixturesDir, "flat-multi-module/module-a/pom.xml");
+    const pom = parsePom(pomPath);
+    assert.equal(pom.name, "");
+  });
+
   it("parses groupId, artifactId, version, and packaging from a pom.xml", () => {
     const pomPath = join(fixturesDir, "single-module/pom.xml");
     const pom = parsePom(pomPath);
@@ -81,31 +93,32 @@ describe("buildProjectTree", () => {
     const root = join(fixturesDir, "single-module");
     const tree = buildProjectTree(root);
     assert.equal(tree.artifactId, "single-app");
+    assert.equal(tree.name, "Single App");
     assert.equal(tree.relativePath, ".");
-    assert.deepEqual(tree.children, []);
+    assert.equal(tree.modules, undefined);
   });
 
   it("builds a flat tree for a multi-module project", () => {
     const root = join(fixturesDir, "flat-multi-module");
     const tree = buildProjectTree(root);
     assert.equal(tree.artifactId, "root");
-    assert.equal(tree.children.length, 2);
-    assert.equal(tree.children[0].artifactId, "module-a");
-    assert.equal(tree.children[0].relativePath, "module-a");
-    assert.equal(tree.children[1].artifactId, "module-b");
+    assert.equal(Object.keys(tree.modules).length, 2);
+    assert.equal(tree.modules["module-a"].artifactId, "module-a");
+    assert.equal(tree.modules["module-a"].relativePath, "module-a");
+    assert.equal(tree.modules["module-b"].artifactId, "module-b");
   });
 
   it("builds a nested tree for a nested aggregator project", () => {
     const root = join(fixturesDir, "nested-multi-module");
     const tree = buildProjectTree(root);
     assert.equal(tree.artifactId, "root");
-    assert.equal(tree.children.length, 1);
-    const services = tree.children[0];
+    assert.equal(Object.keys(tree.modules).length, 1);
+    const services = tree.modules["services"];
     assert.equal(services.artifactId, "services");
     assert.equal(services.relativePath, "services");
-    assert.equal(services.children.length, 1);
-    assert.equal(services.children[0].artifactId, "service-a");
-    assert.equal(services.children[0].relativePath, "services/service-a");
+    assert.equal(Object.keys(services.modules).length, 1);
+    assert.equal(services.modules["service-a"].artifactId, "service-a");
+    assert.equal(services.modules["service-a"].relativePath, "services/service-a");
   });
 });
 

@@ -238,9 +238,9 @@ describe("maven_run tool", () => {
     resultDetails = result.details as Record<string, unknown>;
   });
 
-  it("returns a result containing rawLogPath", () => {
-    assert.ok(typeof runJson.rawLogPath === "string" && (runJson.rawLogPath as string).length > 0,
-      "rawLogPath should be a non-empty string");
+  it("returns a result containing rawMavenOut", () => {
+    assert.ok(typeof runJson.rawMavenOut === "string" && (runJson.rawMavenOut as string).length > 0,
+      "rawMavenOut should be a non-empty string");
   });
 
   it("details contains rawLogPathAbsolute for the renderer", () => {
@@ -251,12 +251,12 @@ describe("maven_run tool", () => {
   });
 
   it("persists the raw log file to disk", () => {
-    const absLogPath = join(singleModuleRoot, runJson.rawLogPath as string);
+    const absLogPath = join(singleModuleRoot, runJson.rawMavenOut as string);
     assert.ok(existsSync(absLogPath), `log file should exist at ${absLogPath}`);
   });
 
   it("writes Maven output into the raw log file", () => {
-    const absLogPath = join(singleModuleRoot, runJson.rawLogPath as string);
+    const absLogPath = join(singleModuleRoot, runJson.rawMavenOut as string);
     const logContent = readFileSync(absLogPath, "utf8");
     assert.ok(logContent.length > 0, "log file should be non-empty");
     assert.ok(logContent.includes("[INFO]"), "log file should contain Maven [INFO] lines");

@@ -42,7 +42,7 @@ function getMavenProjectInfo(cwd: string): MavenProjectInfo | null {
   // Omit children from currentProject — it's a flat coordinate record in the output,
   // not a subtree. The full tree is already in projectTree.
   const currentProjectFlat = currentProject
-    ? (({ children: _, ...rest }) => rest)(currentProject)
+    ? (({ modules: _, ...rest }) => rest)(currentProject)
     : null;
 
   return {
@@ -217,7 +217,7 @@ export default function (pi: ExtensionAPI) {
       testScope: Type.Optional(StringEnum(["surefire", "failsafe", "all"] as const, {
         description: "Required when action is 'test'. 'surefire'=unit tests only, 'failsafe'=ITs only (skips Surefire), 'all'=both.",
       })),
-      project: Type.Optional(Type.String({ description: "Project path or plSelector (e.g. services/service-a)" })),
+      project: Type.Optional(Type.String({ description: "Project path or module (e.g. services/service-a)" })),
       selector: Type.Optional(Type.String({ description: "Test selector: class name or Class#method" })),
     }),
 
@@ -227,7 +227,7 @@ export default function (pi: ExtensionAPI) {
       if (!info) throw new Error("Not a Maven project");
 
       const { action, selector, testScope } = params;
-      const project = params.project ?? info.currentProject?.plSelector;
+      const project = params.project ?? info.currentProject?.module;
 
       if (action === "test" && testScope === "failsafe") {
         const pomContent = existsSync(info.pomPath) ? readFileSync(info.pomPath, "utf8") : "";
@@ -250,7 +250,7 @@ export default function (pi: ExtensionAPI) {
 
       const { rawOutput, exitCode } = await runMaven(command, args, info.projectRoot, ctx, onUpdate);
 
-      const rawLogPath = saveRawLog(info.projectRoot, action, rawOutput);
+      const rawMavenOut = saveRawLog(info.projectRoot, action, rawOutput);
       const success = exitCode === 0;
 
       const reportPaths = collectReportPaths(info.projectRoot, action, info.projectTree, testScope as TestScope | undefined);
@@ -268,14 +268,14 @@ export default function (pi: ExtensionAPI) {
         compilationErrors,
         buildErrors,
         reportPaths,
-        rawLogPath,
+        rawMavenOut,
       };
 
       // Keep raw output OUT of LLM-facing content — only the structured summary goes in.
       // details carries only the minimum needed for rendering: the compact result and the absolute log path.
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        details: { result, rawLogPathAbsolute: join(info.projectRoot, rawLogPath) },
+        details: { result, rawLogPathAbsolute: join(info.projectRoot, rawMavenOut) },
       };
     },
 
@@ -305,8 +305,8 @@ export default function (pi: ExtensionAPI) {
       // Share the result with renderCall so it can update its icon.
       (context.state as { result?: import("./types.ts").MavenRunResult }).result = details.result;
       if (expanded) {
-        // Use rawLogPathAbsolute as rawLogPath so the renderer can show the correct path.
-        const result = { ...details.result, rawLogPath: details.rawLogPathAbsolute };
+        // Use rawLogPathAbsolute as rawMavenOut so the renderer can show the correct path.
+        const result = { ...details.result, rawMavenOut: details.rawLogPathAbsolute };
         return renderMavenRunResult(result, true, theme, false);
       }
       // Collapsed: show only the outcome summary (command already in renderCall).
@@ -446,23 +446,23 @@ export default function (pi: ExtensionAPI) {
         package: { action: "package" },
       };
       const { action, testScope } = actionMap[sub];
-      const project = info.currentProject?.plSelector;
+      const project = info.currentProject?.module;
       const opts = { action, runner: info.runner, selector, project, testScope };
       const command = buildMavenCommand(opts);
       const mavenArgs = buildMavenArgs(opts);
 
       const { rawOutput, exitCode } = await runMaven(command, mavenArgs, info.projectRoot, ctx);
-      const rawLogPath = saveRawLog(info.projectRoot, action, rawOutput);
+      const rawMavenOut = saveRawLog(info.projectRoot, action, rawOutput);
       const success = exitCode === 0;
 
       if (success) {
-        mavenMessage({ kind: "run", success: true, command, rawLogPath });
+        mavenMessage({ kind: "run", success: true, command, rawMavenOut });
       } else {
         const compilationErrors = extractCompilationErrors(rawOutput);
         const summary = compilationErrors.length > 0
           ? `Compilation errors:\n${compilationErrors.slice(0, 5).join("\n")}`
-          : `Build failed. See ${rawLogPath}`;
-        mavenMessage({ kind: "run", success: false, command, rawLogPath, summary });
+          : `Build failed. See ${rawMavenOut}`;
+        mavenMessage({ kind: "run", success: false, command, rawMavenOut, summary });
       }
     },
   });

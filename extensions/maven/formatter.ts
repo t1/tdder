@@ -37,8 +37,9 @@ function renderNode(
   const indent = "  ".repeat(depth);
   const isCurrent = current !== null && node.relativePath === current.relativePath;
   const marker = isCurrent ? " [current]" : "";
-  lines.push(`${indent}- ${node.artifactId}${marker}`);
-  for (const child of node.children) {
+  const label = node.name ? `${node.artifactId} (${node.name})` : node.artifactId;
+  lines.push(`${indent}- ${label}${marker}`);
+  for (const child of Object.values(node.modules ?? {})) {
     renderNode(child, depth + 1, current, lines);
   }
 }

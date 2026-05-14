@@ -22,7 +22,7 @@ export interface MavenRunResult {
   compilationErrors: string[];
   buildErrors: string[];
   reportPaths: string[];
-  rawLogPath: string;
+  rawMavenOut: string;
 }
 
 export interface VersionLookupResult {

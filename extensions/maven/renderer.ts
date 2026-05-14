@@ -66,7 +66,7 @@ function renderNodeThemed(
     ? theme.fg("success", `${node.artifactId} [current]`)
     : theme.fg("text", node.artifactId);
   lines.push(`${indent}${theme.fg("dim", "-")} ${name}`);
-  for (const child of node.children) {
+  for (const child of Object.values(node.modules ?? {})) {
     renderNodeThemed(child, depth + 1, current, theme, lines);
   }
 }
@@ -80,10 +80,10 @@ function renderVersion(details: Record<string, unknown>, theme: Theme): Text {
 }
 
 function renderRun(details: Record<string, unknown>, theme: Theme): Text {
-  const { success, command, rawLogPath, summary } = details as {
+  const { success, command, rawMavenOut, summary } = details as {
     success: boolean;
     command: string;
-    rawLogPath: string;
+    rawMavenOut: string;
     summary?: string;
   };
 
@@ -95,7 +95,7 @@ function renderRun(details: Record<string, unknown>, theme: Theme): Text {
     lines.push(theme.fg("error", summary));
   }
 
-  lines.push(label(theme, "log") + theme.fg("dim", rawLogPath));
+  lines.push(label(theme, "log") + theme.fg("dim", rawMavenOut));
 
   return new Text(lines.join("\n"), 0, 0);
 }
