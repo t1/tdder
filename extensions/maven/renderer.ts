@@ -1,6 +1,6 @@
 import { Text } from "@earendil-works/pi-tui";
 import { keyHint } from "@earendil-works/pi-coding-agent";
-import { stripRelativePath } from "./project-info.ts";
+import { stripInternalFields } from "./project-info.ts";
 import { nodeColumns, collectRows } from "./formatter.ts";
 import type { ProjectInfoContext, Row } from "./formatter.ts";
 import { renderRunResult } from "./run-result-renderer.ts";
@@ -46,10 +46,13 @@ function renderInfo(details: Record<string, unknown>, theme: Theme, expanded = f
   const header = theme.fg("accent", theme.bold("Maven project"));
 
   if (expanded) {
+    const { modules, ...rootFields } = stripInternalFields(ctx.projectTree);
     const flat = {
       ...ctx,
-      currentProject: ctx.currentProject ? stripRelativePath(ctx.currentProject) : null,
-      projectTree: stripRelativePath(ctx.projectTree),
+      ...rootFields,
+      ...(modules ? { modules } : {}),
+      currentProject: ctx.currentProject ? stripInternalFields(ctx.currentProject) : null,
+      projectTree: undefined,
     };
     const lines = [
       header,

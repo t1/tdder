@@ -6,7 +6,7 @@ import {
   detectRunner,
   parsePom,
   buildProjectTree,
-  stripRelativePath,
+  stripInternalFields,
   resolveCurrentProject,
 } from "../project-info.ts";
 
@@ -123,29 +123,32 @@ describe("buildProjectTree", () => {
   });
 });
 
-describe("stripRelativePath", () => {
-  it("removes relativePath from a single-module project", () => {
+describe("stripInternalFields", () => {
+  it("removes relativePath and pomPath from a single-module project", () => {
     const root = join(fixturesDir, "single-module");
     const tree = buildProjectTree(root);
-    const stripped = stripRelativePath(tree);
+    const stripped = stripInternalFields(tree);
     assert.equal(stripped.artifactId, "single-app");
     assert.equal((stripped as Record<string, unknown>).relativePath, undefined);
+    assert.equal((stripped as Record<string, unknown>).pomPath, undefined);
   });
 
-  it("removes relativePath from all nodes in a multi-module project", () => {
+  it("removes relativePath and pomPath from all nodes in a multi-module project", () => {
     const root = join(fixturesDir, "flat-multi-module");
     const tree = buildProjectTree(root);
-    const stripped = stripRelativePath(tree);
+    const stripped = stripInternalFields(tree);
     assert.equal((stripped as Record<string, unknown>).relativePath, undefined);
+    assert.equal((stripped as Record<string, unknown>).pomPath, undefined);
     for (const child of Object.values(stripped.modules ?? {})) {
       assert.equal((child as Record<string, unknown>).relativePath, undefined);
+      assert.equal((child as Record<string, unknown>).pomPath, undefined);
     }
   });
 
   it("preserves the nested modules structure", () => {
     const root = join(fixturesDir, "nested-multi-module");
     const tree = buildProjectTree(root);
-    const stripped = stripRelativePath(tree);
+    const stripped = stripInternalFields(tree);
     assert.ok(stripped.modules?.["services"], "services module should exist");
     assert.ok(stripped.modules?.["services"].modules?.["service-a"], "service-a should be nested under services");
   });

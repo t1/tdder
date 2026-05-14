@@ -152,11 +152,11 @@ function buildNode(
 // Flatten project tree
 // ---------------------------------------------------------------------------
 
-/** Strip `relativePath` from a node and recursively from all its children. */
-export function stripRelativePath(node: ProjectNode): ProjectNode {
-  const { relativePath: _, modules, ...rest } = node;
+/** Strip internal fields (`relativePath`, `pomPath`) from a node and recursively from all its children. */
+export function stripInternalFields(node: ProjectNode): Omit<ProjectNode, "relativePath" | "pomPath"> & { modules?: Record<string, ReturnType<typeof stripInternalFields>> } {
+  const { relativePath: _, pomPath: __, modules, ...rest } = node;
   const strippedModules = modules
-    ? Object.fromEntries(Object.entries(modules).map(([k, v]) => [k, stripRelativePath(v)]))
+    ? Object.fromEntries(Object.entries(modules).map(([k, v]) => [k, stripInternalFields(v)]))
     : undefined;
   return { ...rest, ...(strippedModules ? { modules: strippedModules } : {}) };
 }

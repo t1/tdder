@@ -153,20 +153,24 @@ describe("maven_project_info tool", () => {
     assert.equal(json.currentProject?.artifactId, "service-a");
   });
 
-  it("projectTree has no relativePath on any node", async () => {
+  it("root node fields are promoted to top level and projectTree is absent", async () => {
     const tool = mavenExtension.tools.get("maven_project_info")!;
     const ctx = makeCtx(serviceACwd);
-    const result = await tool.definition.execute("tc-no-relpath", {}, undefined, undefined, ctx);
+    const result = await tool.definition.execute("tc-shape", {}, undefined, undefined, ctx);
 
-    const json = JSON.parse((result.content[0] as { type: string; text: string }).text);
-    assert.ok(!Array.isArray(json.projectTree), "projectTree should be an object");
-    function assertNoRelativePath(node: Record<string, unknown>): void {
+    const json = JSON.parse((result.content[0] as { type: string; text: string }).text) as Record<string, unknown>;
+    assert.equal(json.projectTree, undefined, "projectTree should not appear");
+    assert.equal(json.pomPath, undefined, "top-level pomPath should not appear");
+    assert.ok("artifactId" in json, "root artifactId should be promoted to top level");
+    assert.ok("groupId" in json, "root groupId should be promoted to top level");
+    function assertNoInternalFields(node: Record<string, unknown>): void {
       assert.equal(node.relativePath, undefined, `node ${node.artifactId} should not have relativePath`);
+      assert.equal(node.pomPath, undefined, `node ${node.artifactId} should not have pomPath`);
       for (const child of Object.values((node.modules ?? {}) as Record<string, Record<string, unknown>>)) {
-        assertNoRelativePath(child);
+        assertNoInternalFields(child);
       }
     }
-    assertNoRelativePath(json.projectTree as Record<string, unknown>);
+    assertNoInternalFields(json);
   });
 
   it("returns isMavenProject false for a non-Maven directory", async () => {

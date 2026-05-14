@@ -16,7 +16,7 @@ import type { AgentToolUpdateCallback, ExtensionAPI, ExtensionContext } from "@e
 import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai";
 
-import { findProjectRoot, detectRunner, buildProjectTree, stripRelativePath, resolveCurrentProject } from "./project-info.ts";
+import { findProjectRoot, detectRunner, buildProjectTree, stripInternalFields, resolveCurrentProject } from "./project-info.ts";
 import { collectReportPaths, parseReports } from "./report-collector.ts";
 import { renderMavenMessage, renderMavenRunResult } from "./renderer.ts";
 import { buildSummary as buildCollapsedSummary } from "./run-result-renderer.ts";
@@ -177,10 +177,13 @@ export default function (pi: ExtensionAPI) {
         };
       }
 
+      const { pomPath: _, projectTree, ...infoRest } = info;
+      const { modules, ...rootFields } = stripInternalFields(projectTree);
       const json = {
-        ...info,
-        currentProject: info.currentProject ? stripRelativePath(info.currentProject) : null,
-        projectTree: stripRelativePath(info.projectTree),
+        ...infoRest,
+        ...rootFields,
+        ...(modules ? { modules } : {}),
+        currentProject: info.currentProject ? stripInternalFields(info.currentProject) : null,
       };
       return {
         content: [{ type: "text" as const, text: JSON.stringify(json, null, 2) }],
