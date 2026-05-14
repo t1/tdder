@@ -11,7 +11,7 @@ function toJson(root: string, runner: string, tree: ProjectNode, current: Projec
   return {
     rootPath: root,
     runner,
-    currentPath: current?.module ?? ".",
+    currentPath: current?.relativePath ?? ".",
     ...rootFields,
     ...(modules ? { modules } : {}),
   };

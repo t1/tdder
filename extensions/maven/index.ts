@@ -40,7 +40,7 @@ function buildProjectInfoJson(info: MavenProjectInfo): Record<string, unknown> {
     rootPath: projectRoot,
     ...rootFields,
     ...(modules ? { modules } : {}),
-    currentPath: currentProject?.module ?? ".",
+    currentPath: currentProject?.relativePath ?? ".",
   };
 }
 
@@ -247,7 +247,7 @@ export default function (pi: ExtensionAPI) {
       if (!info) throw new Error("Not a Maven project");
 
       const { action, selector, testScope } = params;
-      const project = params.project ?? info.currentProject?.module;
+      const project = params.project ?? (info.currentProject?.relativePath !== "." ? info.currentProject?.relativePath : undefined);
 
       if (action === "test" && testScope === "failsafe") {
         const pomContent = existsSync(info.pomPath) ? readFileSync(info.pomPath, "utf8") : "";
@@ -464,7 +464,7 @@ export default function (pi: ExtensionAPI) {
         package: { action: "package" },
       };
       const { action, testScope } = actionMap[sub];
-      const project = info.currentProject?.module;
+      const project = info.currentProject?.relativePath !== "." ? info.currentProject?.relativePath : undefined;
       const opts = { action, runner: info.runner, selector, project, testScope };
       const command = buildMavenCommand(opts);
       const mavenArgs = buildMavenArgs(opts);

@@ -18,7 +18,6 @@ export interface ProjectNode {
   packaging: string;
   pomPath: string;
   relativePath: string;
-  module: string | undefined;
   modules?: Record<string, ProjectNode>;
 }
 
@@ -121,12 +120,6 @@ function buildNode(
     );
   }
 
-  // module is the path-based reactor selector used with `-pl`.
-  // Only leaf projects (non-aggregators, not the root) get one.
-  const isLeaf = pom.modules.length === 0;
-  const isRoot = relPath === ".";
-  const module = isLeaf && !isRoot ? relPath : undefined;
-
   const modules: Record<string, ProjectNode> = Object.fromEntries(
     pom.modules.map((mod) => {
       const childDir = join(nodeDir, mod);
@@ -143,7 +136,6 @@ function buildNode(
     packaging: pom.packaging,
     pomPath,
     relativePath: relPath,
-    module,
     ...(Object.keys(modules).length > 0 ? { modules } : {}),
   };
 }
@@ -152,9 +144,9 @@ function buildNode(
 // Flatten project tree
 // ---------------------------------------------------------------------------
 
-/** Strip internal fields (`relativePath`, `pomPath`) from a node and recursively from all its children. */
-export function stripInternalFields(node: ProjectNode): Omit<ProjectNode, "relativePath" | "pomPath"> & { modules?: Record<string, ReturnType<typeof stripInternalFields>> } {
-  const { relativePath: _, pomPath: __, modules, ...rest } = node;
+/** Strip internal fields (`relativePath`, `pomPath`, `module`) from a node and recursively from all its children. */
+export function stripInternalFields(node: ProjectNode): Omit<ProjectNode, "relativePath" | "pomPath" | "module"> & { modules?: Record<string, ReturnType<typeof stripInternalFields>> } {
+  const { relativePath: _, pomPath: __, module: ___, modules, ...rest } = node;
   const strippedModules = modules
     ? Object.fromEntries(Object.entries(modules).map(([k, v]) => [k, stripInternalFields(v)]))
     : undefined;
