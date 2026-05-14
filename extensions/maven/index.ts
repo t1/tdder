@@ -38,9 +38,9 @@ function buildProjectInfoJson(info: MavenProjectInfo): Record<string, unknown> {
   return {
     ...infoRest,
     rootPath: projectRoot,
+    currentPath: currentProject?.relativePath ?? ".",
     ...rootFields,
     ...(modules ? { modules } : {}),
-    currentPath: currentProject?.relativePath ?? ".",
   };
 }
 
