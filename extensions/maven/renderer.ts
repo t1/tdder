@@ -1,6 +1,6 @@
 import { Text } from "@earendil-works/pi-tui";
-import { formatLabel } from "./formatter.ts";
-import type { ProjectInfoContext } from "./formatter.ts";
+import { nodeColumns, collectRows } from "./formatter.ts";
+import type { ProjectInfoContext, Row } from "./formatter.ts";
 import { renderRunResult } from "./run-result-renderer.ts";
 import type { MavenRunResult } from "./types.ts";
 
@@ -49,35 +49,33 @@ function renderInfo(details: Record<string, unknown>, theme: Theme): Text {
     theme.fg("muted", "projects:"),
   ];
 
-  renderNodeThemed(projectTree, 0, currentProject, theme, lines);
+  const rows = collectRows(projectTree, 0, currentProject);
+  const col1Width = Math.max(...rows.map((r) => r.col1.length));
+  const col2Width = Math.max(...rows.map((r) => r.col2.length));
+  for (const row of rows) {
+    lines.push(renderRowThemed(row, col1Width, col2Width, theme));
+  }
 
   return new Text(lines.join("\n"), 0, 0);
 }
 
-function renderNodeThemed(
-  node: ProjectInfoContext["projectTree"],
-  depth: number,
-  current: ProjectInfoContext["currentProject"],
-  theme: Theme,
-  lines: string[],
-  moduleKey?: string,
-  parent?: ProjectInfoContext["projectTree"],
-): void {
-  const indent = "  ".repeat(depth);
-  const isCurrent = current !== null && node.relativePath === current.relativePath;
-  const plain = formatLabel(node, moduleKey, parent);
-  const key = moduleKey ?? node.artifactId;
-  // Re-colour the key portion: success when current, text otherwise.
-  // formatLabel returns "<key> [badges] name" — split off the key prefix.
-  const rest = plain.slice(key.length);
-  const keyColored = isCurrent
+function renderRowThemed(row: Row, col1Width: number, col2Width: number, theme: Theme): string {
+  // col1 is "<indent>- <key>"; extract prefix and key to colour the key separately.
+  const dashIdx = row.col1.lastIndexOf("- ");
+  const prefix = row.col1.slice(0, dashIdx + 2);  // "<indent>- "
+  const key    = row.col1.slice(dashIdx + 2);       // "<key>"
+  const padding = " ".repeat(col1Width - row.col1.length);
+  const keyColored = row.isCurrent
     ? theme.fg("success", key)
     : theme.fg("text", key);
-  const marker = isCurrent ? theme.fg("success", " [current]") : "";
-  lines.push(`${indent}${theme.fg("dim", "-")} ${keyColored}${theme.fg("muted", rest)}${marker}`);
-  for (const [k, child] of Object.entries(node.modules ?? {})) {
-    renderNodeThemed(child, depth + 1, current, theme, lines, k, node);
-  }
+  const col2Str = row.col2
+    ? "  " + theme.fg("muted", row.col2.padEnd(col2Width))
+    : "  " + " ".repeat(col2Width);
+  const col3Str = row.col3 ? "  " + theme.fg("dim", row.col3) : "";
+  const hasCol3 = !!row.col3;
+  // Only add col2 padding if there's a col3 to align
+  const col2Part = hasCol3 ? col2Str : (row.col2 ? "  " + theme.fg("muted", row.col2) : "");
+  return (`${theme.fg("dim", prefix)}${keyColored}${padding}${col2Part}${col3Str}`).trimEnd();
 }
 
 function renderVersion(details: Record<string, unknown>, theme: Theme): Text {

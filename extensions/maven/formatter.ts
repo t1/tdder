@@ -15,7 +15,7 @@ export function formatProjectInfo(ctx: ProjectInfoContext | null): string {
   if (!ctx) return "Not a Maven project";
 
   const { projectRoot, runner, projectTree, currentProject } = ctx;
-  const lines: string[] = [
+  const header: string[] = [
     "Maven project",
     `root:    ${projectRoot}`,
     `runner:  ${runner}`,
@@ -23,55 +23,95 @@ export function formatProjectInfo(ctx: ProjectInfoContext | null): string {
     "projects:",
   ];
 
-  renderNode(projectTree, 0, currentProject, lines);
+  const rows = collectRows(projectTree, 0, currentProject);
+  const col1Width = Math.max(...rows.map((r) => r.col1.length));
+  const col2Width = Math.max(...rows.map((r) => r.col2.length));
 
-  return lines.join("\n");
+  const projectLines = rows.map((r) => formatRow(r, col1Width, col2Width));
+
+  return [...header, ...projectLines].join("\n");
 }
 
-function renderNode(
+// ---------------------------------------------------------------------------
+// Row data — collected in a first pass, before any padding is applied
+// ---------------------------------------------------------------------------
+
+export interface Row {
+  col1: string;      // "<indent>- <key>"  (no trailing padding)
+  col2: string;      // "groupId? · artifactId? · packaging · version?"
+  col3: string;      // POM <name>, or ""
+  isCurrent: boolean;
+}
+
+export function collectRows(
   node: ProjectNode,
   depth: number,
   current: ProjectNode | null,
-  lines: string[],
   moduleKey?: string,
   parent?: ProjectNode,
-): void {
-  const indent = "  ".repeat(depth);
+): Row[] {
+  const cols = nodeColumns(node, depth, moduleKey, parent);
   const isCurrent = current !== null && node.relativePath === current.relativePath;
-  const marker = isCurrent ? " [current]" : "";
-  const label = formatLabel(node, moduleKey, parent);
-  lines.push(`${indent}- ${label}${marker}`);
+  const rows: Row[] = [{ ...cols, isCurrent }];
   for (const [key, child] of Object.entries(node.modules ?? {})) {
-    renderNode(child, depth + 1, current, lines, key, node);
+    rows.push(...collectRows(child, depth + 1, current, key, node));
   }
+  return rows;
 }
 
-export function formatLabel(node: ProjectNode, moduleKey: string | undefined, parent: ProjectNode | undefined): string {
-  // The display key: module key for children, artifactId for the root
+function formatRow(row: Row, col1Width: number, col2Width: number): string {
+  const parts = [row.col1.padEnd(col1Width)];
+  if (row.col2) parts.push(row.col2.padEnd(col2Width));
+  if (row.col3) {
+    // col2 may be empty — pad col1 and skip straight to col3
+    if (!row.col2) parts.push("".padEnd(col2Width));
+    parts.push(row.col3);
+  }
+  return parts.join("  ").trimEnd();
+}
+
+// ---------------------------------------------------------------------------
+// Column values for a single node — pure, easily testable
+// ---------------------------------------------------------------------------
+
+export interface NodeColumns {
+  col1: string;   // "<indent>- <key>"
+  col2: string;   // details joined with " · "
+  col3: string;   // POM <name>, if any
+}
+
+export function nodeColumns(
+  node: ProjectNode,
+  depth: number,
+  moduleKey: string | undefined,
+  parent: ProjectNode | undefined,
+): NodeColumns {
+  const indent = "  ".repeat(depth);
   const key = moduleKey ?? node.artifactId;
+  const col1 = `${indent}- ${key}`;
 
-  const badges: string[] = [];
+  const details: string[] = [];
 
-  // groupId: show when no parent (root) or when differs from parent's groupId
+  // groupId: show when no parent (root) or differs from parent's groupId
   if (!parent || node.groupId !== parent.groupId) {
-    badges.push(node.groupId);
+    details.push(node.groupId);
   }
 
   // artifactId: show when it differs from the module key
   if (node.artifactId !== key) {
-    badges.push(node.artifactId);
+    details.push(node.artifactId);
   }
 
   // packaging: always shown
-  badges.push(node.packaging);
+  details.push(node.packaging);
 
   // version: show only when it differs from parent's version
   if (!parent || node.version !== parent.version) {
-    badges.push(node.version);
+    details.push(node.version);
   }
 
-  const badgeStr = badges.map((b) => `[${b}]`).join("");
-  const suffix = node.name ? ` ${node.name}` : "";
+  const col2 = details.join(" · ");
+  const col3 = node.name;
 
-  return `${key} ${badgeStr}${suffix}`;
+  return { col1, col2, col3 };
 }

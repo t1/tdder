@@ -140,7 +140,6 @@ describe("formatProjectInfo — single-module project", () => {
     assert.ok(output.includes(root));
     assert.ok(output.includes("mvn"));
     assert.ok(output.includes("single-app"));
-    assert.ok(output.includes("[current]"));
   });
 
   it("includes the project name when declared", () => {
@@ -158,10 +157,8 @@ describe("formatProjectInfo — single-module project", () => {
     const lines = output.split("\n");
     const projectLine = lines.find((l) => l.includes("single-app"))!;
     assert.ok(projectLine.includes("Single App"), `name should appear in line: ${projectLine}`);
-    // name precedes the [current] marker — verify it comes before any trailing marker
-    const nameIdx = projectLine.indexOf("Single App");
-    const currentIdx = projectLine.indexOf("[current]");
-    assert.ok(currentIdx === -1 || nameIdx < currentIdx, `name should appear before [current]: ${projectLine}`);
+    // name is in the third column; the line should contain it
+    assert.ok(projectLine.includes("Single App"), `name must appear in line: ${projectLine}`);
   });
 });
 
@@ -180,7 +177,7 @@ describe("formatProjectInfo — flat multi-module project", () => {
     const rootIndent = rootLine!.match(/^(\s*)/)?.[1].length ?? 0;
     const moduleIndent = moduleALine!.match(/^(\s*)/)?.[1].length ?? 0;
     assert.ok(moduleIndent > rootIndent, "child should be indented more than root");
-    assert.ok(moduleALine!.includes("[current]"));
+    // current is conveyed by colour only, not a text marker
   });
 });
 
@@ -200,6 +197,6 @@ describe("formatProjectInfo — nested multi-module project", () => {
     const indent = (l: string) => l.match(/^(\s*)/)?.[1].length ?? 0;
     assert.ok(indent(servicesLine!) > indent(rootLine!),    "services indented more than root");
     assert.ok(indent(serviceALine!) > indent(servicesLine!), "service-a indented more than services");
-    assert.ok(serviceALine!.includes("[current]"));
+    // current is conveyed by colour only, not a text marker
   });
 });
