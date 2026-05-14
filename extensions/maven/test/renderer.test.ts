@@ -1,8 +1,21 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { buildProjectTree } from "../project-info.ts";
+import { buildProjectTree, stripInternalFields } from "../project-info.ts";
+import type { ProjectNode } from "../project-info.ts";
 import { formatProjectInfo } from "../formatter.ts";
+import type { ProjectInfoJson } from "../formatter.ts";
+
+function toJson(root: string, runner: string, tree: ProjectNode, current: ProjectNode | null): ProjectInfoJson {
+  const { modules, ...rootFields } = stripInternalFields(tree);
+  return {
+    rootPath: root,
+    runner,
+    currentPath: current?.module ?? ".",
+    ...rootFields,
+    ...(modules ? { modules } : {}),
+  };
+}
 
 const fixturesDir = join(import.meta.dirname, "fixtures/projects");
 
@@ -23,7 +36,7 @@ describe("formatProjectLabel — root node (no parent)", () => {
   it("shows groupId for the root because there is no parent to inherit from", () => {
     const root = join(fixturesDir, "flat-multi-module");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: null });
+    const output = formatProjectInfo(toJson(root, "mvn", tree, null));
     const line = projectLine(output, "root");
     assert.ok(line.includes("com.acme"), `expected groupId in root line: ${line}`);
   });
@@ -31,7 +44,7 @@ describe("formatProjectLabel — root node (no parent)", () => {
   it("always shows packaging for the root", () => {
     const root = join(fixturesDir, "flat-multi-module");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: null });
+    const output = formatProjectInfo(toJson(root, "mvn", tree, null));
     const line = projectLine(output, "root");
     assert.ok(line.includes("pom"), `expected packaging in root line: ${line}`);
   });
@@ -41,7 +54,7 @@ describe("formatProjectLabel — child with same groupId and matching artifactId
   it("omits groupId when same as parent", () => {
     const root = join(fixturesDir, "flat-multi-module");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: null });
+    const output = formatProjectInfo(toJson(root, "mvn", tree, null));
     const line = projectLine(output, "module-a");
     assert.ok(!line.includes("com.acme"), `groupId must be absent when same as parent: ${line}`);
   });
@@ -49,7 +62,7 @@ describe("formatProjectLabel — child with same groupId and matching artifactId
   it("omits artifactId annotation when artifactId matches the module key", () => {
     const root = join(fixturesDir, "flat-multi-module");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: null });
+    const output = formatProjectInfo(toJson(root, "mvn", tree, null));
     const line = projectLine(output, "module-a");
     // "module-a" appears as the key; a second occurrence would indicate an explicit artifactId badge
     const occurrences = (line.match(/module-a/g) ?? []).length;
@@ -59,7 +72,7 @@ describe("formatProjectLabel — child with same groupId and matching artifactId
   it("omits version when same as parent", () => {
     const root = join(fixturesDir, "flat-multi-module");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: null });
+    const output = formatProjectInfo(toJson(root, "mvn", tree, null));
     const line = projectLine(output, "module-a");
     assert.ok(!line.includes("1.0.0-SNAPSHOT"), `version must be absent when same as parent: ${line}`);
   });
@@ -67,7 +80,7 @@ describe("formatProjectLabel — child with same groupId and matching artifactId
   it("always shows packaging", () => {
     const root = join(fixturesDir, "flat-multi-module");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: null });
+    const output = formatProjectInfo(toJson(root, "mvn", tree, null));
     const line = projectLine(output, "module-a");
     assert.ok(line.includes("jar"), `expected packaging in line: ${line}`);
   });
@@ -77,7 +90,7 @@ describe("formatProjectLabel — child with custom artifactId", () => {
   it("shows the artifactId when it differs from the module key", () => {
     const root = join(fixturesDir, "label-cases");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: null });
+    const output = formatProjectInfo(toJson(root, "mvn", tree, null));
     const line = projectLine(output, "custom-artifactid");
     assert.ok(line.includes("my-special-artifact"), `expected artifactId badge in line: ${line}`);
   });
@@ -87,7 +100,7 @@ describe("formatProjectLabel — child with different groupId", () => {
   it("shows the groupId when it differs from parent's groupId", () => {
     const root = join(fixturesDir, "label-cases");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: null });
+    const output = formatProjectInfo(toJson(root, "mvn", tree, null));
     const line = projectLine(output, "different-group");
     assert.ok(line.includes("org.other"), `expected groupId badge in line: ${line}`);
   });
@@ -97,7 +110,7 @@ describe("formatProjectLabel — child with different version", () => {
   it("shows the version when it differs from parent's version", () => {
     const root = join(fixturesDir, "label-cases");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: null });
+    const output = formatProjectInfo(toJson(root, "mvn", tree, null));
     const line = projectLine(output, "different-version");
     assert.ok(line.includes("2.0.0"), `expected version badge in line: ${line}`);
   });
@@ -105,7 +118,7 @@ describe("formatProjectLabel — child with different version", () => {
   it("does not show the version when same as parent", () => {
     const root = join(fixturesDir, "label-cases");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: null });
+    const output = formatProjectInfo(toJson(root, "mvn", tree, null));
     const line = projectLine(output, "custom-artifactid");
     assert.ok(!line.includes("1.0.0-SNAPSHOT"), `version must be absent when same as parent: ${line}`);
   });
@@ -115,7 +128,7 @@ describe("formatProjectLabel — name", () => {
   it("appends the name at the end of the line", () => {
     const root = join(fixturesDir, "single-module");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: null });
+    const output = formatProjectInfo(toJson(root, "mvn", tree, null));
     const line = projectLine(output, "single-app");
     assert.ok(line.endsWith("Single App") || line.includes("Single App"), `expected name at end of line: ${line}`);
   });
@@ -135,7 +148,7 @@ describe("formatProjectInfo — single-module project", () => {
   it("shows title, root, runner, and the single project without indented tree", () => {
     const root = join(fixturesDir, "single-module");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: tree });
+    const output = formatProjectInfo(toJson(root, "mvn", tree, tree));
     assert.ok(output.includes("Maven project"));
     assert.ok(output.includes(root));
     assert.ok(output.includes("mvn"));
@@ -145,14 +158,14 @@ describe("formatProjectInfo — single-module project", () => {
   it("includes the project name when declared", () => {
     const root = join(fixturesDir, "single-module");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: tree });
+    const output = formatProjectInfo(toJson(root, "mvn", tree, tree));
     assert.ok(output.includes("Single App"));
   });
 
   it("formats the project entry with name at the end", () => {
     const root = join(fixturesDir, "single-module");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo({ projectRoot: root, runner: "mvn", projectTree: tree, currentProject: tree });
+    const output = formatProjectInfo(toJson(root, "mvn", tree, tree));
     assert.ok(output.includes("Single App"), `expected name 'Single App' in: ${output}`);
     const lines = output.split("\n");
     const projectLine = lines.find((l) => l.includes("single-app"))!;
@@ -167,7 +180,7 @@ describe("formatProjectInfo — flat multi-module project", () => {
     const root = join(fixturesDir, "flat-multi-module");
     const tree = buildProjectTree(root);
     const current = tree.modules["module-a"]; // module-a
-    const output = formatProjectInfo({ projectRoot: root, runner: "./mvnw", projectTree: tree, currentProject: current });
+    const output = formatProjectInfo(toJson(root, "./mvnw", tree, current));
     const lines = output.split("\n");
     const rootLine = lines.find((l) => /^\s*-\s*root/.test(l));
     const moduleALine = lines.find((l) => /^\s*-\s*module-a/.test(l));
@@ -186,7 +199,7 @@ describe("formatProjectInfo — nested multi-module project", () => {
     const root = join(fixturesDir, "nested-multi-module");
     const tree = buildProjectTree(root);
     const serviceA = tree.modules["services"].modules["service-a"]; // services/service-a
-    const output = formatProjectInfo({ projectRoot: root, runner: "./mvnw", projectTree: tree, currentProject: serviceA });
+    const output = formatProjectInfo(toJson(root, "./mvnw", tree, serviceA));
     const lines = output.split("\n");
     const rootLine    = lines.find((l) => /^\s*-\s*root/.test(l));
     const servicesLine = lines.find((l) => /^\s*-\s*services(\s|$)/.test(l.trimEnd()));

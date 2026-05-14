@@ -1,12 +1,9 @@
 import { Text } from "@earendil-works/pi-tui";
 import { keyHint } from "@earendil-works/pi-coding-agent";
-import { stripInternalFields } from "./project-info.ts";
 import { nodeColumns, collectRows } from "./formatter.ts";
-import type { ProjectInfoContext, Row } from "./formatter.ts";
+import type { ProjectInfoJson, Row } from "./formatter.ts";
 import { renderRunResult } from "./run-result-renderer.ts";
 import type { MavenRunResult } from "./types.ts";
-
-export type { ProjectInfoContext };
 
 // ---------------------------------------------------------------------------
 // Themed TUI rendering — produces a Text component with ANSI colours.
@@ -37,7 +34,7 @@ function label(theme: Theme, key: string): string {
 }
 
 function renderInfo(details: Record<string, unknown>, theme: Theme, expanded = false): Text {
-  const ctx = details.ctx as ProjectInfoContext | null;
+  const ctx = details.ctx as ProjectInfoJson | null;
 
   if (!ctx) {
     return new Text(theme.fg("warning", "Not a Maven project"), 0, 0);
@@ -46,33 +43,25 @@ function renderInfo(details: Record<string, unknown>, theme: Theme, expanded = f
   const header = theme.fg("accent", theme.bold("Maven project"));
 
   if (expanded) {
-    const { modules, ...rootFields } = stripInternalFields(ctx.projectTree);
-    const { projectRoot, currentProject, projectTree: _, ...ctxRest } = ctx;
-    const flat = {
-      ...ctxRest,
-      rootPath: projectRoot,
-      ...rootFields,
-      ...(modules ? { modules } : {}),
-      currentPath: currentProject?.relativePath ?? ".",
-    };
     const lines = [
       header,
-      theme.fg("dim", JSON.stringify(flat, null, 2)),
+      theme.fg("dim", JSON.stringify(ctx, null, 2)),
     ];
     return new Text(lines.join("\n"), 0, 0);
   }
 
-  const { projectRoot, runner, currentProject, projectTree } = ctx;
+  const { rootPath, runner, currentPath, modules, ...rootNode } = ctx;
   const hint = theme.fg("dim", keyHint("app.tools.expand", "to expand"));
   const lines: string[] = [
     `${header}  ${hint}`,
-    label(theme, "rootPath")    + theme.fg("text", projectRoot),
-    label(theme, "runner")       + theme.fg("text", runner),
-    label(theme, "currentPath")  + theme.fg("text", currentProject?.relativePath ?? "."),
+    label(theme, "rootPath")   + theme.fg("text", rootPath),
+    label(theme, "runner")     + theme.fg("text", runner),
+    label(theme, "currentPath") + theme.fg("text", currentPath),
     theme.fg("muted", "projects:"),
   ];
 
-  const rows = collectRows(projectTree, 0, currentProject);
+  const root = { ...rootNode, ...(modules ? { modules } : {}) };
+  const rows = collectRows(root, 0, currentPath);
   const col1Width = Math.max(...rows.map((r) => r.col1.length));
   const col2Width = Math.max(...rows.map((r) => r.col2.length));
   for (const row of rows) {

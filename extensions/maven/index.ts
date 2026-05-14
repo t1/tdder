@@ -32,6 +32,18 @@ import type { MavenProjectInfo, MavenRunResult, VersionLookupResult } from "./ty
 // Helpers
 // ---------------------------------------------------------------------------
 
+function buildProjectInfoJson(info: MavenProjectInfo): Record<string, unknown> {
+  const { pomPath: _, projectTree, projectRoot, currentProject, ...infoRest } = info;
+  const { modules, ...rootFields } = stripInternalFields(projectTree);
+  return {
+    ...infoRest,
+    rootPath: projectRoot,
+    ...rootFields,
+    ...(modules ? { modules } : {}),
+    currentPath: currentProject?.module ?? ".",
+  };
+}
+
 function getMavenProjectInfo(cwd: string): MavenProjectInfo | null {
   const projectRoot = findProjectRoot(cwd);
   if (!projectRoot) return null;
@@ -177,15 +189,7 @@ export default function (pi: ExtensionAPI) {
         };
       }
 
-      const { pomPath: _, projectTree, projectRoot, currentProject, ...infoRest } = info;
-      const { modules, ...rootFields } = stripInternalFields(projectTree);
-      const json = {
-        ...infoRest,
-        rootPath: projectRoot,
-        ...rootFields,
-        ...(modules ? { modules } : {}),
-        currentPath: currentProject?.module ?? ".",
-      };
+      const json = buildProjectInfoJson(info);
       return {
         content: [{ type: "text" as const, text: JSON.stringify(json, null, 2) }],
         details: json,
@@ -441,9 +445,7 @@ export default function (pi: ExtensionAPI) {
       // project info
       if (sub === "info") {
         const info = getMavenProjectInfo(cwd);
-        const ctx2 = info
-          ? { projectRoot: info.projectRoot, runner: info.runner, projectTree: info.projectTree, currentProject: info.currentProject }
-          : null;
+        const ctx2 = info ? buildProjectInfoJson(info) : null;
         mavenMessage({ kind: "info", ctx: ctx2 });
         return;
       }

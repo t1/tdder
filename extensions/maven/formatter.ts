@@ -1,29 +1,43 @@
-import type { ProjectNode } from "./project-info.ts";
+export interface JsonNode {
+  groupId: string;
+  artifactId: string;
+  version: string;
+  name: string;
+  packaging: string;
+  module?: string;
+  modules?: Record<string, JsonNode>;
+}
 
-export interface ProjectInfoContext {
-  projectRoot: string;
+export interface ProjectInfoJson {
+  rootPath: string;
   runner: string;
-  projectTree: ProjectNode;
-  currentProject: ProjectNode | null;
+  currentPath: string;
+  groupId: string;
+  artifactId: string;
+  version: string;
+  name: string;
+  packaging: string;
+  modules?: Record<string, JsonNode>;
 }
 
 // ---------------------------------------------------------------------------
 // Plain-text formatting (used by unit tests and as the basis for themed output)
 // ---------------------------------------------------------------------------
 
-export function formatProjectInfo(ctx: ProjectInfoContext | null): string {
+export function formatProjectInfo(ctx: ProjectInfoJson | null): string {
   if (!ctx) return "Not a Maven project";
 
-  const { projectRoot, runner, projectTree, currentProject } = ctx;
+  const { rootPath, runner, currentPath, modules, ...rootNode } = ctx;
   const header: string[] = [
     "Maven project",
-    `rootPath:    ${projectRoot}`,
+    `rootPath:    ${rootPath}`,
     `runner:      ${runner}`,
-    `currentPath: ${currentProject?.relativePath ?? "."}`,
+    `currentPath: ${currentPath}`,
     "projects:",
   ];
 
-  const rows = collectRows(projectTree, 0, currentProject);
+  const root: JsonNode = { ...rootNode, ...(modules ? { modules } : {}) };
+  const rows = collectRows(root, 0, currentPath);
   const col1Width = Math.max(...rows.map((r) => r.col1.length));
   const col2Width = Math.max(...rows.map((r) => r.col2.length));
 
@@ -44,17 +58,18 @@ export interface Row {
 }
 
 export function collectRows(
-  node: ProjectNode,
+  node: JsonNode,
   depth: number,
-  current: ProjectNode | null,
+  currentPath: string,
   moduleKey?: string,
-  parent?: ProjectNode,
+  parent?: JsonNode,
 ): Row[] {
   const cols = nodeColumns(node, depth, moduleKey, parent);
-  const isCurrent = current !== null && node.relativePath === current.relativePath;
+  const nodePath = node.module ?? ".";
+  const isCurrent = nodePath === currentPath;
   const rows: Row[] = [{ ...cols, isCurrent }];
   for (const [key, child] of Object.entries(node.modules ?? {})) {
-    rows.push(...collectRows(child, depth + 1, current, key, node));
+    rows.push(...collectRows(child, depth + 1, currentPath, key, node));
   }
   return rows;
 }
@@ -81,10 +96,10 @@ export interface NodeColumns {
 }
 
 export function nodeColumns(
-  node: ProjectNode,
+  node: JsonNode,
   depth: number,
   moduleKey: string | undefined,
-  parent: ProjectNode | undefined,
+  parent: JsonNode | undefined,
 ): NodeColumns {
   const indent = "  ".repeat(depth);
   const key = moduleKey ?? node.artifactId;
