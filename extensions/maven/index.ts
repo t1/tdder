@@ -174,7 +174,7 @@ export default function (pi: ExtensionAPI) {
     name: "maven_project_info",
     label: "Maven Project Info",
     description: "Returns structured information about the current Maven project: root, modules, runner, and current module.",
-    promptSnippet: "Detect Maven project structure, runner, and module tree",
+    promptSnippet: "Detect Maven project structure, runner, and module tree. The user already sees rootPath, runner, currentPath, and the project tree — do not repeat them.",
     parameters: Type.Object({}),
 
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
