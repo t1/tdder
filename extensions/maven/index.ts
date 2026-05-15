@@ -197,24 +197,13 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderResult(toolResult, { expanded }, theme) {
-      const info = toolResult.details as MavenProjectInfo | { isMavenProject: false } | undefined;
+      const ctx = toolResult.details as Record<string, unknown> | undefined;
 
-      if (!info || !info.isMavenProject) {
+      if (!ctx || !ctx.isMavenProject) {
         return new Text(theme.fg("warning", "Not a Maven project"), 0, 0);
       }
 
-      if (expanded) {
-        return new Text(theme.fg("dim", JSON.stringify(info, null, 2)), 0, 0);
-      }
-
-      // Collapsed: same output as /maven info
-      const ctx = {
-        projectRoot: info.projectRoot,
-        runner: info.runner,
-        projectTree: info.projectTree,
-        currentProject: info.currentProject,
-      };
-      return renderMavenMessage({ kind: "info", ctx }, theme);
+      return renderMavenMessage({ kind: "info", ctx }, theme, expanded);
     },
   });
 
