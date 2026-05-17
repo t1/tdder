@@ -71,17 +71,11 @@ Tab-completion lists all subcommands.
 | `stop`        | Stop the running app (direct, LLM on failure)                      |
 | `logs`        | Show recent log output (direct, LLM on failure)                    |
 | `restart`     | Hot-reload the app (direct, LLM on failure)                        |
-| `open`        | Open the app in the browser (best-effort URL¹)                     |
-| `devui`       | Open the Quarkus Dev UI in the browser (best-effort URL¹)          |
+| `open`        | Open the app in the browser                                        |
+| `devui`       | Open the Quarkus Dev UI in the browser                             |
 | `update`      | Check for Quarkus updates — output always sent to LLM for analysis |
 | `test`        | Run tests — results always sent to LLM for analysis                |
 | `mcp-restart` | Restart the quarkus-agent-mcp server process itself                |
-
-¹ `open` and `devui` derive the URL from the port reported by `quarkus_status` and use the
-default paths (`/` and `/q/dev-ui`). They do not honour `quarkus.http.root-path` or
-`quarkus.http.non-application-root-path` overrides — this is a known limitation tracked in
-[quarkusio/quarkus-agent-mcp#…](https://github.com/quarkusio/quarkus-agent-mcp/issues/132)
-and will be fixed once upstream exposes `sendInput('w')` / `sendInput('d')` as MCP tools.
 
 **Dispatch strategy:** direct subcommands call the MCP tool immediately and show the result as a
 notification. On failure, the error output is automatically forwarded to the LLM with

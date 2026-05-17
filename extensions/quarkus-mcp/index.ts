@@ -333,36 +333,14 @@ export default async function (pi: ExtensionAPI) {
   const ALL_SUBCOMMANDS    = [...DIRECT_SUBCOMMANDS, ...LLM_SUBCOMMANDS, "mcp-restart"] as const;
   type Subcommand = (typeof ALL_SUBCOMMANDS)[number];
 
-  /**
-   * Best-effort browser open: reads port from quarkus_status, uses default paths.
-   * NOTE: ignores quarkus.http.root-path / non-application-root-path config.
-   * Will be replaced once quarkus-agent-mcp exposes quarkus_open / quarkus_devui tools
-   * that delegate to the dev process via sendInput('w') / sendInput('d').
-   * Tracking issue: https://github.com/quarkusio/quarkus-agent-mcp/issues
-   */
-  async function openInBrowser(path: string, cwd: string): Promise<string> {
-    const c = await ensureClient(cwd);
-    const result = await c.callTool("quarkus_status", { projectDir: cwd });
-    const text = result.content
-      .filter((b) => b.type === "text" && typeof b.text === "string")
-      .map((b) => b.text as string)
-      .join("\n");
-    // Status format: "running (port: 8080)"
-    const portMatch = text.match(/port:\s*(\d+)/);
-    if (!portMatch) {
-      throw new Error(`App does not appear to be running.\n\nStatus output:\n${text}`);
-    }
-    const url = `http://localhost:${portMatch[1]}${path}`;
-    await pi.exec("open", [url]);
-    return url;
-  }
-
   /** Map user-facing subcommand → MCP tool name. */
   const TOOL_NAME: Record<string, string> = {
     status:  "quarkus_status",
     start:   "quarkus_start",
     stop:    "quarkus_stop",
     logs:    "quarkus_logs",
+    open:    "quarkus_open",
+    devui:   "quarkus_devui",
     restart: "quarkus_callTool",   // uses devui-logstream_forceRestart
     update:  "quarkus_update",
     test:    "quarkus_callTool",   // uses devui-testing_runTests
@@ -419,8 +397,8 @@ export default async function (pi: ExtensionAPI) {
               start:       "Start app in dev mode",
               stop:        "Stop the running app",
               logs:        "Show recent log output",
-              open:        "Open the app in the browser (best-effort path)",
-              devui:       "Open the Dev UI in the browser (best-effort path)",
+              open:        "Open the app in the browser",
+              devui:       "Open the Dev UI in the browser",
               update:      "Check for Quarkus updates (analysed by LLM)",
               test:        "Run tests (results analysed by LLM)",
               restart:     "Restart the app (hot reload)",
@@ -460,8 +438,8 @@ export default async function (pi: ExtensionAPI) {
           start:         "start         - Start app in dev mode",
           stop:          "stop          - Stop the running app",
           logs:          "logs          - Show recent log output",
-          open:          "open          - Open the app in the browser (best-effort path)",
-          devui:         "devui         - Open the Dev UI in the browser (best-effort path)",
+          open:          "open          - Open the app in the browser",
+          devui:         "devui         - Open the Dev UI in the browser",
           update:        "update        - Check for Quarkus updates (LLM)",
           test:          "test          - Run tests (LLM)",
           restart:       "restart       - Restart the app (hot reload)",
@@ -516,21 +494,6 @@ export default async function (pi: ExtensionAPI) {
           ctx.ui.setStatus("quarkus", undefined);
         }
         handOffToLlm(sub, output, failed);
-        return;
-      }
-
-      // ── open / devui: best-effort URL from status port ─────────────────
-      if (sub === "open" || sub === "devui") {
-        const path = sub === "devui" ? "/q/dev-ui" : "/";
-        ctx.ui.setStatus("quarkus", `quarkus ${sub}…`);
-        try {
-          const url = await openInBrowser(path, cwd);
-          ctx.ui.setStatus("quarkus", undefined);
-          ctx.ui.notify(`Opened ${url}`, "info");
-        } catch (err) {
-          ctx.ui.setStatus("quarkus", undefined);
-          handOffToLlm(sub, (err as Error).message, true);
-        }
         return;
       }
 
