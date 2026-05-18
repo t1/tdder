@@ -92,6 +92,10 @@ When there are no more tests necessary for the Task:
 - You discover a technical issue that wasn't anticipated (e.g. a library doesn't
   support what was assumed, or there's a conflict with existing code)
 - You need to make an architectural decision that isn't covered by existing ADRs
+- You see an opportunity for simplification, but that would mean the requirements
+  need to be updated without reducing the functionality
+  (e.g., merging "invalid username" and "invalid password" into a single
+  "invalid credentials" message simplifies the code but changes observable behavior)
 
 **Message the Architect** with a clear description of the issue. If the issue
 requires a Sensei decision (not just the Architect's judgment), the Architect
