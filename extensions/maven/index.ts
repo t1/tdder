@@ -218,6 +218,7 @@ export default function (pi: ExtensionAPI) {
       "Use maven_run instead of bash when running Maven goals. It enforces correct flags, saves raw output to a log file, and returns a compact structured result.",
       "For action=test, testScope is required: 'surefire' (unit tests only), 'failsafe' (ITs only), or 'all' (both).",
       "If testScope='failsafe' and the project POM does not define skip.surefire.tests, the tool returns SUREFIRE_SKIP_NOT_CONFIGURED. Ask the user to add the property wiring to the POM, then retry.",
+      "When suggesting next steps that involve running Maven, tell the user to use the /maven command (e.g. '/maven test', '/maven package') rather than raw mvn commands.",
     ],
     parameters: Type.Object({
       action: StringEnum(["test", "package"] as const, {

@@ -18,9 +18,10 @@ import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   truncateTail,
+  keyHint,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-import { matchesKey, truncateToWidth, wrapTextWithAnsi, type Component, Text } from "@earendil-works/pi-tui";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { McpClient, type McpTool } from "./mcp-client.js";
 
@@ -126,98 +127,50 @@ function formatArgs(args: Record<string, unknown>): string {
 }
 
 // ---------------------------------------------------------------------------
-// Test result widget
+// Test result renderer
 // ---------------------------------------------------------------------------
 
-interface TestSummary {
-  passed: number;
-  failed: number;
-  skipped: number;
-  total: number;
-}
+const QUARKUS_TEST_MSG_TYPE = "quarkus-test";
 
-/** Try to extract a test summary from the raw MCP output text. */
-function parseTestSummary(text: string): TestSummary | null {
-  // quarkus-agent-mcp returns JSON for devui-testing_runTests
+function parseTestSummary(text: string): { passed: number; failed: number; total: number } | null {
   const jsonMatch = text.match(/{[\s\S]*}/m);
   if (!jsonMatch) return null;
   try {
     const data = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
-    const passed  = Number(data["passed"]  ?? data["passCount"]  ?? 0);
-    const failed  = Number(data["failed"]  ?? data["failCount"]  ?? 0);
-    const skipped = Number(data["skipped"] ?? data["skipCount"]  ?? 0);
-    const total   = Number(data["total"]   ?? data["testCount"]  ?? passed + failed + skipped);
-    if (Number.isNaN(passed) && Number.isNaN(failed)) return null;
-    return { passed, failed, skipped, total };
+    const passed = Number(data["passedCount"] ?? data["passed"] ?? 0);
+    const failed = Number(data["failedCount"] ?? data["failed"] ?? 0);
+    const total  = Number(data["total"]       ?? passed + failed);
+    if (Number.isNaN(passed) || Number.isNaN(failed)) return null;
+    return { passed, failed, total };
   } catch {
     return null;
   }
 }
 
-type WidgetTheme = {
-  fg: (color: string, text: string) => string;
-  bold: (text: string) => string;
-};
+function renderTestResult(
+  details: Record<string, unknown>,
+  theme: { fg: (color: string, text: string) => string; bold: (text: string) => string },
+  expanded: boolean,
+): Text {
+  const raw = (details.raw as string) ?? "";
+  const summary = parseTestSummary(raw);
 
-/**
- * A widget component that shows a test result summary line.
- * Press Ctrl+O to toggle between the summary and the full JSON.
- */
-class TestResultWidget implements Component {
-  private expanded = false;
-  private cachedWidth?: number;
-  private cachedLines?: string[];
-
-  constructor(
-    private readonly summary: TestSummary | null,
-    private readonly raw: string,
-    private readonly theme: WidgetTheme,
-    private readonly requestRender: () => void,
-  ) {}
-
-  private summaryLine(): string {
-    const { theme } = this;
-    if (!this.summary) {
-      return theme.fg("muted", "test: result unavailable") + "  " + theme.fg("dim", "Ctrl+O expand");
-    }
-    const { passed, failed, total } = this.summary;
-    const status = failed > 0
-      ? theme.fg("error",   `✗ ${failed} failed`) + theme.fg("muted", ` / ${total} total`)
-      : theme.fg("success", `✓ ${passed} passed`) + (total > passed ? theme.fg("muted", ` / ${total} total`) : "");
-    return status + "  " + theme.fg("dim", "Ctrl+O expand");
+  if (!summary) {
+    return new Text(theme.fg("warning", "test: result unavailable"), 0, 0);
   }
 
-  render(width: number): string[] {
-    if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
+  const { passed, failed, total } = summary;
+  const icon   = failed > 0 ? theme.fg("error", "✗") : theme.fg("success", "✓");
+  const counts = failed > 0
+    ? theme.fg("error",   `${failed} failed`) + theme.fg("muted", ` / ${total} total`)
+    : theme.fg("success", `${passed} passed`) + (total > passed ? theme.fg("muted", ` / ${total} total`) : "");
 
-    if (!this.expanded) {
-      this.cachedLines = [truncateToWidth(this.summaryLine(), width)];
-    } else {
-      const header = truncateToWidth(
-        this.summaryLine().replace("Ctrl+O expand", "Ctrl+O collapse"),
-        width,
-      );
-      const jsonLines = this.raw.split("\n");
-      const body = jsonLines.flatMap((line) => wrapTextWithAnsi(this.theme.fg("dim", line), width));
-      this.cachedLines = [header, ...body];
-    }
-
-    this.cachedWidth = width;
-    return this.cachedLines;
+  if (!expanded) {
+    const hint = theme.fg("dim", keyHint("app.tools.expand", "to expand"));
+    return new Text(`${icon} ${counts}  ${hint}`, 0, 0);
   }
 
-  handleInput(data: string): void {
-    if (matchesKey(data, "ctrl+o")) {
-      this.expanded = !this.expanded;
-      this.invalidate();
-      this.requestRender();
-    }
-  }
-
-  invalidate(): void {
-    this.cachedWidth = undefined;
-    this.cachedLines = undefined;
-  }
+  return new Text([`${icon} ${counts}`, theme.fg("dim", raw)].join("\n"), 0, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +178,10 @@ class TestResultWidget implements Component {
 // ---------------------------------------------------------------------------
 
 export default async function (pi: ExtensionAPI) {
+  pi.registerMessageRenderer(QUARKUS_TEST_MSG_TYPE, (message, options, theme) =>
+    renderTestResult(message.details as Record<string, unknown>, theme, options.expanded),
+  );
+
   let client: McpClient | null = null;
   /** Tool names registered in this process (idempotent across session restarts). */
   const registered = new Set<string>();
@@ -336,11 +293,8 @@ export default async function (pi: ExtensionAPI) {
             return new Text(theme.fg("warning", "Running…"), 0, 0);
           }
           const d = result.details as { truncated?: boolean } | undefined;
-          const content = result.content[0];
-          const firstLine =
-            content?.type === "text"
-              ? (content.text as string).split("\n")[0]?.slice(0, 120) ?? ""
-              : "";
+          const rawText = result.content[0]?.type === "text" ? (result.content[0].text as string) : "";
+          const firstLine = rawText.split("\n")[0]?.slice(0, 120) ?? "";
           let text = theme.fg("success", "✓ ") + theme.fg("dim", firstLine);
           if (d?.truncated) text += theme.fg("warning", " (truncated)");
           return new Text(text, 0, 0);
@@ -424,7 +378,7 @@ export default async function (pi: ExtensionAPI) {
    * "update" and "test" always go to the LLM because their output IS the point.
    */
   const DIRECT_SUBCOMMANDS = ["status", "start", "stop", "logs", "restart", "open", "devui"] as const;
-  const LLM_SUBCOMMANDS    = ["update", "test"] as const;
+  const LLM_SUBCOMMANDS    = ["update"] as const;
   const ALL_SUBCOMMANDS    = [...DIRECT_SUBCOMMANDS, ...LLM_SUBCOMMANDS, "mcp-restart"] as const;
   type Subcommand = (typeof ALL_SUBCOMMANDS)[number];
 
@@ -570,42 +524,61 @@ export default async function (pi: ExtensionAPI) {
         }
       }
 
-      // ── LLM subcommands: always forward output to the LLM ──────────────
+      // ── test: ensure dev mode is running, then let the LLM call the tool ─
+      if (sub === "test") {
+        let appRunning = false;
+        try {
+          const statusText = await callDirect("quarkus_status", { projectDir: cwd }, cwd);
+          appRunning = statusText.includes("running");
+        } catch {
+          // If status check fails, assume not running.
+        }
+        if (!appRunning) {
+          const ok = await ctx.ui.confirm(
+            "Quarkus not running",
+            "The app is not running in dev mode. Start it now to run tests?",
+          );
+          if (!ok) return;
+          ctx.ui.setStatus("quarkus", "quarkus start…");
+          try {
+            await callDirect("quarkus_start", { projectDir: cwd }, cwd);
+            ctx.ui.setStatus("quarkus", undefined);
+            ctx.ui.notify("Quarkus started — running tests…", "info");
+          } catch (err) {
+            ctx.ui.setStatus("quarkus", undefined);
+            ctx.ui.notify(`Failed to start Quarkus: ${(err as Error).message}`, "error");
+            return;
+          }
+        }
+        ctx.ui.setStatus("quarkus", "quarkus test…");
+        let testOutput: string;
+        let testFailed = false;
+        try {
+          testOutput = await callDirect("quarkus_callTool", { projectDir: cwd, toolName: "devui-testing_runTests" }, cwd);
+        } catch (err) {
+          testOutput = (err as Error).message;
+          testFailed = true;
+        } finally {
+          ctx.ui.setStatus("quarkus", undefined);
+        }
+        const verb = testFailed ? "failed" : "completed";
+        const prompt = testFailed
+          ? `Quarkus tests failed. Output:\n\n\`\`\`\n${testOutput}\n\`\`\`\n\nWhat went wrong and how should I fix it?`
+          : `Quarkus tests ${verb}. Output:\n\n\`\`\`\n${testOutput}\n\`\`\`\n\nPlease summarise the results and suggest any recommended next steps.`;
+        pi.sendMessage(
+          { customType: QUARKUS_TEST_MSG_TYPE, content: prompt, display: true, details: { raw: testOutput } },
+          { triggerTurn: true, deliverAs: "followUp" },
+        );
+        return;
+      }
+
+      // ── LLM subcommands: forward output to the LLM for analysis ──────────
       if ((LLM_SUBCOMMANDS as readonly string[]).includes(sub)) {
         const toolName = TOOL_NAME[sub];
         if (!toolName) {
           ctx.ui.notify(`Unknown subcommand: ${sub}`, "error");
           return;
         }
-
-        // For "test": ensure the app is running in dev mode first.
-        if (sub === "test") {
-          let appRunning = false;
-          try {
-            const statusText = await callDirect("quarkus_status", { projectDir: cwd }, cwd);
-            appRunning = statusText.includes("running");
-          } catch {
-            // If status check fails, assume not running.
-          }
-          if (!appRunning) {
-            const ok = await ctx.ui.confirm(
-              "Quarkus not running",
-              "The app is not running in dev mode. Start it now to run tests?",
-            );
-            if (!ok) return;
-            ctx.ui.setStatus("quarkus", "quarkus start…");
-            try {
-              await callDirect("quarkus_start", { projectDir: cwd }, cwd);
-              ctx.ui.setStatus("quarkus", undefined);
-              ctx.ui.notify("Quarkus started — running tests…", "info");
-            } catch (err) {
-              ctx.ui.setStatus("quarkus", undefined);
-              ctx.ui.notify(`Failed to start Quarkus: ${(err as Error).message}`, "error");
-              return;
-            }
-          }
-        }
-
         ctx.ui.setStatus("quarkus", `quarkus ${sub}…`);
         let output: string;
         let failed = false;
@@ -617,20 +590,6 @@ export default async function (pi: ExtensionAPI) {
         } finally {
           ctx.ui.setStatus("quarkus", undefined);
         }
-
-        // For the test subcommand, show a persistent summary widget
-        if (sub === "test" && !failed) {
-          const summary = parseTestSummary(output);
-          ctx.ui.setWidget("quarkus-test", (tui, theme) => {
-            const widget = new TestResultWidget(summary, output, theme, () => tui.requestRender());
-            return {
-              render:      (w) => widget.render(w),
-              invalidate:  ()  => widget.invalidate(),
-              handleInput: (d) => widget.handleInput(d),
-            };
-          });
-        }
-
         handOffToLlm(sub, output, failed);
         return;
       }
