@@ -577,6 +577,35 @@ export default async function (pi: ExtensionAPI) {
           ctx.ui.notify(`Unknown subcommand: ${sub}`, "error");
           return;
         }
+
+        // For "test": ensure the app is running in dev mode first.
+        if (sub === "test") {
+          let appRunning = false;
+          try {
+            const statusText = await callDirect("quarkus_status", { projectDir: cwd }, cwd);
+            appRunning = statusText.includes("running");
+          } catch {
+            // If status check fails, assume not running.
+          }
+          if (!appRunning) {
+            const ok = await ctx.ui.confirm(
+              "Quarkus not running",
+              "The app is not running in dev mode. Start it now to run tests?",
+            );
+            if (!ok) return;
+            ctx.ui.setStatus("quarkus", "quarkus start…");
+            try {
+              await callDirect("quarkus_start", { projectDir: cwd }, cwd);
+              ctx.ui.setStatus("quarkus", undefined);
+              ctx.ui.notify("Quarkus started — running tests…", "info");
+            } catch (err) {
+              ctx.ui.setStatus("quarkus", undefined);
+              ctx.ui.notify(`Failed to start Quarkus: ${(err as Error).message}`, "error");
+              return;
+            }
+          }
+        }
+
         ctx.ui.setStatus("quarkus", `quarkus ${sub}…`);
         let output: string;
         let failed = false;
