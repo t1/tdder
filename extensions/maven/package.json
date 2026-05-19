@@ -1,0 +1,18 @@
+{
+  "name": "pi-maven",
+  "version": "0.1.1",
+  "description": "Maven extension for pi — structured test execution, project info, and version lookup",
+  "keywords": ["pi-package"],
+  "license": "Apache-2.0",
+  "type": "module",
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "pi": {
+    "extensions": ["."],
+    "image": "https://raw.githubusercontent.com/t1/tdder/main/docs/images/pi-maven.png"
+  }
+}
