@@ -146,3 +146,19 @@ static DocumentFixture doc = alice.createDocument("notes.txt", "hello world");
    independent fixtures with the same value; types (e.g. `UserFixture.class`) would alias
    all fixtures of that type. `GLOBAL` is sufficient because `this` is already unique.
    Never override `equals`/`hashCode` on fixtures — the store relies on identity.
+4. **Give destructive scenarios their own fixture instance**: if a `@Nested` class destroys
+   the shared resource (e.g. deletes a task), it must declare its own fixture rather than
+   sharing the parent's. Otherwise, sibling nested classes that depend on the same resource
+   will fail non-deterministically depending on test execution order.
+5. **Defer framework-injected dependencies to `beforeAll`**: field initializers run at
+   class-load time, before any injection framework (CDI, Spring, etc.) has populated beans.
+   Never pass an injected object as a constructor argument to a fixture. Instead, look it
+   up lazily inside `computeIfAbsent`. With Quarkus/CDI:
+   ```java
+   @Override public void beforeAll(ExtensionContext context) {
+       context.getStore(GLOBAL).computeIfAbsent(this, k -> {
+           var client = Arc.container().instance(MyClient.class).get();
+           // use client ...
+       });
+   }
+   ```
