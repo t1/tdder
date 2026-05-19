@@ -41,7 +41,7 @@ when matching files are detected.
 Extensions add active behaviour beyond passive skills — they register commands, tools, and UI components
 directly into the coding agent.
 
-### quarkus-mcp (pi only)
+### quarkus (pi only)
 
 Integrates [quarkus-agent-mcp](https://github.com/quarkusio/quarkus-agent-mcp) into
 [pi](https://github.com/earendil-works/pi-coding-agent) so the LLM can manage Quarkus dev-mode
@@ -127,7 +127,7 @@ Install the tdder package, which registers all skills and extensions automatical
 pi install git:github.com/t1/tdder
 ```
 
-The `quarkus-mcp` extension activates automatically in Quarkus projects (requires
+The `quarkus` extension activates automatically in Quarkus projects (requires
 [jbang](https://www.jbang.dev/) on your PATH).
 
 ### Claude Code

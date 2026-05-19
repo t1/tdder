@@ -9,7 +9,7 @@
  * Quarkus project (contains a pom.xml or build.gradle that references "quarkus").
  * It is restarted automatically if it crashes.
  *
- * Placement: extensions/quarkus-mcp/index.ts  (part of the t1/tdder pi package)
+ * Placement: extensions/quarkus/index.ts  (part of the t1/tdder pi package)
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -289,13 +289,13 @@ export default async function (pi: ExtensionAPI) {
 
     if (!isQuarkusProject(cwd)) return;
 
-    ctx.ui.setStatus("quarkus-mcp", "quarkus-mcp: starting…");
+    ctx.ui.setStatus("quarkus", "quarkus: starting…");
     // Start the MCP server in the background so it doesn't block session startup.
     ensureClient(cwd)
       .then((c) => {
-        ctx.ui.setStatus("quarkus-mcp", undefined);
+        ctx.ui.setStatus("quarkus", undefined);
         ctx.ui.notify(
-          `quarkus-mcp: ${c.tools.length} tools loaded`,
+          `quarkus: ${c.tools.length} tools loaded`,
           "info",
         );
         // Start polling app status every 5 seconds
@@ -304,8 +304,8 @@ export default async function (pi: ExtensionAPI) {
         refreshAppStatus(cwd, ctx).catch(() => {});
       })
       .catch((err) => {
-        ctx.ui.setStatus("quarkus-mcp", undefined);
-        ctx.ui.notify(`quarkus-mcp: failed to start – ${(err as Error).message}`, "error");
+        ctx.ui.setStatus("quarkus", undefined);
+        ctx.ui.notify(`quarkus: failed to start – ${(err as Error).message}`, "error");
       });
   });
 
@@ -419,14 +419,14 @@ export default async function (pi: ExtensionAPI) {
           client = null;
           registered.clear();
         }
-        ctx.ui.setStatus("quarkus-mcp", "quarkus-mcp: restarting…");
+        ctx.ui.setStatus("quarkus", "quarkus: restarting…");
         try {
           const c = await ensureClient(cwd);
-          ctx.ui.setStatus("quarkus-mcp", undefined);
-          ctx.ui.notify(`quarkus-mcp restarted: ${c.tools.length} tools`, "info");
+          ctx.ui.setStatus("quarkus", undefined);
+          ctx.ui.notify(`quarkus restarted: ${c.tools.length} tools`, "info");
         } catch (err) {
-          ctx.ui.setStatus("quarkus-mcp", undefined);
-          ctx.ui.notify(`quarkus-mcp restart failed: ${(err as Error).message}`, "error");
+          ctx.ui.setStatus("quarkus", undefined);
+          ctx.ui.notify(`quarkus restart failed: ${(err as Error).message}`, "error");
         }
         return;
       }
@@ -464,13 +464,13 @@ export default async function (pi: ExtensionAPI) {
           );
           if (!ok) return;
         }
-        ctx.ui.setStatus("quarkus-mcp", "quarkus-mcp: starting…");
+        ctx.ui.setStatus("quarkus", "quarkus: starting…");
         try {
           await ensureClient(cwd);
-          ctx.ui.setStatus("quarkus-mcp", undefined);
+          ctx.ui.setStatus("quarkus", undefined);
         } catch (err) {
-          ctx.ui.setStatus("quarkus-mcp", undefined);
-          ctx.ui.notify(`quarkus-mcp failed to start: ${(err as Error).message}`, "error");
+          ctx.ui.setStatus("quarkus", undefined);
+          ctx.ui.notify(`quarkus failed to start: ${(err as Error).message}`, "error");
           return;
         }
       }
