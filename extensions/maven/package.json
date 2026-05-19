@@ -1,6 +1,6 @@
 {
   "name": "pi-maven",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Maven extension for pi — structured test execution, project info, and version lookup",
   "keywords": ["pi-package"],
   "license": "Apache-2.0",
