@@ -123,7 +123,35 @@ context ends. The fixture holds state; the store holds the cleanup handle.
 > **JUnit 5 vs 6**: JUnit 5 uses `getOrComputeIfAbsent` and `CloseableResource`.
 > JUnit 6 uses `computeIfAbsent` and `AutoCloseable`.
 
-## Optional: Fixtures as Factories
+## Optional: Fixtures as Access Points
+
+Fixtures naturally become the access point for everything they set up. Tests and nested
+classes call methods on the fixture directly rather than reaching into its fields:
+
+```java
+class ServerFixture implements BeforeAllCallback {
+    private String baseUrl;
+    private ApiClient client;
+
+    @Override public void beforeAll(ExtensionContext context) {
+        context.getStore(GLOBAL).computeIfAbsent(this, k -> {
+            // ... start server ...
+            baseUrl = "http://localhost:" + port;
+            client = new ApiClient(baseUrl);
+            return (AutoCloseable) () -> server.stop();
+        });
+    }
+
+    ApiClient client() { return client; }
+    String baseUrl() { return baseUrl; }
+    UserFixture createUser(String name) { return new UserFixture(this, name); }
+}
+```
+
+This applies to any state accumulated during setup: injected clients, auth tokens, base URLs,
+created resource IDs. Expose them as methods; don't make callers reach into fields.
+
+### Fixtures as Factories
 
 Parent fixtures can create child fixtures via factory methods. The parent wires context
 (API clients, auth tokens, resource IDs) so the child declaration stays clean:
