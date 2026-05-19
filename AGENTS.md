@@ -8,8 +8,8 @@ Do **NOT** read the `TODO.md`, unless instructed to.
 it's just a question, not a suggestion: don't start implementing, but start a discussion.
 Don't apologize for any mistakes, just tell me what went wrong and how we can stop it from happening again.
 
-**AND NEVER EVER PUBLISH ANYTHING** Not to `git` nor `maven deploy` or `npm publish`, or anything similar. All that's
-the user's privilege!
+**AND NEVER EVER PUBLISH ANYTHING** — no `git push`, `maven deploy`, `npm publish`, or anything that sends
+code or artifacts to a remote. All that's the user's privilege!
 
 ## Development
 
