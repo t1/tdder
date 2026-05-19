@@ -447,12 +447,25 @@ For each FDD:
 
 ## Options
 
-1. [Option A] — [trade-offs]
-2. [Option B] — [trade-offs]
+1. [Option A] — [why it would work, and what it costs or risks]
+2. [Option B] — [why it would work, and what it costs or risks]
 
 ## Recommendation
 
 [Your recommendation, if you have one]
+```
+
+Example of good trade-offs (authentication for a first release):
+
+```markdown
+## Options
+
+1. **Include authentication** — owners log in with username/password.
+   Secure from day one; but adds significant scope and delays the first release
+   without delivering visible value to clinic staff who already know each other.
+2. **Defer authentication** — the app is open to anyone initially.
+   Faster to ship and acceptable if access is controlled (e.g., internal use only);
+   but cannot be used if the app is publicly accessible from the start.
 ```
 
 2. Create an `[FDD]` task on the team task list with the FDD title and
@@ -463,6 +476,11 @@ For each FDD:
 
 When the Orchestrator sends you the Sensei's decision:
 
+0. **Capture the rationale** — the Decision section must explain *why* the chosen
+   option was selected and *why* the others were rejected. If the Sensei's decision
+   makes this clear from the options already listed, record it directly. If the
+   rationale isn't clear, ask a single follow-up before closing: "You chose
+   [option X] — could you briefly say why, so I can record it?"
 1. **Evaluate the decision** — does it make sense? Could it contradict or
    overlap with an existing FDD? If something seems inconsistent, create
    a follow-up `[FDD]` task rather than silently accepting.

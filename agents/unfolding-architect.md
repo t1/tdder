@@ -224,12 +224,25 @@ For each ADR:
 
 ## Options
 
-1. [Option A] — [trade-offs]
-2. [Option B] — [trade-offs]
+1. [Option A] — [why it would work, and what it costs or risks]
+2. [Option B] — [why it would work, and what it costs or risks]
 
 ## Recommendation
 
 [Your recommendation, if you have one]
+```
+
+Example of good trade-offs (choosing a persistence library):
+
+```markdown
+## Options
+
+1. **Hibernate ORM (JPA)** — industry standard, full ORM with caching and lazy
+   loading; but requires entity mapping boilerplate and can produce surprising
+   SQL if relationships aren't managed carefully.
+2. **Jakarta Data (repository pattern)** — cleaner API, less boilerplate, better
+   fit for simple CRUD; but less mature ecosystem and fewer examples available
+   for complex queries.
 ```
 
 2. Create an `[ADR]` task on the team task list with the ADR title and
@@ -257,6 +270,11 @@ process applies.
 
 When the Orchestrator sends you the Sensei's decision:
 
+0. **Capture the rationale** — the Decision section must explain *why* the chosen
+   option was selected and *why* the others were rejected. If the Sensei's decision
+   makes this clear from the options already listed, record it directly. If the
+   rationale isn't clear, ask a single follow-up before closing: "You chose
+   [option X] — could you briefly say why, so I can record it?"
 1. **Evaluate the decision** — does it make sense? Could it contradict or
    overlap with an existing ADR? If something seems inconsistent, create
    a follow-up `[ADR]` task rather than silently accepting.

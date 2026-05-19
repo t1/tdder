@@ -7,6 +7,15 @@ different abstraction levels (hence Acceptance Tests, System Tests, and Unit
 Tests — similar to the notorious [V-Model](https://en.wikipedia.org/wiki/V-model), but
 iterating baby steps instead of heavy, supposedly "complete" specs).
 
+Specs live in two tiers:
+- **Business tier** — *what* the product does: Acceptance Tests and Business Rules
+  are the primary spec; Feature Design Decisions (FDDs) capture decisions and
+  trade-offs that tests alone can't express, including alternatives considered
+  and why they were rejected.
+- **Technical tier** — *how* it is built: System Tests and code are the primary
+  spec; Architecture Decision Records (ADRs) serve the same purpose for
+  technical decisions.
+
 Humans are **Senseis**: they answer questions and give guidance, not drive
 execution. Their input should trigger thinking and discussion, not blind
 compliance.
