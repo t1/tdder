@@ -134,6 +134,37 @@ static UserFixture alice = server.createUser("alice");
 static DocumentFixture doc = alice.createDocument("notes.txt", "hello world");
 ```
 
+### When not to create a child fixture class
+
+Only write a fixture class when there is **teardown to manage**, or when the **same setup
+is shared across multiple sibling `@Nested` classes**. If neither applies, a `@BeforeAll`
+method in the nested class is simpler and equally correct.
+
+In that case, the parent fixture can expose plain action methods that return domain values
+directly, rather than fixture objects. The `@Nested` class calls them from `@BeforeAll`:
+
+```java
+class TaskFixture implements BeforeAllCallback {
+    Task task;
+
+    // lifecycle-managed: needs teardown -> fixture class
+    // (createTask registered in computeIfAbsent, deleteTask in AutoCloseable)
+
+    // no teardown, not shared across siblings -> plain method
+    Task complete() { return client().completeTask(task.id); }
+    boolean delete() { return client().deleteTask(task.id); }
+}
+
+@Nested class GivenTaskIsCompleted {
+    static Task completed;
+
+    @BeforeAll static void completeTask() {
+        completed = task.complete();  // no fixture class needed
+    }
+    ...
+}
+```
+
 ## Critical Rules
 
 1. **Keep factories pure**: factory methods must only *store* parameters, never read fixture
