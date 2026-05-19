@@ -20,7 +20,7 @@ import {
   truncateTail,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import { matchesKey, truncateToWidth, wrapTextWithAnsi, type Component, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { McpClient, type McpTool } from "./mcp-client.js";
 
@@ -123,6 +123,101 @@ function formatArgs(args: Record<string, unknown>): string {
     .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
     .join(" ")
     .slice(0, 120);
+}
+
+// ---------------------------------------------------------------------------
+// Test result widget
+// ---------------------------------------------------------------------------
+
+interface TestSummary {
+  passed: number;
+  failed: number;
+  skipped: number;
+  total: number;
+}
+
+/** Try to extract a test summary from the raw MCP output text. */
+function parseTestSummary(text: string): TestSummary | null {
+  // quarkus-agent-mcp returns JSON for devui-testing_runTests
+  const jsonMatch = text.match(/{[\s\S]*}/m);
+  if (!jsonMatch) return null;
+  try {
+    const data = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    const passed  = Number(data["passed"]  ?? data["passCount"]  ?? 0);
+    const failed  = Number(data["failed"]  ?? data["failCount"]  ?? 0);
+    const skipped = Number(data["skipped"] ?? data["skipCount"]  ?? 0);
+    const total   = Number(data["total"]   ?? data["testCount"]  ?? passed + failed + skipped);
+    if (Number.isNaN(passed) && Number.isNaN(failed)) return null;
+    return { passed, failed, skipped, total };
+  } catch {
+    return null;
+  }
+}
+
+type WidgetTheme = {
+  fg: (color: string, text: string) => string;
+  bold: (text: string) => string;
+};
+
+/**
+ * A widget component that shows a test result summary line.
+ * Press Ctrl+O to toggle between the summary and the full JSON.
+ */
+class TestResultWidget implements Component {
+  private expanded = false;
+  private cachedWidth?: number;
+  private cachedLines?: string[];
+
+  constructor(
+    private readonly summary: TestSummary | null,
+    private readonly raw: string,
+    private readonly theme: WidgetTheme,
+    private readonly requestRender: () => void,
+  ) {}
+
+  private summaryLine(): string {
+    const { theme } = this;
+    if (!this.summary) {
+      return theme.fg("muted", "test: result unavailable") + "  " + theme.fg("dim", "Ctrl+O expand");
+    }
+    const { passed, failed, total } = this.summary;
+    const status = failed > 0
+      ? theme.fg("error",   `✗ ${failed} failed`) + theme.fg("muted", ` / ${total} total`)
+      : theme.fg("success", `✓ ${passed} passed`) + (total > passed ? theme.fg("muted", ` / ${total} total`) : "");
+    return status + "  " + theme.fg("dim", "Ctrl+O expand");
+  }
+
+  render(width: number): string[] {
+    if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
+
+    if (!this.expanded) {
+      this.cachedLines = [truncateToWidth(this.summaryLine(), width)];
+    } else {
+      const header = truncateToWidth(
+        this.summaryLine().replace("Ctrl+O expand", "Ctrl+O collapse"),
+        width,
+      );
+      const jsonLines = this.raw.split("\n");
+      const body = jsonLines.flatMap((line) => wrapTextWithAnsi(this.theme.fg("dim", line), width));
+      this.cachedLines = [header, ...body];
+    }
+
+    this.cachedWidth = width;
+    return this.cachedLines;
+  }
+
+  handleInput(data: string): void {
+    if (matchesKey(data, "ctrl+o")) {
+      this.expanded = !this.expanded;
+      this.invalidate();
+      this.requestRender();
+    }
+  }
+
+  invalidate(): void {
+    this.cachedWidth = undefined;
+    this.cachedLines = undefined;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -493,6 +588,20 @@ export default async function (pi: ExtensionAPI) {
         } finally {
           ctx.ui.setStatus("quarkus", undefined);
         }
+
+        // For the test subcommand, show a persistent summary widget
+        if (sub === "test" && !failed) {
+          const summary = parseTestSummary(output);
+          ctx.ui.setWidget("quarkus-test", (tui, theme) => {
+            const widget = new TestResultWidget(summary, output, theme, () => tui.requestRender());
+            return {
+              render:      (w) => widget.render(w),
+              invalidate:  ()  => widget.invalidate(),
+              handleInput: (d) => widget.handleInput(d),
+            };
+          });
+        }
+
         handOffToLlm(sub, output, failed);
         return;
       }
