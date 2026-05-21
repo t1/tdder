@@ -1,7 +1,19 @@
 {
-  "name": "pi-jqassistant-extension",
-  "version": "1.0.0",
+  "name": "pi-jqassistant",
+  "version": "0.1.0",
+  "description": "jQAssistant extension for pi — scan, query, analyze, and explore rules",
+  "keywords": ["pi-package"],
+  "license": "Apache-2.0",
+  "type": "module",
   "dependencies": {
-    "neo4j-driver": "^5.28.1"
+    "neo4j-driver": "^6.0.1"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "pi": {
+    "extensions": ["."]
   }
 }
