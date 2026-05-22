@@ -9,7 +9,11 @@ export interface ParseResult {
 }
 
 export function parseFrames(buffer: string): ParseResult {
-  const parts = buffer.split("\n\n");
+  // SSE spec allows CRLF, LF, or CR as line endings. Normalize to LF up front
+  // so the rest of the parser only has to think about one form. Real JetBrains
+  // MCP uses CRLF; our unit-test fake server used LF.
+  const normalized = buffer.replace(/\r\n?/g, "\n");
+  const parts = normalized.split("\n\n");
   const remainder = parts.pop() ?? "";
   const frames = parts.filter((p) => p !== "").map(parseBlock);
   return { frames, remainder };

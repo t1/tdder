@@ -25,6 +25,16 @@ describe("SSE frame parser", () => {
     ]);
   });
 
+  it("handles CRLF line endings (as used by real JetBrains MCP)", () => {
+    const buffer = "event: endpoint\r\ndata: /msg?sessionId=crlf\r\n\r\n";
+
+    const { frames } = parseFrames(buffer);
+
+    expect(frames).toEqual([
+      { event: "endpoint", data: "/msg?sessionId=crlf" },
+    ]);
+  });
+
   it("returns the unparsed remainder when a frame is split across chunks", () => {
     const first = parseFrames("event: endpo");
     expect(first.frames).toEqual([]);

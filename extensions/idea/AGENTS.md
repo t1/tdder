@@ -145,6 +145,21 @@ requires a manual re-record ritual when the plugin updates.
 **Not** appropriate for E2E tests (they exist to catch the very drift VCR hides).
 Consider for unit tests once hand-rolled mocks start feeling repetitive.
 
+### Real JetBrains MCP uses CRLF, not LF
+
+The JetBrains MCP Server sends SSE frames terminated by `\r\n\r\n` (CRLF), not
+`\n\n` (LF). Our SSE parser normalizes line endings via `replace(/\r\n?/g, "\n")`
+so both forms work and the rest of the parser only deals with LF.
+
+This was discovered after v0.1 unit tests passed but the live extension hung on
+`connect()`. The fake test server used LF; reality uses CRLF.
+
+**Implication for testing strategy:** unit tests against a hand-rolled fake server
+can diverge from real-wire behaviour in details the spec leaves ambiguous (SSE allows
+CRLF, LF, or bare CR). This is one of the strongest arguments for the E2E suite
+planned in this file — it would have caught this in minutes. When adding new
+protocol-level code, **always verify against the live IDE before declaring done.**
+
 ### `/idea open` macOS launcher: requires `-n`
 
 On macOS, the working invocation is:
