@@ -1,7 +1,19 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { appendFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { Type } from "typebox";
 import { McpClient } from "./mcp-client.ts";
+
+const LOG_FILE = "/tmp/pi-idea.log";
+function log(msg: string, err?: unknown): void {
+  const line = `${new Date().toISOString()} ${msg}${err ? ` :: ${String(err)}\n${(err as Error)?.stack ?? ""}` : ""}\n`;
+  try {
+    appendFileSync(LOG_FILE, line);
+  } catch {
+    // best-effort logging
+  }
+  if (err) console.error(`[idea] ${msg}`, err);
+}
 
 const IDEA_BASE_URL = "http://127.0.0.1:64342";
 const FOOTER_KEY = "idea";
@@ -27,11 +39,13 @@ export default function (pi: ExtensionAPI) {
   let state: ConnectionState = { kind: "disconnected" };
 
   async function probeAndWire(ctx: ExtensionContext): Promise<void> {
+    log(`probeAndWire start, cwd=${ctx.cwd}, hasUI=${ctx.hasUI}`);
     const client = new McpClient(IDEA_BASE_URL, ctx.cwd);
     try {
       await client.connect();
+      log("MCP connect OK");
     } catch (err) {
-      console.error("[idea] MCP connect failed:", err);
+      log("MCP connect failed", err);
       state = { kind: "disconnected" };
       ctx.ui.setStatus(FOOTER_KEY, undefined);
       await client.close().catch(() => {});
@@ -42,8 +56,9 @@ export default function (pi: ExtensionAPI) {
     let probe;
     try {
       probe = await client.callTool("get_project_modules", {});
+      log(`probe OK, kind=${probe.kind}`);
     } catch (err) {
-      console.error("[idea] MCP probe failed:", err);
+      log("MCP probe failed", err);
       state = { kind: "disconnected" };
       ctx.ui.setStatus(FOOTER_KEY, undefined);
       await client.close().catch(() => {});
@@ -51,6 +66,7 @@ export default function (pi: ExtensionAPI) {
     }
     if (probe.kind === "project-not-open") {
       state = { kind: "project-not-open", client, openProjects: probe.openProjects };
+      log(`setting status: idea ⚠ not open (open: ${probe.openProjects.join(", ")})`);
       ctx.ui.setStatus(FOOTER_KEY, "idea ⚠ not open");
       return;
     }
@@ -58,14 +74,16 @@ export default function (pi: ExtensionAPI) {
     let allTools: Array<{ name: string; description?: string; inputSchema?: unknown }>;
     try {
       allTools = (await client.listTools()) as typeof allTools;
+      log(`tools/list OK, ${allTools.length} tools returned`);
     } catch (err) {
-      console.error("[idea] tools/list failed:", err);
+      log("tools/list failed", err);
       state = { kind: "disconnected" };
       ctx.ui.setStatus(FOOTER_KEY, undefined);
       await client.close().catch(() => {});
       return;
     }
     const toRegister = allTools.filter((t) => V01_TOOLS.includes(t.name));
+    log(`registering ${toRegister.length} v0.1 tools: ${toRegister.map((t) => t.name).join(", ")}`);
 
     for (const tool of toRegister) {
       pi.registerTool({
@@ -94,15 +112,17 @@ export default function (pi: ExtensionAPI) {
     }
 
     state = { kind: "connected", client, toolCount: toRegister.length };
+    log(`setting status: idea ● (${toRegister.length} tools)`);
     ctx.ui.setStatus(FOOTER_KEY, `idea ● (${toRegister.length} tools)`);
   }
 
   pi.on("session_start", (_event, ctx) => {
+    log("session_start fired");
     // Do NOT await. The probe must not block pi's startup — if the MCP hangs
     // (or simply takes a second to reply), pi must still finish booting.
     // The footer fills in asynchronously when the probe completes.
     probeAndWire(ctx).catch((err) => {
-      console.error("[idea] probeAndWire crashed:", err);
+      log("probeAndWire crashed", err);
       ctx.ui.setStatus(FOOTER_KEY, "idea ⚠ error");
     });
   });
