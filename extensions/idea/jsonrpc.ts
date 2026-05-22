@@ -6,6 +6,10 @@ export function serializeRequest(
   return JSON.stringify({ jsonrpc: "2.0", id, method, params });
 }
 
+export function serializeNotification(method: string, params: unknown): string {
+  return JSON.stringify({ jsonrpc: "2.0", method, params });
+}
+
 export interface ResponseMessage {
   kind: "response";
   id: number;
