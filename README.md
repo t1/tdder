@@ -122,17 +122,17 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
 
 **v0.1 — LLM gets IDE-grade code understanding (all `explore/code`):**
 
-- [ ] Connectivity: SSE client, `initialize` + `notifications/initialized` handshake, session lifecycle
-- [ ] Footer status with the three states above
-- [ ] Probe-based project detection (one round-trip serves both "IDE up" and "project match" checks)
-- [ ] `projectPath` auto-injection on every forwarded call
-- [ ] `/idea status` slash command (shows footer state + open projects on miss)
-- [ ] `/idea open` slash command — launches IDEA with pi's CWD as the project
+- [x] Connectivity: SSE client, `initialize` + `notifications/initialized` handshake, session lifecycle
+- [x] Footer status with the three states above
+- [x] Probe-based project detection (one round-trip serves both "IDE up" and "project match" checks)
+- [x] `projectPath` auto-injection on every forwarded call
+- [x] `/idea status` slash command (shows footer state + open projects on miss)
+- [x] `/idea open` slash command — launches IDEA with pi's CWD as the project
   (`open -na "IntelliJ IDEA" --args "$PWD"` on macOS; Linux/Windows are TODOs).
   Slash command only, **not** an LLM tool — the LLM has no business launching the
   developer's IDE. Referenced from the E2E suite's "IDE not running" error message
   so the fix is one command away.
-- [ ] Register 8 read-only tools, each tagged `[explore/code]` in its description:
+- [x] Register 8 read-only tools, each tagged `[explore/code]` in its description:
     - `search_symbol`
     - `get_symbol_info`
     - `search_in_files_by_regex`
@@ -187,11 +187,11 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
   only if real confusion shows up in practice — **not** speculatively
 - [ ] `/idea` unified slash command grows more subcommands (`mcp-tools`, `mcp-restart`,
   …) as the surface justifies it. `status` and `open` ship in v0.1.
-- [ ] **E2E tests** (`npm run test:e2e`, opt-in, drift-detector): separate suite that fails loudly
+- [x] **E2E tests** (`npm run test:e2e`, opt-in, drift-detector): separate suite that fails loudly
   via `beforeAll` when the IDE prerequisites aren't met, with distinct messages per failure mode
   (IDE not running / project not open / plugin missing). Tests assert against extension outputs,
-  not raw MCP. Tiered: read-only smoke tests in v0.1, TypeScript fixture files in Tier 2,
-  mutation tests deferred to v0.3+. See `extensions/idea/AGENTS.md` for the full rules.
+  not raw MCP. Tier 1 (read-only smoke tests) done. Tier 2 (fixture files) and Tier 3
+  (mutation tests) deferred. See `extensions/idea/AGENTS.md` for the full rules.
 
 **Explicitly out of scope (duplicates of pi built-ins):**
 
