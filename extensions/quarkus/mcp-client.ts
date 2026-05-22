@@ -51,7 +51,7 @@ export class McpClient {
   private ready: Promise<void>;
   private _tools: McpTool[] = [];
   private closed = false;
-  private _onClose?: () => void;
+  private _closeListeners: Array<() => void> = [];
 
   constructor(command: string, args: string[], cwd: string, env?: Record<string, string>) {
     this.proc = spawn(command, args, {
@@ -91,14 +91,14 @@ export class McpClient {
         p.reject(new Error("MCP server process closed"));
       }
       this.pending.clear();
-      this._onClose?.();
+      for (const cb of this._closeListeners) cb();
     });
 
     this.ready = this._initialize();
   }
 
-  set onClose(cb: () => void) {
-    this._onClose = cb;
+  addCloseListener(cb: () => void): void {
+    this._closeListeners.push(cb);
   }
 
   get tools(): McpTool[] {
