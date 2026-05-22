@@ -30,7 +30,8 @@ export default function (pi: ExtensionAPI) {
     const client = new McpClient(IDEA_BASE_URL, ctx.cwd);
     try {
       await client.connect();
-    } catch {
+    } catch (err) {
+      console.error("[idea] MCP connect failed:", err);
       state = { kind: "disconnected" };
       ctx.ui.setStatus(FOOTER_KEY, undefined);
       await client.close().catch(() => {});
@@ -38,18 +39,32 @@ export default function (pi: ExtensionAPI) {
     }
 
     // Cheap probe: a project-scoped tool resolves either OK or with project-not-open.
-    const probe = await client.callTool("get_project_modules", {});
+    let probe;
+    try {
+      probe = await client.callTool("get_project_modules", {});
+    } catch (err) {
+      console.error("[idea] MCP probe failed:", err);
+      state = { kind: "disconnected" };
+      ctx.ui.setStatus(FOOTER_KEY, undefined);
+      await client.close().catch(() => {});
+      return;
+    }
     if (probe.kind === "project-not-open") {
       state = { kind: "project-not-open", client, openProjects: probe.openProjects };
       ctx.ui.setStatus(FOOTER_KEY, "idea ⚠ not open");
       return;
     }
 
-    const allTools = (await client.listTools()) as Array<{
-      name: string;
-      description?: string;
-      inputSchema?: unknown;
-    }>;
+    let allTools: Array<{ name: string; description?: string; inputSchema?: unknown }>;
+    try {
+      allTools = (await client.listTools()) as typeof allTools;
+    } catch (err) {
+      console.error("[idea] tools/list failed:", err);
+      state = { kind: "disconnected" };
+      ctx.ui.setStatus(FOOTER_KEY, undefined);
+      await client.close().catch(() => {});
+      return;
+    }
     const toRegister = allTools.filter((t) => V01_TOOLS.includes(t.name));
 
     for (const tool of toRegister) {
@@ -82,8 +97,14 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.setStatus(FOOTER_KEY, `idea ● (${toRegister.length} tools)`);
   }
 
-  pi.on("session_start", async (_event, ctx) => {
-    await probeAndWire(ctx);
+  pi.on("session_start", (_event, ctx) => {
+    // Do NOT await. The probe must not block pi's startup — if the MCP hangs
+    // (or simply takes a second to reply), pi must still finish booting.
+    // The footer fills in asynchronously when the probe completes.
+    probeAndWire(ctx).catch((err) => {
+      console.error("[idea] probeAndWire crashed:", err);
+      ctx.ui.setStatus(FOOTER_KEY, "idea ⚠ error");
+    });
   });
 
   pi.on("session_shutdown", async () => {

@@ -29,11 +29,26 @@ export class McpClient {
     await this.transport.connect();
   }
 
-  async sendRequest(method: string, params: unknown): Promise<Message> {
+  async sendRequest(
+    method: string,
+    params: unknown,
+    timeoutMs = 5000,
+  ): Promise<Message> {
     const id = this.nextId++;
-    return new Promise((resolve) => {
-      this.pending.set(id, resolve);
-      this.transport.send(serializeRequest(method, params, id));
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`MCP request '${method}' timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+      this.pending.set(id, (msg) => {
+        clearTimeout(timer);
+        resolve(msg);
+      });
+      this.transport.send(serializeRequest(method, params, id)).catch((err) => {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(err);
+      });
     });
   }
 
