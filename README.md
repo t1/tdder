@@ -127,6 +127,11 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
 - [ ] Probe-based project detection (one round-trip serves both "IDE up" and "project match" checks)
 - [ ] `projectPath` auto-injection on every forwarded call
 - [ ] `/idea status` slash command (shows footer state + open projects on miss)
+- [ ] `/idea open` slash command — launches IDEA with pi's CWD as the project
+  (`open -na "IntelliJ IDEA" --args "$PWD"` on macOS; Linux/Windows are TODOs).
+  Slash command only, **not** an LLM tool — the LLM has no business launching the
+  developer's IDE. Referenced from the E2E suite's "IDE not running" error message
+  so the fix is one command away.
 - [ ] Register 8 read-only tools, each tagged `[explore/code]` in its description:
     - `search_symbol`
     - `get_symbol_info`
@@ -180,8 +185,13 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
   (e.g. "always `search_symbol` before `rename_refactoring`")
 - [ ] Propagate the modes vocabulary into `tdd`, `clean-code`, `maven`, and `unfolding-architecture`
   only if real confusion shows up in practice — **not** speculatively
-- [ ] `/idea` unified slash command with subcommands (`status`, `mcp-tools`, `mcp-restart`, …) once
-  there's enough surface to justify it
+- [ ] `/idea` unified slash command grows more subcommands (`mcp-tools`, `mcp-restart`,
+  …) as the surface justifies it. `status` and `open` ship in v0.1.
+- [ ] **E2E tests** (`npm run test:e2e`, opt-in, drift-detector): separate suite that fails loudly
+  via `beforeAll` when the IDE prerequisites aren't met, with distinct messages per failure mode
+  (IDE not running / project not open / plugin missing). Tests assert against extension outputs,
+  not raw MCP. Tiered: read-only smoke tests in v0.1, TypeScript fixture files in Tier 2,
+  mutation tests deferred to v0.3+. See `extensions/idea/AGENTS.md` for the full rules.
 
 **Explicitly out of scope (duplicates of pi built-ins):**
 
