@@ -64,23 +64,143 @@ and become available to the LLM automatically.
 With no argument it opens an interactive selector; with an argument it dispatches directly.
 Tab-completion lists all subcommands.
 
-| Subcommand    | Behaviour                                                          |
-|---------------|--------------------------------------------------------------------|
-| `status`      | Show current app state (direct, LLM on failure)                    |
-| `start`       | Start app in dev mode (direct, LLM on failure)                     |
-| `stop`        | Stop the running app (direct, LLM on failure)                      |
-| `logs`        | Show recent log output (direct, LLM on failure)                    |
-| `restart`     | Hot-reload the app (direct, LLM on failure)                        |
-| `open`        | Open the app in the browser                                        |
-| `devui`       | Open the Quarkus Dev UI in the browser                             |
-| `update`      | Check for Quarkus updates — output always sent to LLM for analysis |
-| `test`        | Run tests — results always sent to LLM for analysis                |
-| `mcp-restart` | Restart the quarkus-agent-mcp server process itself                |
+| Subcommand      | Behaviour                                                                      |
+|-----------------|--------------------------------------------------------------------------------|
+| `status`        | Show current app state (direct, LLM on failure)                                |
+| `start`         | Start app in dev mode (direct, LLM on failure)                                 |
+| `stop`          | Stop the running app (direct, LLM on failure)                                  |
+| `logs`          | Show recent log output (direct, LLM on failure)                                |
+| `restart`       | Hot-reload the app (direct, LLM on failure)                                    |
+| `open`          | Open the app in the browser                                                    |
+| `devui`         | Open the Quarkus Dev UI in the browser                                         |
+| `info`          | Show app status, endpoints, and dev services (requires dev mode)               |
+| `update`        | Check for Quarkus updates — output always sent to LLM for analysis             |
+| `search-tools`  | Discover Dev MCP tools on the running app — output sent to LLM for analysis    |
+| `test-affected` | Run tests affected by recent changes — results always sent to LLM for analysis |
+| `test-all`      | Run the full test suite — results always sent to LLM for analysis              |
+| `mcp-restart`   | Restart the quarkus-agent-mcp server process itself                            |
+| `mcp-tools`     | List all tools advertised by the MCP server (output sent to LLM)               |
 
 **Dispatch strategy:** direct subcommands call the MCP tool immediately and show the result as a
 notification. On failure, the error output is automatically forwarded to the LLM with
-*"what went wrong and how should I fix it?"*. `update` and `test` always route through the LLM
+*"what went wrong and how should I fix it?"*. `update`, `test-affected`, and `test-all` always route through the LLM
 because their output is analytical rather than a simple pass/fail signal.
+
+### idea (pi only) — PLANNED
+
+Integrates the official JetBrains [MCP Server](https://plugins.jetbrains.com/plugin/26071-mcp-server)
+plugin into pi so the LLM can use IntelliJ IDEA's PSI, inspections, refactorings, and debugger
+without leaving the chat.
+
+**Auto-activation:** the extension is always loaded but lazy-connects to the IDE's MCP endpoint
+(default `http://127.0.0.1:64342/sse`). On every probe it sends a cheap project-scoped call
+(e.g. `get_project_modules`) with `projectPath` = pi's CWD. Three outcomes drive the footer:
+
+- `idea ●` — IDE reachable and pi's CWD is open as a project
+- `idea ⚠ not open` — IDE reachable, but pi's CWD isn't one of the open projects (tools are hidden;
+  the list of currently open projects is surfaced for diagnosis)
+- (blank) — IDE not reachable
+
+**projectPath injection:** every JetBrains MCP tool takes an optional `projectPath`. The extension
+**always injects pi's CWD** on every forwarded call, overriding whatever the LLM tries to pass.
+The LLM should never think about `projectPath` — same way it doesn't think about filesystem roots.
+
+**Modes of operation (vocabulary):** tools are tagged with a 2×3 lens so the LLM can pick the
+right family for the task. This vocabulary is documented per-tool in the extension's tool
+descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool patterns emerge.
+
+|             | code (static)                                  | runtime (dynamic)                             | session (IDE / env)                 |
+|-------------|------------------------------------------------|-----------------------------------------------|-------------------------------------|
+| **explore** | search symbols, get inspections, project model | debugger inspect, app logs / metrics / traces | which files are open, IDE version   |
+| **modify**  | edit, rename, reformat                         | set breakpoint, set variable, run, hot-reload | open file in editor, switch project |
+
+- **code (static)** = facts about source / config / dependencies (true regardless of any process running)
+- **runtime (dynamic)** = facts about the program being developed when it's executing
+- **session (env)** = facts about the development environment itself; mostly serves LLM↔human collaboration
+
+#### Roadmap
+
+**v0.1 — LLM gets IDE-grade code understanding (all `explore/code`):**
+
+- [ ] Connectivity: SSE client, `initialize` + `notifications/initialized` handshake, session lifecycle
+- [ ] Footer status with the three states above
+- [ ] Probe-based project detection (one round-trip serves both "IDE up" and "project match" checks)
+- [ ] `projectPath` auto-injection on every forwarded call
+- [ ] `/idea status` slash command (shows footer state + open projects on miss)
+- [ ] Register 8 read-only tools, each tagged `[explore/code]` in its description:
+    - `search_symbol`
+    - `get_symbol_info`
+    - `search_in_files_by_regex`
+    - `find_files_by_glob`
+    - `list_directory_tree`
+    - `get_project_modules`
+    - `read_file` (kept for `jar://` / `jrt://` resolution)
+    - `get_file_problems`
+
+**v0.2 — IDE as shared workspace (`session`):**
+
+- [ ] `get_all_open_file_paths` — resolve deictic prompts ("this", "current file") against editor focus
+- [ ] `open_file_in_editor` — LLM directs the human's attention when answering
+- [ ] Caret position / current selection if/when the JetBrains MCP exposes them
+- [ ] Prompt-level guidance: when to peek at session state, when to open files alongside an answer
+
+**v0.3 — IDE-grade safe refactoring (`modify/code` subset):**
+
+- [ ] `rename_refactoring` — handles imports, qualified names, JavaDoc refs; text rename can't
+- [ ] `reformat_file` — uses the project's IntelliJ formatter; matches team conventions
+- [ ] Explicitly **not** registered: `replace_text_in_file`, `create_new_file` — duplicates of pi's `edit` / `write`
+
+**v0.4 — Build / run (`modify/runtime` light):**
+
+- [ ] `build_project`
+- [ ] `get_run_configurations`
+- [ ] `execute_run_configuration`
+- [ ] `execute_terminal_command` (security review first — overlaps with pi's `bash`)
+
+**v0.5 — Runtime / debugger (`explore/runtime` + `modify/runtime`):**
+
+- [ ] **Design discussion first**: which `xdebug_*` actions are autonomous, which need human
+  confirmation, what happens if the LLM pauses the human's debug session uninvited
+- [ ] All 13 `xdebug_*` tools: `xdebug_get_stack`, `xdebug_get_frame_values`, `xdebug_get_threads`,
+  `xdebug_evaluate_expression`, `xdebug_get_value_by_path`, `xdebug_get_debugger_status`,
+  `xdebug_list_breakpoints`, `xdebug_set_breakpoint`, `xdebug_remove_breakpoint`,
+  `xdebug_set_variable`, `xdebug_run_to_line`, `xdebug_control_session`,
+  `xdebug_start_debugger_session`
+
+**v0.6 — Inspection authoring:**
+
+- [ ] `generate_inspection_kts_api`
+- [ ] `generate_inspection_kts_examples`
+- [ ] `generate_psi_tree`
+- [ ] `run_inspection_kts`
+
+**Cross-cutting follow-ups:**
+
+- [ ] Promote the modes vocabulary to a dedicated `idea` skill once cross-tool patterns emerge
+  (e.g. "always `search_symbol` before `rename_refactoring`")
+- [ ] Propagate the modes vocabulary into `tdd`, `clean-code`, `maven`, and `unfolding-architecture`
+  only if real confusion shows up in practice — **not** speculatively
+- [ ] `/idea` unified slash command with subcommands (`status`, `mcp-tools`, `mcp-restart`, …) once
+  there's enough surface to justify it
+
+**Explicitly out of scope (duplicates of pi built-ins):**
+
+- `replace_text_in_file`, `create_new_file` — use pi's `edit` / `write`
+- `find_files_by_name_keyword` — use `find_files_by_glob`
+- `search_file`, `search_text`, `search_regex`, `search_in_files_by_text` — overlap with each
+  other and with pi's grep; pick one (`search_in_files_by_regex`) and skip the rest
+
+#### Design decisions captured (so future sessions don't relitigate)
+
+- **Transport:** SSE on `http://127.0.0.1:64342/sse`, JSON-RPC POSTs to `/message?sessionId=…`
+- **Multi-project safety:** every project-scoped tool returns a uniform "Currently open projects"
+  error payload when `projectPath` is missing or wrong. The server **never** silently serves the
+  wrong project. Our wrapper relies on this.
+- **No phase-state machinery:** the extension does **not** filter tools by TDD phase (Red/Green/
+  Refactor). Discipline stays with the `tdd` and `clean-code` skills. Considered and rejected
+  because no machine-readable phase state exists today and inventing one is a multi-week project.
+- **No `idea` skill in v0.1:** mode vocabulary lives in the extension's top-level description and
+  per-tool tags. Spin out a skill only when cross-tool patterns accumulate.
 
 ## Agents
 
@@ -129,6 +249,9 @@ pi install git:github.com/t1/tdder
 
 The `quarkus` extension activates automatically in Quarkus projects (requires
 [jbang](https://www.jbang.dev/) on your PATH).
+
+The `idea` extension (planned) will activate when the IntelliJ IDEA MCP Server plugin is reachable
+on `127.0.0.1:64342` and the current pi working directory matches an open IDE project.
 
 ### Claude Code
 
