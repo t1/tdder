@@ -1,7 +1,8 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { Box, Text } from "@earendil-works/pi-tui";
 import { spawn } from "node:child_process";
 import { appendFileSync } from "node:fs";
-import { Type } from "typebox";
+import { Type, type TSchema } from "typebox";
 import { McpClient } from "./mcp-client.ts";
 
 const IDEA_BASE_URL = "http://127.0.0.1:64342";
@@ -11,17 +12,36 @@ const POLL_INTERVAL_MS = 2000;
 const DEBUG_FILE = process.env.IDEA_MCP_DEBUG_FILE;
 
 // The 8 v0.1 tools (explore/code). All read-only.
-const V01_TOOLS = [
-  "search_symbol",
-  "get_symbol_info",
-  "search_in_files_by_regex",
-  "find_files_by_glob",
-  "list_directory_tree",
-  "get_project_modules",
-  "read_file",
-  "get_file_problems",
+// Category becomes the description prefix the LLM sees AND the group header in /idea tools.
+interface IdeaToolSpec {
+  name: string;
+  category: string;
+}
+const V01_TOOLS: IdeaToolSpec[] = [
+  { name: "search_symbol", category: "explore/code" },
+  { name: "get_symbol_info", category: "explore/code" },
+  { name: "search_in_files_by_regex", category: "explore/code" },
+  { name: "find_files_by_glob", category: "explore/code" },
+  { name: "list_directory_tree", category: "explore/code" },
+  { name: "get_project_modules", category: "explore/code" },
+  { name: "read_file", category: "explore/code" },
+  { name: "get_file_problems", category: "explore/code" },
 ];
-const IDEA_TOOL_NAMES = V01_TOOLS.map((n) => `idea_${n}`);
+const V01_TOOL_NAMES = V01_TOOLS.map((t) => t.name);
+const IDEA_TOOL_NAMES = V01_TOOLS.map((t) => `idea_${t.name}`);
+const CATEGORY_BY_NAME = new Map(V01_TOOLS.map((t) => [t.name, t.category]));
+
+// customType for the scrollable /idea tools listing.
+// Rendered via registerMessageRenderer; filtered from LLM context via on("context").
+const TOOLS_LIST_CUSTOM_TYPE = "idea-tools";
+interface ToolsListDetails {
+  tools: Array<{ name: string; category: string; description: string }>;
+}
+
+// Parameters injected by the extension for specific tools; stripped from the schema so the LLM never sees them.
+const FORCED_ARGS: Record<string, Record<string, unknown>> = {
+  get_file_problems: { errorsOnly: false }, // IntelliJ defaults to true (errors only); we always want warnings too.
+};
 
 let writeFailureWarned = false;
 function log(msg: string, err?: unknown): void {
@@ -65,6 +85,9 @@ export default function (pi: ExtensionAPI) {
   let ctxRef: ExtensionContext | undefined;
   let tickInFlight = false;
 
+  // Captured at tool-registration time so `/idea tools` doesn't need to re-query MCP.
+  let registeredToolMeta: Array<{ name: string; category: string; description: string }> = [];
+
   function setFooter(ctx: ExtensionContext): void {
     switch (state.kind) {
       case "ok":
@@ -93,25 +116,59 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
+  /** Build a tool parameter schema from IntelliJ's inputSchema, stripping injected keys so the LLM never sees them. */
+  function buildParameters(inputSchema: Record<string, unknown> | undefined, strip: string[]): TSchema {
+    if (!inputSchema) return Type.Object({}, { additionalProperties: true }) as unknown as TSchema;
+    const props = (inputSchema.properties as Record<string, unknown> | undefined) ?? {};
+    const req = (inputSchema.required as string[] | undefined) ?? [];
+    const stripped = new Set(strip);
+    const filteredProps = Object.fromEntries(Object.entries(props).filter(([k]) => !stripped.has(k)));
+    return {
+      ...inputSchema,
+      properties: filteredProps,
+      required: req.filter((k) => !stripped.has(k)),
+    } as unknown as TSchema;
+  }
+
   async function ensureToolsRegistered(c: McpClient): Promise<void> {
     if (toolsRegistered) return;
     const allTools = (await c.listTools()) as Array<{
       name: string;
       description?: string;
+      inputSchema?: Record<string, unknown>;
     }>;
-    const toRegister = allTools.filter((t) => V01_TOOLS.includes(t.name));
+    const toRegister = allTools.filter((t) => V01_TOOL_NAMES.includes(t.name));
     log(
       `registering ${toRegister.length} v0.1 tools: ${toRegister.map((t) => t.name).join(", ")}`,
     );
+    registeredToolMeta = [];
     for (const tool of toRegister) {
+      const category = CATEGORY_BY_NAME.get(tool.name) ?? "unknown";
+      const description = tool.description ?? "";
+      registeredToolMeta.push({ name: tool.name, category, description });
       pi.registerTool({
         name: `idea_${tool.name}`,
         label: tool.name,
-        description: `[explore/code] ${tool.description ?? ""}`,
-        parameters: Type.Object({}, { additionalProperties: true }),
+        description: `[${category}] ${description}`,
+        parameters: buildParameters(tool.inputSchema, ["projectPath", ...Object.keys(FORCED_ARGS[tool.name] ?? {})]),
+        renderCall(args, theme, _context) {
+          const paramStr = Object.entries(args as Record<string, unknown>)
+            .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
+            .join(" ");
+          return {
+            render(width: number): string[] {
+              const prefixLen = tool.name.length + 2; // "name: "
+              const available = Math.max(0, width - prefixLen);
+              const params =
+                paramStr.length > available ? `${paramStr.slice(0, available - 1)}…` : paramStr;
+              return [`${theme.fg("toolTitle", tool.name)}: ${theme.fg("dim", params)}`];
+            },
+            invalidate(): void {},
+          };
+        },
         async execute(_id, params) {
           if (!client) throw new Error("IDEA MCP client not initialised");
-          const result = await client.callTool(tool.name, params as object);
+          const result = await client.callTool(tool.name, { ...(params as object), ...(FORCED_ARGS[tool.name] ?? {}) });
           if (result.kind === "project-not-open") {
             throw new Error(
               `Project not open in IDEA. Currently open: ${result.openProjects.join(", ")}`,
@@ -226,12 +283,59 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
+  // Keep our own custom messages out of the LLM context. They're for the human only.
+  pi.on("context", async (event) => {
+    const filtered = event.messages.filter(
+      (m) => !(m.role === "custom" && m.customType === TOOLS_LIST_CUSTOM_TYPE),
+    );
+    return filtered.length === event.messages.length ? undefined : { messages: filtered };
+  });
+
+  // Styled in-chat renderer for the tools listing.
+  pi.registerMessageRenderer<ToolsListDetails>(TOOLS_LIST_CUSTOM_TYPE, (message, _options, theme) => {
+    const details = message.details;
+    const tools = details?.tools ?? [];
+    const lines: string[] = [];
+    if (tools.length === 0) {
+      lines.push(theme.fg("accent", theme.bold("IDEA tools")) + theme.fg("dim", " — none active"));
+      lines.push(theme.fg("muted", "  (IDE not connected or project not open — try /idea status)"));
+    } else {
+      lines.push(
+        theme.fg("accent", theme.bold("IDEA tools")) +
+          theme.fg("dim", ` — ${tools.length} active`),
+      );
+      const byCategory = new Map<string, typeof tools>();
+      for (const t of tools) {
+        const list = byCategory.get(t.category) ?? [];
+        list.push(t);
+        byCategory.set(t.category, list);
+      }
+      const nameWidth = Math.max(...tools.map((t) => t.name.length));
+      for (const [category, group] of byCategory) {
+        lines.push("");
+        lines.push("  " + theme.fg("muted", `${category} (${group.length})`));
+        for (const t of group) {
+          // First line of description only — JetBrains descriptions can be multi-paragraph.
+          const firstLine = t.description.split("\n")[0]?.trim() ?? "";
+          const paddedName = t.name.padEnd(nameWidth);
+          lines.push(
+            "    " + theme.fg("toolTitle", paddedName) + "  " + theme.fg("dim", firstLine),
+          );
+        }
+      }
+    }
+    const box = new Box(1, 1, (t) => theme.bg("customMessageBg", t));
+    box.addChild(new Text(lines.join("\n"), 0, 0));
+    return box;
+  });
+
   pi.registerCommand("idea", {
     description: "Manage the IntelliJ IDEA bridge",
     getArgumentCompletions: (prefix) => {
       const subs = [
         { value: "status", label: "status", description: "Show connection state" },
         { value: "open", label: "open", description: "Launch IDEA with the current project" },
+        { value: "tools", label: "tools", description: "List active IDEA tools by category" },
       ];
       const filtered = subs.filter((s) => s.value.startsWith(prefix));
       return filtered.length > 0 ? filtered : null;
@@ -250,6 +354,17 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify(message, state.kind === "ok" ? "info" : "warning");
         return;
       }
+      if (sub === "tools") {
+        pi.sendMessage<ToolsListDetails>({
+          customType: TOOLS_LIST_CUSTOM_TYPE,
+          content: registeredToolMeta.length === 0
+            ? "IDEA tools: none active"
+            : `IDEA tools (${registeredToolMeta.length} active): ${registeredToolMeta.map((t) => `[${t.category}] ${t.name}`).join(", ")}`,
+          display: true,
+          details: { tools: [...registeredToolMeta] },
+        });
+        return;
+      }
       if (sub === "open") {
         spawn("open", ["-na", "IntelliJ IDEA", "--args", ctx.cwd], {
           detached: true,
@@ -262,7 +377,7 @@ export default function (pi: ExtensionAPI) {
         }, 1500);
         return;
       }
-      ctx.ui.notify(`Unknown subcommand: ${sub}. Try 'status' or 'open'.`, "error");
+      ctx.ui.notify(`Unknown subcommand: ${sub}. Try 'status', 'open', or 'tools'.`, "error");
     },
   });
 }
