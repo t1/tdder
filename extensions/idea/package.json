@@ -14,8 +14,10 @@
     "typebox": "*"
   },
   "devDependencies": {
-    "vitest": "^4.1.7",
-    "typescript": "^5.6.0"
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.7"
   },
   "pi": {
     "extensions": ["."]
