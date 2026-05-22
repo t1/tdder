@@ -27,3 +27,24 @@ Load locally for end-to-end testing:
 ```bash
 pi --extension /path/to/tdder/extensions/idea
 ```
+
+## Debug logging
+
+The extension is silent by default. Set `IDEA_MCP_DEBUG_FILE` to a writable path to
+append state-transition and timing information for debugging:
+
+```bash
+IDEA_MCP_DEBUG_FILE=/tmp/pi-idea.log pi --extension ./extensions/idea
+tail -f /tmp/pi-idea.log     # in another terminal
+```
+
+If the path is unwritable, the extension prints one warning to stderr and stays silent
+afterwards (pi's TUI may swallow stderr; capture with `pi ... 2>/tmp/pi.err` to see it).
+
+Logs may contain filesystem paths (working directory, open IDEA project paths) and
+error stack traces — review before sharing for support. The file is **append-only**;
+the extension does **not** rotate or cap it. Manage size yourself, e.g.
+`truncate -s 0 $IDEA_MCP_DEBUG_FILE` or via `logrotate`.
+
+The debug log format is **unstable** and may change between versions without notice.
+Don't write tooling that depends on specific fields.

@@ -7,7 +7,8 @@ import { McpClient } from "./mcp-client.ts";
 const IDEA_BASE_URL = "http://127.0.0.1:64342";
 const FOOTER_KEY = "idea";
 const POLL_INTERVAL_MS = 2000;
-const LOG_FILE = "/tmp/pi-idea.log";
+// Opt-in debug log path. Unset → no file logging (console.error still fires on errors).
+const DEBUG_FILE = process.env.IDEA_MCP_DEBUG_FILE;
 
 // The 8 v0.1 tools (explore/code). All read-only.
 const V01_TOOLS = [
@@ -22,14 +23,22 @@ const V01_TOOLS = [
 ];
 const IDEA_TOOL_NAMES = V01_TOOLS.map((n) => `idea_${n}`);
 
+let writeFailureWarned = false;
 function log(msg: string, err?: unknown): void {
+  if (err) console.error(`[idea] ${msg}`, err);
+  if (!DEBUG_FILE) return;
   const line = `${new Date().toISOString()} ${msg}${err ? ` :: ${String(err)}\n${(err as Error)?.stack ?? ""}` : ""}\n`;
   try {
-    appendFileSync(LOG_FILE, line);
-  } catch {
-    // best-effort logging
+    appendFileSync(DEBUG_FILE, line);
+  } catch (writeErr) {
+    if (!writeFailureWarned) {
+      writeFailureWarned = true;
+      console.error(
+        `[idea] could not write to IDEA_MCP_DEBUG_FILE=${DEBUG_FILE}:`,
+        writeErr,
+      );
+    }
   }
-  if (err) console.error(`[idea] ${msg}`, err);
 }
 
 type ProbeState =

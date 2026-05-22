@@ -46,5 +46,10 @@ Questions to answer empirically by comparing extensions, not by inventing answer
 - Lazy MCP startup patterns: handshake sequence, session lifecycle, reconnection.
 - Context auto-injection: which extensions wrap MCP calls to inject implicit context, and
   what's the common shape?
+- **Debug logging convention.** The `idea` extension uses `IDEA_MCP_DEBUG_FILE=<path>`
+  for opt-in debug output. Path comes from the env var; file is append-only;
+  format is unstable; pi's TUI swallows `console.error`, so file output is the only
+  user-visible diagnostic. If a second extension adopts the same shape
+  (`<TOOL>_<TARGET>_DEBUG_FILE`), promote the pattern to a shared rule here.
 
 Each of these gets a real answer only once we can compare two independently-built extensions.
