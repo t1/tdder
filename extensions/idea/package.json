@@ -1,0 +1,23 @@
+{
+  "name": "pi-idea",
+  "version": "0.1.0",
+  "description": "IntelliJ IDEA MCP bridge for pi",
+  "keywords": ["pi-package"],
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.7",
+    "typescript": "^5.6.0"
+  },
+  "pi": {
+    "extensions": ["."]
+  }
+}
