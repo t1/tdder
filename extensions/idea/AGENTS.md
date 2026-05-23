@@ -181,6 +181,33 @@ a second window. So `-n` does **not** create competing IDE processes in practice
 Do not "simplify" by removing `-n` — it has been tested empirically and `-n` is
 required.
 
+### Exploring the live MCP server
+
+Use `McpClient` directly via `npx tsx` — do **not** hand-roll raw `curl`/`node:http` scripts.
+A raw script hit CRLF parsing issues and timed out; `McpClient` already handles all of that.
+
+```bash
+cd extensions/idea
+npx tsx - << 'EOF'
+import { McpClient } from "./mcp-client.ts";
+
+const client = new McpClient("http://127.0.0.1:64342", process.cwd());
+await client.connect();
+const tools = await client.listTools() as Array<{
+  name: string;
+  inputSchema?: { properties?: Record<string, unknown>; required?: string[] };
+}>;
+
+for (const t of tools) {
+  const props = Object.keys(t.inputSchema?.properties ?? {}).filter(k => k !== "projectPath");
+  const req = (t.inputSchema?.required ?? []).filter(k => k !== "projectPath");
+  console.log(`${t.name}  params=[${props.join(", ")}]  required=[${req.join(", ")}]`);
+}
+await client.close();
+process.exit(0);
+EOF
+```
+
 ### TDD discipline
 
 Follow the `tdd` skill. HITL is `off` at the repo level, so cycles run autonomously

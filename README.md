@@ -144,10 +144,11 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
 
 **v0.2 — IDE as shared workspace (`session`):**
 
-- [ ] `get_all_open_file_paths` — resolve deictic prompts ("this", "current file") against editor focus
-- [ ] `open_file_in_editor` — LLM directs the human's attention when answering
+- [x] `get_all_open_file_paths` — resolve deictic prompts ("this", "current file") against editor focus
+- [x] `open_file_in_editor` — LLM directs the human's attention when answering
 - [ ] Caret position / current selection if/when the JetBrains MCP exposes them
-- [ ] Prompt-level guidance: when to peek at session state, when to open files alongside an answer
+  _(confirmed absent: live probe shows `open_file_in_editor` only takes `filePath`; no line, column, or range)_
+- [x] Prompt-level guidance: when to peek at session state, when to open files alongside an answer
 
 **v0.3 — IDE-grade safe refactoring (`modify/code` subset):**
 
@@ -178,6 +179,16 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
 - [ ] `generate_inspection_kts_examples`
 - [ ] `generate_psi_tree`
 - [ ] `run_inspection_kts`
+
+**Tools discovered in v0.2 live probe, not yet evaluated:**
+
+- [ ] `get_project_dependencies` (`explore/code`, no params) — lists the project's library dependencies;
+  candidate for v0.1 backfill
+- [ ] `get_file_text_by_path` (`explore/code`, params: `pathInProject`, `truncateMode`, `maxLinesCount`) —
+  simpler project-relative file reader alongside `read_file`; evaluate whether it replaces or
+  complements `read_file` for regular (non-`jar://`) paths
+- [ ] `get_repositories` (`explore/code`, no params) — lists git repositories in the project;
+  candidate for v0.1 backfill
 
 **Cross-cutting follow-ups:**
 

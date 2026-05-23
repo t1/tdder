@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { Type, type TSchema } from "typebox";
 import { McpClient } from "./mcp-client.ts";
+import { ALL_TOOLS } from "./tool-specs.ts";
 
 const IDEA_BASE_URL = "http://127.0.0.1:64342";
 const FOOTER_KEY = "idea";
@@ -11,25 +12,12 @@ const POLL_INTERVAL_MS = 2000;
 // Opt-in debug log path. Unset → no file logging (console.error still fires on errors).
 const DEBUG_FILE = process.env.IDEA_MCP_DEBUG_FILE;
 
-// The 8 v0.1 tools (explore/code). All read-only.
-// Category becomes the description prefix the LLM sees AND the group header in /idea tools.
-interface IdeaToolSpec {
-  name: string;
-  category: string;
-}
-const V01_TOOLS: IdeaToolSpec[] = [
-  { name: "search_symbol", category: "explore/code" },
-  { name: "get_symbol_info", category: "explore/code" },
-  { name: "search_in_files_by_regex", category: "explore/code" },
-  { name: "find_files_by_glob", category: "explore/code" },
-  { name: "list_directory_tree", category: "explore/code" },
-  { name: "get_project_modules", category: "explore/code" },
-  { name: "read_file", category: "explore/code" },
-  { name: "get_file_problems", category: "explore/code" },
-];
-const V01_TOOL_NAMES = V01_TOOLS.map((t) => t.name);
-const IDEA_TOOL_NAMES = V01_TOOLS.map((t) => `idea_${t.name}`);
-const CATEGORY_BY_NAME = new Map(V01_TOOLS.map((t) => [t.name, t.category]));
+const TOOL_NAMES = ALL_TOOLS.map((t) => t.name);
+const IDEA_TOOL_NAMES = ALL_TOOLS.map((t) => `idea_${t.name}`);
+const CATEGORY_BY_NAME = new Map(ALL_TOOLS.map((t) => [t.name, t.category]));
+const GUIDANCE_BY_NAME = new Map(
+  ALL_TOOLS.filter((t) => t.guidance).map((t) => [t.name, t.guidance!]),
+);
 
 // customType for the scrollable /idea tools listing.
 // Rendered via registerMessageRenderer; filtered from LLM context via on("context").
@@ -91,7 +79,7 @@ export default function (pi: ExtensionAPI) {
   function setFooter(ctx: ExtensionContext): void {
     switch (state.kind) {
       case "ok":
-        ctx.ui.setStatus(FOOTER_KEY, `idea ● (${V01_TOOLS.length} tools)`);
+        ctx.ui.setStatus(FOOTER_KEY, `idea ● (${ALL_TOOLS.length} tools)`);
         break;
       case "project-not-open":
         ctx.ui.setStatus(FOOTER_KEY, "idea ⚠ not open");
@@ -137,19 +125,23 @@ export default function (pi: ExtensionAPI) {
       description?: string;
       inputSchema?: Record<string, unknown>;
     }>;
-    const toRegister = allTools.filter((t) => V01_TOOL_NAMES.includes(t.name));
+    const toRegister = allTools.filter((t) => TOOL_NAMES.includes(t.name));
     log(
-      `registering ${toRegister.length} v0.1 tools: ${toRegister.map((t) => t.name).join(", ")}`,
+      `registering ${toRegister.length} tools: ${toRegister.map((t) => t.name).join(", ")}`,
     );
     registeredToolMeta = [];
     for (const tool of toRegister) {
       const category = CATEGORY_BY_NAME.get(tool.name) ?? "unknown";
-      const description = tool.description ?? "";
-      registeredToolMeta.push({ name: tool.name, category, description });
+      const guidance = GUIDANCE_BY_NAME.get(tool.name);
+      const mcpDescription = tool.description ?? "";
+      const description = guidance
+        ? `[${category}]\n${guidance}\n\n${mcpDescription}`
+        : `[${category}] ${mcpDescription}`;
+      registeredToolMeta.push({ name: tool.name, category, description: mcpDescription });
       pi.registerTool({
         name: `idea_${tool.name}`,
         label: tool.name,
-        description: `[${category}] ${description}`,
+        description,
         parameters: buildParameters(tool.inputSchema, ["projectPath", ...Object.keys(FORCED_ARGS[tool.name] ?? {})]),
         renderCall(args, theme, _context) {
           const paramStr = Object.entries(args as Record<string, unknown>)
@@ -347,7 +339,7 @@ export default function (pi: ExtensionAPI) {
         await tick().catch((err) => log("status-triggered tick crashed", err));
         const message =
           state.kind === "ok"
-            ? `IDEA connected, ${V01_TOOLS.length} tools active`
+            ? `IDEA connected, ${ALL_TOOLS.length} tools active`
             : state.kind === "project-not-open"
               ? `IDEA reachable but project not open. Currently open: ${state.openProjects.join(", ")}`
               : "IDEA not reachable. Run '/idea open' to launch it.";
