@@ -180,15 +180,13 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
 - [ ] `generate_psi_tree`
 - [ ] `run_inspection_kts`
 
-**Tools discovered in v0.2 live probe, not yet evaluated:**
+**Tools discovered in v0.2 live probe, now registered:**
 
-- [ ] `get_project_dependencies` (`explore/code`, no params) — lists the project's library dependencies;
-  candidate for v0.1 backfill
-- [ ] `get_file_text_by_path` (`explore/code`, params: `pathInProject`, `truncateMode`, `maxLinesCount`) —
-  simpler project-relative file reader alongside `read_file`; evaluate whether it replaces or
-  complements `read_file` for regular (non-`jar://`) paths
-- [ ] `get_repositories` (`explore/code`, no params) — lists git repositories in the project;
-  candidate for v0.1 backfill
+- [x] `get_project_dependencies` (`explore/code`, no params) — lists the project's library dependencies
+- [x] `get_file_text_by_path` (`explore/code`, params: `pathInProject`, `truncateMode`, `maxLinesCount`) —
+  project-relative file reader; use for regular files; `read_file` is kept for `jar://`/`jrt://` paths
+  (both tools carry guidance clarifying when to use each)
+- [x] `get_repositories` (`explore/code`, no params) — lists git repositories in the project
 
 **Cross-cutting follow-ups:**
 

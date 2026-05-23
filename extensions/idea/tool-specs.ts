@@ -60,7 +60,13 @@ export const ALL_TOOLS: IdeaToolSpec[] = [
     },
   },
   { name: "get_project_modules", category: "explore/code" },
-  { name: "read_file", category: "explore/code" },
+  {
+    name: "read_file",
+    category: "explore/code",
+    guidance:
+      "Use this for jar:// and jrt:// paths (library sources, JDK internals)." +
+      " For regular project files, prefer get_file_text_by_path.",
+  },
   {
     name: "get_file_problems",
     category: "explore/code",
@@ -70,6 +76,34 @@ export const ALL_TOOLS: IdeaToolSpec[] = [
         return `${n} ${n === 1 ? "problem" : "problems"}`;
       },
     },
+  },
+  // v0.2 probe — explore/code backfills
+  {
+    name: "get_project_dependencies",
+    category: "explore/code",
+    collapseResult: {
+      summary: (p) => {
+        const n = (p as { dependencies?: unknown[] })?.dependencies?.length ?? 0;
+        return `${n} ${n === 1 ? "dependency" : "dependencies"}`;
+      },
+    },
+  },
+  {
+    name: "get_repositories",
+    category: "explore/code",
+    collapseResult: {
+      summary: (p) => {
+        const n = (p as { repositories?: unknown[] })?.repositories?.length ?? 0;
+        return `${n} ${n === 1 ? "repository" : "repositories"}`;
+      },
+    },
+  },
+  {
+    name: "get_file_text_by_path",
+    category: "explore/code",
+    guidance:
+      "Use this to read regular project files by their project-relative path." +
+      " For jar:// or jrt:// paths (library sources, JDK internals), use read_file instead.",
   },
   // v0.2 — session (IDE shared workspace)
   {

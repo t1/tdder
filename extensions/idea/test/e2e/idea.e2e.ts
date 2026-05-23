@@ -146,3 +146,23 @@ describe("session tools — Tier 1 coarse assertions", () => {
     expectOk(result);
   });
 });
+
+// ── Tier 1: v0.2-probe backfill tools (explore/code), coarse assertions ──
+describe("backfill explore/code tools — Tier 1 coarse assertions", () => {
+  it("get_project_dependencies returns dependency info", async () => {
+    const result = await client.callTool("get_project_dependencies", {});
+    expectOk(result);
+  });
+
+  it("get_repositories returns repository info", async () => {
+    const result = await client.callTool("get_repositories", {});
+    expectOk(result);
+  });
+
+  it("get_file_text_by_path returns content for a known file", async () => {
+    const result = await client.callTool("get_file_text_by_path", {
+      pathInProject: "extensions/idea/index.ts",
+    });
+    expectOk(result);
+  });
+});

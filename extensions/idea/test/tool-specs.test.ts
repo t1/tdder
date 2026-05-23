@@ -71,6 +71,57 @@ describe("collapsed-result specs", () => {
   });
 });
 
+describe("undecided v0.2-probe tools", () => {
+  it("get_project_dependencies is registered as explore/code", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "get_project_dependencies");
+    expect(spec?.category).toBe("explore/code");
+  });
+  it("get_project_dependencies has collapseResult", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "get_project_dependencies");
+    expect(spec?.collapseResult).toBeDefined();
+  });
+  it("get_project_dependencies summary: 3 deps → '3 dependencies'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "get_project_dependencies")!;
+    expect(collapseResult!.summary({ dependencies: [{}, {}, {}] })).toBe("3 dependencies");
+  });
+  it("get_project_dependencies summary: 1 dep → '1 dependency'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "get_project_dependencies")!;
+    expect(collapseResult!.summary({ dependencies: [{}] })).toBe("1 dependency");
+  });
+  it("get_repositories is registered as explore/code", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "get_repositories");
+    expect(spec?.category).toBe("explore/code");
+  });
+  it("get_repositories has collapseResult", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "get_repositories");
+    expect(spec?.collapseResult).toBeDefined();
+  });
+  it("get_repositories summary: 2 repos → '2 repositories'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "get_repositories")!;
+    expect(collapseResult!.summary({ repositories: [{}, {}] })).toBe("2 repositories");
+  });
+  it("get_repositories summary: 1 repo → '1 repository'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "get_repositories")!;
+    expect(collapseResult!.summary({ repositories: [{}] })).toBe("1 repository");
+  });
+  it("get_file_text_by_path is registered as explore/code", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "get_file_text_by_path");
+    expect(spec?.category).toBe("explore/code");
+  });
+  it("get_file_text_by_path carries guidance about when to prefer it over read_file", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "get_file_text_by_path");
+    expect(spec?.guidance).toMatch(/read_file|jar/i);
+  });
+  it("get_file_text_by_path has no collapseResult", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "get_file_text_by_path");
+    expect(spec?.collapseResult).toBeUndefined();
+  });
+  it("read_file carries guidance about jar:// and jrt:// paths", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "read_file");
+    expect(spec?.guidance).toMatch(/jar:\/\/|jrt:\/\//i);
+  });
+});
+
 describe("v0.3 tool specs", () => {
   it("rename_refactoring is registered as modify/code", () => {
     const spec = ALL_TOOLS.find((t) => t.name === "rename_refactoring");
