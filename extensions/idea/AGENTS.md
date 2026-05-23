@@ -183,7 +183,7 @@ required.
 
 ### Exploring the live MCP server
 
-Before adding or speccing any tool, run two probes. Both are cheap (one round-trip each)
+Before adding a tool, or changing a tool spec in any way where response shape or parameter details are relevant (guidance, `collapseResult`, parameter schema), run two probes. Both are cheap (one round-trip each)
 and together they give everything needed to write correct parameter schemas, guidance, and
 `collapseResult` renderers.
 
