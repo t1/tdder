@@ -14,6 +14,17 @@ export interface IdeaToolSpec {
   collapseResult?: CollapseSpec;
 }
 
+/** Collapse spec for tools that return plain file text (not a structured list). */
+const fileContentCollapse: CollapseSpec = {
+  summary: (p) => {
+    const text = typeof p === "string" ? p : "";
+    if (!text) return "file content";
+    const n = text.split("\n").length;
+    return `${n} ${n === 1 ? "line" : "lines"}`;
+  },
+  expanded: (p, raw) => (typeof p === "string" ? p : raw),
+};
+
 export const ALL_TOOLS: IdeaToolSpec[] = [
   // v0.1 — explore/code (read-only, static analysis)
   {
@@ -66,6 +77,7 @@ export const ALL_TOOLS: IdeaToolSpec[] = [
     guidance:
       "Use this for jar:// and jrt:// paths (library sources, JDK internals)." +
       " For regular project files, prefer get_file_text_by_path.",
+    collapseResult: fileContentCollapse,
   },
   {
     name: "get_file_problems",
@@ -104,6 +116,7 @@ export const ALL_TOOLS: IdeaToolSpec[] = [
     guidance:
       "Use this to read regular project files by their project-relative path." +
       " For jar:// or jrt:// paths (library sources, JDK internals), use read_file instead.",
+    collapseResult: fileContentCollapse,
   },
   // v0.2 — session (IDE shared workspace)
   {

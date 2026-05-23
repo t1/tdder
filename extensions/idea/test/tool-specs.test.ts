@@ -112,13 +112,47 @@ describe("undecided v0.2-probe tools", () => {
     const spec = ALL_TOOLS.find((t) => t.name === "get_file_text_by_path");
     expect(spec?.guidance).toMatch(/read_file|jar/i);
   });
-  it("get_file_text_by_path has no collapseResult", () => {
-    const spec = ALL_TOOLS.find((t) => t.name === "get_file_text_by_path");
-    expect(spec?.collapseResult).toBeUndefined();
-  });
+
   it("read_file carries guidance about jar:// and jrt:// paths", () => {
     const spec = ALL_TOOLS.find((t) => t.name === "read_file");
     expect(spec?.guidance).toMatch(/jar:\/\/|jrt:\/\//i);
+  });
+});
+
+describe("file-reader collapse specs", () => {
+  it("read_file has collapseResult", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "read_file");
+    expect(spec?.collapseResult).toBeDefined();
+  });
+  it("read_file summary: 3-line text → '3 lines'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "read_file")!;
+    expect(collapseResult!.summary("line1\nline2\nline3")).toBe("3 lines");
+  });
+  it("read_file summary: 1-line text → '1 line'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "read_file")!;
+    expect(collapseResult!.summary("hello")).toBe("1 line");
+  });
+  it("read_file expanded: returns raw text", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "read_file")!;
+    const raw = "public class Foo {}";
+    expect(collapseResult!.expanded!(raw, raw)).toBe(raw);
+  });
+  it("get_file_text_by_path has collapseResult", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "get_file_text_by_path");
+    expect(spec?.collapseResult).toBeDefined();
+  });
+  it("get_file_text_by_path summary: 3-line text → '3 lines'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "get_file_text_by_path")!;
+    expect(collapseResult!.summary("a\nb\nc")).toBe("3 lines");
+  });
+  it("get_file_text_by_path summary: 1-line text → '1 line'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "get_file_text_by_path")!;
+    expect(collapseResult!.summary("single")).toBe("1 line");
+  });
+  it("get_file_text_by_path expanded: returns raw text", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "get_file_text_by_path")!;
+    const raw = "const x = 1;";
+    expect(collapseResult!.expanded!(raw, raw)).toBe(raw);
   });
 });
 
