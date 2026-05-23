@@ -183,41 +183,27 @@ required.
 
 ### Exploring the live MCP server
 
+Before adding or speccing any tool, run two probes. Both are cheap (one round-trip each)
+and together they give everything needed to write correct parameter schemas, guidance, and
+`collapseResult` renderers.
+
 Use `McpClient` directly via `npx tsx` — do **not** hand-roll raw `curl`/`node:http` scripts.
 A raw script hit CRLF parsing issues and timed out; `McpClient` already handles all of that.
 
-**Always probe before writing renderers or assuming parameter names.** JetBrains parameter
-names are not always what they look like (`q` not `pattern`, `globPattern` not `glob`,
-`directoryPath` not `path`, etc.) — we discovered wrong names in our own E2E tests only
-via a live probe. The same applies to response shapes: probe first, then write summary
-functions and renderers against what actually comes back.
-
-**If the IDE is not available, register the tool without `collapseResult`.** The default
-`prettyPrintContent` is honest — it shows what actually came back. A guessed `collapseResult`
-is worse: it silently shows the wrong thing. Specific anti-patterns to refuse:
-
-- `?? 0` for a list length where the field name is assumed, not observed
-- a `"file content"` / `"unknown"` fallback that fires when `typeof p !== "string"` —
-  this means the shape was unknown when the spec was written
-- `typeof p === "string" ? p : raw` as a hedge against not knowing whether the response
-  is plain text or JSON-wrapped
-
-These patterns all look like TDD but are actually speculation dressed as code.
-`collapseResult` should only exist once the response shape is confirmed by a real probe.
-Tools listed as "not yet evaluated" in the README are by definition unprobed and must
-not receive a `collapseResult` until that changes.
-
 **`import.meta.url` does not resolve correctly in heredoc probe scripts.** When running
 `npx tsx - << 'EOF'`, `import.meta.url` resolves to something stdin-based, not the
-extensions/idea directory. Hardcode the project path in the `McpClient` constructor
-for one-off probes.
+extensions/idea directory. Hardcode the project path in the `McpClient` constructor.
+
+#### Probe 1 — list all tools and their parameters
+
+Run once to see what the IDE currently advertises. Reveals parameter names and which are required.
 
 ```bash
 cd extensions/idea
 npx tsx - << 'EOF'
 import { McpClient } from "./mcp-client.ts";
 
-const client = new McpClient("http://127.0.0.1:64342", process.cwd());
+const client = new McpClient("http://127.0.0.1:64342", "/path/to/open/project");
 await client.connect();
 const tools = await client.listTools() as Array<{
   name: string;
@@ -233,6 +219,33 @@ await client.close();
 process.exit(0);
 EOF
 ```
+
+#### Probe 2 — call the tool and inspect the response shape
+
+Run for each tool being added. Shows the exact JSON structure so `collapseResult` can
+reference real field names, not guesses.
+
+```bash
+cd extensions/idea
+npx tsx - << 'EOF'
+import { McpClient } from "./mcp-client.ts";
+
+const client = new McpClient("http://127.0.0.1:64342", "/path/to/open/project");
+await client.connect();
+const result = await client.callTool("TOOL_NAME", { /* required params */ });
+console.log(JSON.stringify(result, null, 2));
+await client.close();
+process.exit(0);
+EOF
+```
+
+Replace `TOOL_NAME` and supply any required parameters. The output is the classified
+`ToolCallResult` the extension itself sees — same shape the `collapseResult` renderer receives.
+
+**Do not write a `collapseResult` before running Probe 2.** If the IDE is unavailable,
+register the tool without `collapseResult` — the default `prettyPrintContent` is honest.
+A renderer built on an assumed response shape is silently wrong and harder to spot than
+a verbose-but-correct full dump.
 
 ### `collapseResult` is a spec object, not a generic heuristic
 
