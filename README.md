@@ -152,9 +152,9 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
 
 **v0.3 — IDE-grade safe refactoring (`modify/code` subset):**
 
-- [ ] `rename_refactoring` — handles imports, qualified names, JavaDoc refs; text rename can't
-- [ ] `reformat_file` — uses the project's IntelliJ formatter; matches team conventions
-- [ ] Explicitly **not** registered: `replace_text_in_file`, `create_new_file` — duplicates of pi's `edit` / `write`
+- [x] `rename_refactoring` — handles imports, qualified names, JavaDoc refs; text rename can't
+- [x] `reformat_file` — uses the project's IntelliJ formatter; matches team conventions
+- [x] Explicitly **not** registered: `replace_text_in_file`, `create_new_file` — duplicates of pi's `edit` / `write`
 
 **v0.4 — Build / run (`modify/runtime` light):**
 

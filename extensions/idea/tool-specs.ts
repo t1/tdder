@@ -30,4 +30,18 @@ export const ALL_TOOLS: IdeaToolSpec[] = [
       "Call this to open a file in the developer's editor, directing their attention to it" +
       " while you answer. Prefer this over just stating a file path.",
   },
+  // v0.3 — modify/code (IDE-grade safe refactoring)
+  {
+    name: "rename_refactoring",
+    category: "modify/code",
+    guidance:
+      "Use this instead of a text search-replace when renaming a symbol." +
+      " It handles imports, qualified names, and JavaDoc references correctly.",
+  },
+  {
+    name: "reformat_file",
+    category: "modify/code",
+    guidance:
+      "Use this to reformat a file according to the project's IntelliJ code style settings.",
+  },
 ];

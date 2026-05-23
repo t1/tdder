@@ -129,3 +129,18 @@ describe("explore/code tools — Tier 1 coarse assertions", () => {
     expectOk(result);
   });
 });
+
+// ── Tier 1: v0.2 session tools, coarse assertions ──
+describe("session tools — Tier 1 coarse assertions", () => {
+  it("get_all_open_file_paths returns a list", async () => {
+    const result = await client.callTool("get_all_open_file_paths", {});
+    expectOk(result);
+  });
+
+  it("open_file_in_editor opens a known file without error", async () => {
+    const result = await client.callTool("open_file_in_editor", {
+      filePath: `${TDDER_ROOT}/extensions/idea/index.ts`,
+    });
+    expectOk(result);
+  });
+});
