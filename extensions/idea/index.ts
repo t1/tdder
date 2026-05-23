@@ -1,9 +1,11 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { keyHint } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 import { spawn } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { Type, type TSchema } from "typebox";
 import { McpClient } from "./mcp-client.ts";
+import { prettyPrintContent, summarizeContent } from "./render-helpers.ts";
 import { ALL_TOOLS } from "./tool-specs.ts";
 
 const IDEA_BASE_URL = "http://127.0.0.1:64342";
@@ -131,6 +133,7 @@ export default function (pi: ExtensionAPI) {
     );
     registeredToolMeta = [];
     for (const tool of toRegister) {
+      const spec = ALL_TOOLS.find((s) => s.name === tool.name);
       const category = CATEGORY_BY_NAME.get(tool.name) ?? "unknown";
       const guidance = GUIDANCE_BY_NAME.get(tool.name);
       const mcpDescription = tool.description ?? "";
@@ -158,6 +161,23 @@ export default function (pi: ExtensionAPI) {
             invalidate(): void {},
           };
         },
+        ...(spec?.collapseResult
+          ? {
+              renderResult(
+                result: { content?: Array<{ type: string; text: string }> },
+                { expanded }: { expanded: boolean; isPartial: boolean },
+                theme: { fg(color: string, text: string): string },
+              ) {
+                const rawText = result.content?.find((c) => c.type === "text")?.text ?? "";
+                const body = expanded
+                  ? prettyPrintContent(rawText)
+                  : summarizeContent(rawText) +
+                    " " +
+                    theme.fg("dim", keyHint("app.tools.expand", "to expand"));
+                return new Text(body, 0, 0);
+              },
+            }
+          : {}),
         async execute(_id, params) {
           if (!client) throw new Error("IDEA MCP client not initialised");
           const result = await client.callTool(tool.name, { ...(params as object), ...(FORCED_ARGS[tool.name] ?? {}) });

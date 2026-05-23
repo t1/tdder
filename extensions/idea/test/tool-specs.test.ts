@@ -22,6 +22,13 @@ describe("tool specs", () => {
   });
 });
 
+describe("collapsed-result specs", () => {
+  it("search_symbol has collapseResult: true", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "search_symbol");
+    expect(spec?.collapseResult).toBe(true);
+  });
+});
+
 describe("v0.3 tool specs", () => {
   it("rename_refactoring is registered as modify/code", () => {
     const spec = ALL_TOOLS.find((t) => t.name === "rename_refactoring");

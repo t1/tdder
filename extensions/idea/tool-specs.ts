@@ -3,11 +3,13 @@ export interface IdeaToolSpec {
   category: string;
   /** Optional usage hint appended to the tool description the LLM sees. */
   guidance?: string;
+  /** When true, render result collapsed by default; expand with Ctrl+O to see pretty-printed JSON. */
+  collapseResult?: boolean;
 }
 
 export const ALL_TOOLS: IdeaToolSpec[] = [
   // v0.1 — explore/code (read-only, static analysis)
-  { name: "search_symbol", category: "explore/code" },
+  { name: "search_symbol", category: "explore/code", collapseResult: true },
   { name: "get_symbol_info", category: "explore/code" },
   { name: "search_in_files_by_regex", category: "explore/code" },
   { name: "find_files_by_glob", category: "explore/code" },
