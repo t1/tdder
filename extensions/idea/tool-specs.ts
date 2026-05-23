@@ -115,7 +115,13 @@ export const ALL_TOOLS: IdeaToolSpec[] = [
         if (r.exitCode === undefined) return "started";
         return r.exitCode === 0 ? `exit ${r.exitCode} ✓` : `exit ${r.exitCode} ✗`;
       },
-      expanded: (p, raw) => (p as { output?: string })?.output ?? raw,
+      expanded: (p, raw) => {
+        const r = p as { output?: string; fullOutputPath?: string };
+        const parts: string[] = [];
+        if (r.output) parts.push(r.output);
+        if (r.fullOutputPath) parts.push(`Log: ${r.fullOutputPath}`);
+        return parts.join("\n") || raw;
+      },
     },
   },
   {

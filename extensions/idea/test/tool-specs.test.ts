@@ -184,10 +184,16 @@ describe("v0.4 tool specs", () => {
     const { collapseResult } = ALL_TOOLS.find((t) => t.name === "execute_run_configuration")!;
     expect(collapseResult!.summary({})).toBe("started");
   });
-  it("execute_run_configuration expanded: returns output field", () => {
+  it("execute_run_configuration expanded: always shows fullOutputPath", () => {
     const { collapseResult } = ALL_TOOLS.find((t) => t.name === "execute_run_configuration")!;
-    const output = "hello\nworld";
-    expect(collapseResult!.expanded!({ exitCode: 0, output }, "")).toBe(output);
+    const result = collapseResult!.expanded!({ output: "", fullOutputPath: "/tmp/run.log" }, "");
+    expect(result).toContain("/tmp/run.log");
+  });
+  it("execute_run_configuration expanded: also shows output when non-empty", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "execute_run_configuration")!;
+    const result = collapseResult!.expanded!({ exitCode: 0, output: "hello\nworld", fullOutputPath: "/tmp/run.log" }, "");
+    expect(result).toContain("hello\nworld");
+    expect(result).toContain("/tmp/run.log");
   });
   it("execute_run_configuration has guidance mentioning the security dialog", () => {
     const spec = ALL_TOOLS.find((t) => t.name === "execute_run_configuration");
