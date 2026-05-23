@@ -192,6 +192,21 @@ names are not always what they look like (`q` not `pattern`, `globPattern` not `
 via a live probe. The same applies to response shapes: probe first, then write summary
 functions and renderers against what actually comes back.
 
+**If the IDE is not available, register the tool without `collapseResult`.** The default
+`prettyPrintContent` is honest — it shows what actually came back. A guessed `collapseResult`
+is worse: it silently shows the wrong thing. Specific anti-patterns to refuse:
+
+- `?? 0` for a list length where the field name is assumed, not observed
+- a `"file content"` / `"unknown"` fallback that fires when `typeof p !== "string"` —
+  this means the shape was unknown when the spec was written
+- `typeof p === "string" ? p : raw` as a hedge against not knowing whether the response
+  is plain text or JSON-wrapped
+
+These patterns all look like TDD but are actually speculation dressed as code.
+`collapseResult` should only exist once the response shape is confirmed by a real probe.
+Tools listed as "not yet evaluated" in the README are by definition unprobed and must
+not receive a `collapseResult` until that changes.
+
 **`import.meta.url` does not resolve correctly in heredoc probe scripts.** When running
 `npx tsx - << 'EOF'`, `import.meta.url` resolves to something stdin-based, not the
 extensions/idea directory. Hardcode the project path in the `McpClient` constructor
