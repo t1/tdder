@@ -161,7 +161,6 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
 - [ ] `build_project`
 - [ ] `get_run_configurations`
 - [ ] `execute_run_configuration`
-- [ ] `execute_terminal_command` (security review first — overlaps with pi's `bash`)
 
 **v0.5 — Runtime / debugger (`explore/runtime` + `modify/runtime`):**
 
@@ -208,6 +207,8 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
 - `find_files_by_name_keyword` — use `find_files_by_glob`
 - `search_file`, `search_text`, `search_regex`, `search_in_files_by_text` — overlap with each
   other and with pi's grep; pick one (`search_in_files_by_regex`) and skip the rest
+- `execute_terminal_command` — redundant with pi's `bash`; second path to arbitrary shell
+  execution with no meaningful benefit over the first
 
 #### Design decisions captured (so future sessions don't relitigate)
 
