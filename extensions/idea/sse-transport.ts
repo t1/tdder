@@ -5,6 +5,10 @@ export class SseTransport {
   sessionUrl = "";
   onMessage: (data: string) => void = () => {};
   private req?: ClientRequest;
+  private _res?: IncomingMessage;
+
+  /** The active SSE response stream, or undefined before connect() or after close(). */
+  get res(): IncomingMessage | undefined { return this._res; }
 
   constructor(private baseUrl: string) {}
 
@@ -13,6 +17,7 @@ export class SseTransport {
       this.req = request(`${this.baseUrl}/sse`, { method: "GET" });
       this.req.on("error", reject);
       this.req.on("response", (res: IncomingMessage) => {
+        this._res = res;
         let buffer = "";
         res.on("data", (chunk: Buffer) => {
           buffer += chunk.toString();
@@ -48,6 +53,7 @@ export class SseTransport {
   }
 
   async close(): Promise<void> {
+    this._res?.destroy();
     this.req?.destroy();
   }
 }

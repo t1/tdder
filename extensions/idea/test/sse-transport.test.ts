@@ -87,6 +87,17 @@ describe("SseTransport", () => {
 
     await transport.close();
   });
+  it("close() destroys the client-side response stream", async () => {
+    onSseRequest = (res) => res.write("event: endpoint\ndata: /msg?sessionId=res-destroyed\n\n");
+
+    const transport = new SseTransport(baseUrl);
+    await transport.connect();
+    expect(transport.res?.destroyed).toBe(false);
+
+    await transport.close();
+    expect(transport.res?.destroyed).toBe(true);
+  });
+
   it("handles a message frame split across SSE chunks", async () => {
     onSseRequest = (res) => {
       res.write("event: endpoint\ndata: /msg?sessionId=s\n\n");
