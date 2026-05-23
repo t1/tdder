@@ -242,10 +242,11 @@ EOF
 Replace `TOOL_NAME` and supply any required parameters. The output is the classified
 `ToolCallResult` the extension itself sees — same shape the `collapseResult` renderer receives.
 
-**Do not write a `collapseResult` before running Probe 2.** If the IDE is unavailable,
-register the tool without `collapseResult` — the default `prettyPrintContent` is honest.
-A renderer built on an assumed response shape is silently wrong and harder to spot than
-a verbose-but-correct full dump.
+**Do not write a `collapseResult` before running Probe 2.** Before assuming the IDE is
+unavailable, check: run Probe 1. If it connects, the IDE is up and both probes are cheap.
+Only if the connection is refused should you register the tool without `collapseResult`
+and leave a TODO comment. A renderer built on an assumed response shape is silently wrong
+and harder to spot than a verbose-but-correct full dump.
 
 ### `collapseResult` is a spec object, not a generic heuristic
 
