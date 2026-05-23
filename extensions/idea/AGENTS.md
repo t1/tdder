@@ -186,6 +186,17 @@ required.
 Use `McpClient` directly via `npx tsx` — do **not** hand-roll raw `curl`/`node:http` scripts.
 A raw script hit CRLF parsing issues and timed out; `McpClient` already handles all of that.
 
+**Always probe before writing renderers or assuming parameter names.** JetBrains parameter
+names are not always what they look like (`q` not `pattern`, `globPattern` not `glob`,
+`directoryPath` not `path`, etc.) — we discovered wrong names in our own E2E tests only
+via a live probe. The same applies to response shapes: probe first, then write summary
+functions and renderers against what actually comes back.
+
+**`import.meta.url` does not resolve correctly in heredoc probe scripts.** When running
+`npx tsx - << 'EOF'`, `import.meta.url` resolves to something stdin-based, not the
+extensions/idea directory. Hardcode the project path in the `McpClient` constructor
+for one-off probes.
+
 ```bash
 cd extensions/idea
 npx tsx - << 'EOF'
@@ -207,6 +218,21 @@ await client.close();
 process.exit(0);
 EOF
 ```
+
+### `collapseResult` is a spec object, not a generic heuristic
+
+`collapseResult` in `IdeaToolSpec` is a `CollapseSpec` with `summary` and optional
+`expanded` render functions supplied by the caller (in `tool-specs.ts`), not a shared
+parser that guesses structure from the raw text. Reason: response shapes differ enough
+per tool that any shared heuristic would need per-tool knowledge anyway — so that
+knowledge belongs in the spec where it is visible and unit-testable.
+
+`list_directory_tree` is the clearest example of why a generic fallback fails: its
+`tree` field is already a formatted text diagram; pretty-printing the outer JSON object
+would be useless. Its `expanded` renderer returns `parsed.tree` directly.
+
+The default expanded renderer (`prettyPrintContent`) is used only when the spec omits
+`expanded`, which is the right choice for tools that return plain data objects.
 
 ### TDD discipline
 
