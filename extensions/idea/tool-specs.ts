@@ -89,6 +89,47 @@ export const ALL_TOOLS: IdeaToolSpec[] = [
       },
     },
   },
+  // v0.4 — build / run (modify/runtime + explore/runtime)
+  {
+    name: "get_run_configurations",
+    category: "explore/runtime",
+    guidance: "Call this before execute_run_configuration to discover the names of available run configurations.",
+    collapseResult: {
+      summary: (p) => {
+        const n = (p as { configurations?: unknown[] })?.configurations?.length ?? 0;
+        return `${n} ${n === 1 ? "configuration" : "configurations"}`;
+      },
+    },
+  },
+  {
+    name: "execute_run_configuration",
+    category: "modify/runtime",
+    guidance:
+      "Call get_run_configurations first to find the configuration name." +
+      " IDEA will show a 'Confirm Command Execution' security dialog — tell the user to watch for it and click Allow." +
+      " With waitForExit=true (default for one-shot tasks): blocks until the process exits, returns exitCode and output." +
+      " With waitForExit=false (for long-running processes like servers): returns immediately; the process cannot be stopped through this extension.",
+    collapseResult: {
+      summary: (p) => {
+        const r = p as { exitCode?: number; output?: string };
+        if (r.exitCode === undefined) return "started";
+        return r.exitCode === 0 ? `exit ${r.exitCode} ✓` : `exit ${r.exitCode} ✗`;
+      },
+      expanded: (p, raw) => (p as { output?: string })?.output ?? raw,
+    },
+  },
+  {
+    name: "build_project",
+    category: "modify/runtime",
+    collapseResult: {
+      summary: (p) => {
+        const r = p as { isSuccess?: boolean; problems?: unknown[] };
+        if (r.isSuccess) return "build succeeded";
+        const n = r.problems?.length ?? 0;
+        return n > 0 ? `build failed (${n} ${n === 1 ? "problem" : "problems"})` : "build failed";
+      },
+    },
+  },
   // v0.2 probe — explore/code backfills
   {
     name: "get_project_dependencies",

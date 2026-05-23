@@ -158,9 +158,9 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
 
 **v0.4 — Build / run (`modify/runtime` light):**
 
-- [ ] `build_project`
-- [ ] `get_run_configurations`
-- [ ] `execute_run_configuration`
+- [x] `build_project`
+- [x] `get_run_configurations`
+- [x] `execute_run_configuration`
 
 **v0.5 — Runtime / debugger (`explore/runtime` + `modify/runtime`):**
 

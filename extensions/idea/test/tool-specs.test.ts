@@ -119,6 +119,82 @@ describe("undecided v0.2-probe tools", () => {
   });
 });
 
+describe("v0.4 tool specs", () => {
+  it("build_project is registered as modify/runtime", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "build_project");
+    expect(spec?.category).toBe("modify/runtime");
+  });
+  it("build_project has collapseResult", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "build_project");
+    expect(spec?.collapseResult).toBeDefined();
+  });
+  it("build_project summary: succeeded → 'build succeeded'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "build_project")!;
+    expect(collapseResult!.summary({ isSuccess: true, problems: [] })).toBe("build succeeded");
+  });
+  it("build_project summary: failed with 2 problems → 'build failed (2 problems)'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "build_project")!;
+    expect(collapseResult!.summary({ isSuccess: false, problems: [{}, {}] })).toBe("build failed (2 problems)");
+  });
+  it("build_project summary: failed with 1 problem → 'build failed (1 problem)'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "build_project")!;
+    expect(collapseResult!.summary({ isSuccess: false, problems: [{}] })).toBe("build failed (1 problem)");
+  });
+  it("build_project summary: failed with 0 problems → 'build failed'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "build_project")!;
+    expect(collapseResult!.summary({ isSuccess: false, problems: [] })).toBe("build failed");
+  });
+  it("get_run_configurations is registered as explore/runtime", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "get_run_configurations");
+    expect(spec?.category).toBe("explore/runtime");
+  });
+  it("get_run_configurations has collapseResult", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "get_run_configurations");
+    expect(spec?.collapseResult).toBeDefined();
+  });
+  it("get_run_configurations summary: 3 configs → '3 configurations'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "get_run_configurations")!;
+    expect(collapseResult!.summary({ configurations: [{}, {}, {}] })).toBe("3 configurations");
+  });
+  it("get_run_configurations summary: 1 config → '1 configuration'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "get_run_configurations")!;
+    expect(collapseResult!.summary({ configurations: [{}] })).toBe("1 configuration");
+  });
+  it("get_run_configurations has guidance about calling before execute_run_configuration", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "get_run_configurations");
+    expect(spec?.guidance).toMatch(/execute_run_configuration/i);
+  });
+  it("execute_run_configuration is registered as modify/runtime", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "execute_run_configuration");
+    expect(spec?.category).toBe("modify/runtime");
+  });
+  it("execute_run_configuration has collapseResult", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "execute_run_configuration");
+    expect(spec?.collapseResult).toBeDefined();
+  });
+  it("execute_run_configuration summary: exitCode 0 → success indicator", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "execute_run_configuration")!;
+    expect(collapseResult!.summary({ exitCode: 0 })).toMatch(/0.*✓|succeeded|success/i);
+  });
+  it("execute_run_configuration summary: exitCode non-zero → failure indicator", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "execute_run_configuration")!;
+    expect(collapseResult!.summary({ exitCode: 1 })).toMatch(/1.*✗|failed|failure/i);
+  });
+  it("execute_run_configuration summary: no exitCode → 'started'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "execute_run_configuration")!;
+    expect(collapseResult!.summary({})).toBe("started");
+  });
+  it("execute_run_configuration expanded: returns output field", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "execute_run_configuration")!;
+    const output = "hello\nworld";
+    expect(collapseResult!.expanded!({ exitCode: 0, output }, "")).toBe(output);
+  });
+  it("execute_run_configuration has guidance mentioning the security dialog", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "execute_run_configuration");
+    expect(spec?.guidance).toMatch(/confirm|security|dialog|allow/i);
+  });
+});
+
 describe("file-reader collapse specs", () => {
   it("read_file has collapseResult", () => {
     const spec = ALL_TOOLS.find((t) => t.name === "read_file");

@@ -147,6 +147,23 @@ describe("session tools — Tier 1 coarse assertions", () => {
   });
 });
 
+// ── Tier 1: v0.4 build/run tools, coarse assertions ──
+describe("v0.4 build/run tools — Tier 1 coarse assertions", () => {
+  it("build_project returns a build result", async () => {
+    const result = await client.callTool("build_project", {});
+    expectOk(result);
+  });
+
+  it("get_run_configurations returns a configuration list", async () => {
+    const result = await client.callTool("get_run_configurations", {});
+    expectOk(result);
+  });
+
+  // execute_run_configuration is intentionally omitted from the automated E2E suite:
+  // it requires a human to click Allow in IDEA's security dialog, making it unfit for
+  // unattended drift detection.
+});
+
 // ── Tier 1: v0.2-probe backfill tools (explore/code), coarse assertions ──
 describe("backfill explore/code tools — Tier 1 coarse assertions", () => {
   it("get_project_dependencies returns dependency info", async () => {
