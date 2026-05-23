@@ -1,19 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { prettyPrintContent, summarizeContent } from "../render-helpers.ts";
+import { parseSafe, prettyPrintContent } from "../render-helpers.ts";
 
-describe("summarizeContent", () => {
-  it("returns '5 results' for a JSON array of 5 items", () => {
-    const input = JSON.stringify([1, 2, 3, 4, 5]);
-    expect(summarizeContent(input)).toBe("5 results");
+describe("parseSafe", () => {
+  it("returns the parsed object for valid JSON", () => {
+    expect(parseSafe('{"a":1}')).toEqual({ a: 1 });
   });
-  it("returns '1 result' for a JSON array of 1 item", () => {
-    expect(summarizeContent(JSON.stringify(["x"]))).toBe("1 result");
-  });
-  it("returns '0 results' for an empty JSON array", () => {
-    expect(summarizeContent(JSON.stringify([]))).toBe("0 results");
-  });
-  it("returns the first line for non-JSON text", () => {
-    expect(summarizeContent("hello\nworld")).toBe("hello");
+  it("returns the raw string for invalid JSON", () => {
+    expect(parseSafe("not json")).toBe("not json");
   });
 });
 

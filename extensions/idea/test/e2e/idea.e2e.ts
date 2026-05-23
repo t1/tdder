@@ -81,21 +81,21 @@ describe("explore/code tools — Tier 1 coarse assertions", () => {
 
   it("find_files_by_glob finds TypeScript files", async () => {
     const result = await client.callTool("find_files_by_glob", {
-      glob: "**/*.ts",
+      globPattern: "**/*.ts",
     });
     expectOk(result);
   });
 
   it("list_directory_tree lists a known directory", async () => {
     const result = await client.callTool("list_directory_tree", {
-      path: "extensions/idea",
+      directoryPath: `${TDDER_ROOT}/extensions/idea`,
     });
     expectOk(result);
   });
 
   it("search_in_files_by_regex finds matches in source files", async () => {
     const result = await client.callTool("search_in_files_by_regex", {
-      regex: "McpClient",
+      regexPattern: "McpClient",
       filePattern: "*.ts",
     });
     expectOk(result);
@@ -103,14 +103,16 @@ describe("explore/code tools — Tier 1 coarse assertions", () => {
 
   it("search_symbol finds a known symbol", async () => {
     const result = await client.callTool("search_symbol", {
-      pattern: "McpClient",
+      q: "McpClient",
     });
     expectOk(result);
   });
 
   it("get_symbol_info retrieves details for a known symbol", async () => {
+    // get_symbol_info requires filePath + line; use a known location
     const result = await client.callTool("get_symbol_info", {
-      fqn: "McpClient",
+      filePath: `${TDDER_ROOT}/extensions/idea/mcp-client.ts`,
+      line: 1,
     });
     expectOk(result);
   });
@@ -124,7 +126,7 @@ describe("explore/code tools — Tier 1 coarse assertions", () => {
 
   it("get_file_problems returns problem list for a known file", async () => {
     const result = await client.callTool("get_file_problems", {
-      path: `${TDDER_ROOT}/extensions/idea/index.ts`,
+      filePath: `${TDDER_ROOT}/extensions/idea/index.ts`,
     });
     expectOk(result);
   });

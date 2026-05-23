@@ -1,22 +1,76 @@
+export interface CollapseSpec {
+  /** Returns a one-line summary. Receives the parsed JSON (or the raw string if not JSON). */
+  summary(parsed: unknown): string;
+  /** Returns the expanded view. Defaults to pretty-printed JSON when absent. */
+  expanded?(parsed: unknown, raw: string): string;
+}
+
 export interface IdeaToolSpec {
   name: string;
   category: string;
   /** Optional usage hint appended to the tool description the LLM sees. */
   guidance?: string;
-  /** When true, render result collapsed by default; expand with Ctrl+O to see pretty-printed JSON. */
-  collapseResult?: boolean;
+  /** When set, render result collapsed by default; expand with Ctrl+O. */
+  collapseResult?: CollapseSpec;
 }
 
 export const ALL_TOOLS: IdeaToolSpec[] = [
   // v0.1 — explore/code (read-only, static analysis)
-  { name: "search_symbol", category: "explore/code", collapseResult: true },
+  {
+    name: "search_symbol",
+    category: "explore/code",
+    collapseResult: {
+      summary: (p) => {
+        const n = (p as { items?: unknown[] })?.items?.length ?? 0;
+        return `${n} ${n === 1 ? "symbol" : "symbols"}`;
+      },
+    },
+  },
   { name: "get_symbol_info", category: "explore/code" },
-  { name: "search_in_files_by_regex", category: "explore/code" },
-  { name: "find_files_by_glob", category: "explore/code" },
-  { name: "list_directory_tree", category: "explore/code" },
+  {
+    name: "search_in_files_by_regex",
+    category: "explore/code",
+    collapseResult: {
+      summary: (p) => {
+        const n = (p as { entries?: unknown[] })?.entries?.length ?? 0;
+        return `${n} ${n === 1 ? "match" : "matches"}`;
+      },
+    },
+  },
+  {
+    name: "find_files_by_glob",
+    category: "explore/code",
+    collapseResult: {
+      summary: (p) => {
+        const n = (p as { files?: unknown[] })?.files?.length ?? 0;
+        return `${n} ${n === 1 ? "file" : "files"}`;
+      },
+    },
+  },
+  {
+    name: "list_directory_tree",
+    category: "explore/code",
+    collapseResult: {
+      summary: (p) => {
+        const dir = (p as { traversedDirectory?: string })?.traversedDirectory ?? "";
+        const name = dir.split("/").filter(Boolean).pop() ?? dir;
+        return `${name}/`;
+      },
+      expanded: (p, raw) => (p as { tree?: string })?.tree ?? raw,
+    },
+  },
   { name: "get_project_modules", category: "explore/code" },
   { name: "read_file", category: "explore/code" },
-  { name: "get_file_problems", category: "explore/code" },
+  {
+    name: "get_file_problems",
+    category: "explore/code",
+    collapseResult: {
+      summary: (p) => {
+        const n = (p as { errors?: unknown[] })?.errors?.length ?? 0;
+        return `${n} ${n === 1 ? "problem" : "problems"}`;
+      },
+    },
+  },
   // v0.2 — session (IDE shared workspace)
   {
     name: "get_all_open_file_paths",

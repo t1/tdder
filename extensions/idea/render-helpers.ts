@@ -3,21 +3,14 @@
  */
 
 /**
- * Returns a one-line summary of the MCP result text.
- * - JSON array → "N result(s)"
- * - Anything else → first line of the text
+ * Parses text as JSON, returning the raw string on failure.
  */
-export function summarizeContent(text: string): string {
+export function parseSafe(raw: string): unknown {
   try {
-    const parsed = JSON.parse(text);
-    if (Array.isArray(parsed)) {
-      const n = parsed.length;
-      return `${n} ${n === 1 ? "result" : "results"}`;
-    }
+    return JSON.parse(raw);
   } catch {
-    // fall through
+    return raw;
   }
-  return text.split("\n")[0] ?? text;
 }
 
 /**

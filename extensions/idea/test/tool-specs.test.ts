@@ -23,9 +23,51 @@ describe("tool specs", () => {
 });
 
 describe("collapsed-result specs", () => {
-  it("search_symbol has collapseResult: true", () => {
-    const spec = ALL_TOOLS.find((t) => t.name === "search_symbol");
-    expect(spec?.collapseResult).toBe(true);
+  for (const toolName of [
+    "search_symbol",
+    "search_in_files_by_regex",
+    "find_files_by_glob",
+    "list_directory_tree",
+    "get_file_problems",
+  ]) {
+    it(`${toolName} has collapseResult`, () => {
+      const spec = ALL_TOOLS.find((t) => t.name === toolName);
+      expect(spec?.collapseResult).toBeDefined();
+    });
+  }
+
+  it("search_symbol summary: 3 items → '3 symbols'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "search_symbol")!;
+    expect(collapseResult!.summary({ items: [{}, {}, {}] })).toBe("3 symbols");
+  });
+  it("search_symbol summary: 0 items → '0 symbols'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "search_symbol")!;
+    expect(collapseResult!.summary({ items: [] })).toBe("0 symbols");
+  });
+  it("search_in_files_by_regex summary: 2 entries → '2 matches'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "search_in_files_by_regex")!;
+    expect(collapseResult!.summary({ entries: [{}, {}] })).toBe("2 matches");
+  });
+  it("find_files_by_glob summary: 4 files → '4 files'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "find_files_by_glob")!;
+    expect(collapseResult!.summary({ files: ["a", "b", "c", "d"] })).toBe("4 files");
+  });
+  it("list_directory_tree summary shows the directory name", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "list_directory_tree")!;
+    expect(collapseResult!.summary({ traversedDirectory: "/foo/bar/baz" })).toBe("baz/");
+  });
+  it("list_directory_tree expanded returns tree text, not JSON", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "list_directory_tree")!;
+    const tree = "foo/\n  bar.ts";
+    expect(collapseResult!.expanded!({ tree }, "{\"tree\":\"...\"")).toBe(tree);
+  });
+  it("get_file_problems summary: 0 errors → '0 problems'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "get_file_problems")!;
+    expect(collapseResult!.summary({ errors: [] })).toBe("0 problems");
+  });
+  it("get_file_problems summary: 2 errors → '2 problems'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "get_file_problems")!;
+    expect(collapseResult!.summary({ errors: [{}, {}] })).toBe("2 problems");
   });
 });
 

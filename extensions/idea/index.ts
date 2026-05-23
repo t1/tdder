@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { Type, type TSchema } from "typebox";
 import { McpClient } from "./mcp-client.ts";
-import { prettyPrintContent, summarizeContent } from "./render-helpers.ts";
+import { parseSafe, prettyPrintContent } from "./render-helpers.ts";
 import { ALL_TOOLS } from "./tool-specs.ts";
 
 const IDEA_BASE_URL = "http://127.0.0.1:64342";
@@ -168,10 +168,12 @@ export default function (pi: ExtensionAPI) {
                 { expanded }: { expanded: boolean; isPartial: boolean },
                 theme: { fg(color: string, text: string): string },
               ) {
+                const collapse = spec!.collapseResult!;
                 const rawText = result.content?.find((c) => c.type === "text")?.text ?? "";
+                const parsed = parseSafe(rawText);
                 const body = expanded
-                  ? prettyPrintContent(rawText)
-                  : summarizeContent(rawText) +
+                  ? (collapse.expanded?.(parsed, rawText) ?? prettyPrintContent(rawText))
+                  : collapse.summary(parsed) +
                     " " +
                     theme.fg("dim", keyHint("app.tools.expand", "to expand"));
                 return new Text(body, 0, 0);
