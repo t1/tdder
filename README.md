@@ -86,7 +86,7 @@ notification. On failure, the error output is automatically forwarded to the LLM
 *"what went wrong and how should I fix it?"*. `update`, `test-affected`, and `test-all` always route through the LLM
 because their output is analytical rather than a simple pass/fail signal.
 
-### idea (pi only) — PLANNED
+### idea (pi only)
 
 Integrates the official JetBrains [MCP Server](https://plugins.jetbrains.com/plugin/26071-mcp-server)
 plugin into pi so the LLM can use IntelliJ IDEA's PSI, inspections, refactorings, and debugger
@@ -118,107 +118,23 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
 - **runtime (dynamic)** = facts about the program being developed when it's executing
 - **session (env)** = facts about the development environment itself; mostly serves LLM↔human collaboration
 
-#### Roadmap
+**Available tools** — tagged with the 2×3 modes vocabulary above (31 total):
 
-**v0.1 — LLM gets IDE-grade code understanding (all `explore/code`):**
+| Modes | Tools |
+|-------|-------|
+| explore/code | `search_symbol`, `get_symbol_info`, `search_in_files_by_regex`, `find_files_by_glob`, `list_directory_tree`, `get_project_modules`, `read_file`, `get_file_problems`, `get_project_dependencies`, `get_file_text_by_path`, `get_repositories` |
+| explore/session | `get_all_open_file_paths` |
+| modify/session | `open_file_in_editor` |
+| modify/code | `rename_refactoring`, `reformat_file` |
+| modify/runtime | `build_project`, `get_run_configurations`, `execute_run_configuration` |
+| explore/runtime + modify/runtime | `xdebug_get_stack`, `xdebug_get_frame_values`, `xdebug_get_threads`, `xdebug_evaluate_expression`, `xdebug_get_value_by_path`, `xdebug_get_debugger_status`, `xdebug_list_breakpoints`, `xdebug_set_breakpoint`, `xdebug_remove_breakpoint`, `xdebug_set_variable`, `xdebug_run_to_line`, `xdebug_control_session`, `xdebug_start_debugger_session` |
 
-- [x] Connectivity: SSE client, `initialize` + `notifications/initialized` handshake, session lifecycle
-- [x] Footer status with the three states above
-- [x] Probe-based project detection (one round-trip serves both "IDE up" and "project match" checks)
-- [x] `projectPath` auto-injection on every forwarded call
-- [x] `/idea status` slash command (shows footer state + open projects on miss)
-- [x] `/idea open` slash command — launches IDEA with pi's CWD as the project
-  (`open -na "IntelliJ IDEA" --args "$PWD"` on macOS; Linux/Windows are TODOs).
-  Slash command only, **not** an LLM tool — the LLM has no business launching the
-  developer's IDE. Referenced from the E2E suite's "IDE not running" error message
-  so the fix is one command away.
-- [x] Register 8 read-only tools, each tagged `[explore/code]` in its description:
-    - `search_symbol`
-    - `get_symbol_info`
-    - `search_in_files_by_regex`
-    - `find_files_by_glob`
-    - `list_directory_tree`
-    - `get_project_modules`
-    - `read_file` (kept for `jar://` / `jrt://` resolution)
-    - `get_file_problems`
-
-**v0.2 — IDE as shared workspace (`session`):**
-
-- [x] `get_all_open_file_paths` — resolve deictic prompts ("this", "current file") against editor focus
-- [x] `open_file_in_editor` — LLM directs the human's attention when answering
-- [ ] Caret position / current selection if/when the JetBrains MCP exposes them
-  _(confirmed absent: live probe shows `open_file_in_editor` only takes `filePath`; no line, column, or range)_
-- [x] Prompt-level guidance: when to peek at session state, when to open files alongside an answer
-
-**v0.3 — IDE-grade safe refactoring (`modify/code` subset):**
-
-- [x] `rename_refactoring` — handles imports, qualified names, JavaDoc refs; text rename can't
-- [x] `reformat_file` — uses the project's IntelliJ formatter; matches team conventions
-- [x] Explicitly **not** registered: `replace_text_in_file`, `create_new_file` — duplicates of pi's `edit` / `write`
-
-**v0.4 — Build / run (`modify/runtime` light):**
-
-- [x] `build_project`
-- [x] `get_run_configurations`
-- [x] `execute_run_configuration`
-
-**v0.5 — Runtime / debugger (`explore/runtime` + `modify/runtime`):**
-
-- [x] All 13 `xdebug_*` tools: `xdebug_get_stack`, `xdebug_get_frame_values`, `xdebug_get_threads`,
-  `xdebug_evaluate_expression`, `xdebug_get_value_by_path`, `xdebug_get_debugger_status`,
-  `xdebug_list_breakpoints`, `xdebug_set_breakpoint`, `xdebug_remove_breakpoint`,
-  `xdebug_set_variable`, `xdebug_run_to_line`, `xdebug_control_session`,
-  `xdebug_start_debugger_session`
-
-**v0.6 — Inspection authoring:**
-
-- [ ] `generate_inspection_kts_api`
-- [ ] `generate_inspection_kts_examples`
-- [ ] `generate_psi_tree`
-- [ ] `run_inspection_kts`
-
-**Tools discovered in v0.2 live probe, now registered:**
-
-- [x] `get_project_dependencies` (`explore/code`, no params) — lists the project's library dependencies
-- [x] `get_file_text_by_path` (`explore/code`, params: `pathInProject`, `truncateMode`, `maxLinesCount`) —
-  project-relative file reader; use for regular files; `read_file` is kept for `jar://`/`jrt://` paths
-  (both tools carry guidance clarifying when to use each)
-- [x] `get_repositories` (`explore/code`, no params) — lists git repositories in the project
-
-**Cross-cutting follow-ups:**
-
-- [ ] Promote the modes vocabulary to a dedicated `idea` skill once cross-tool patterns emerge
-  (e.g. "always `search_symbol` before `rename_refactoring`")
-- [ ] Propagate the modes vocabulary into `tdd`, `clean-code`, `maven`, and `unfolding-architecture`
-  only if real confusion shows up in practice — **not** speculatively
-- [x] `/idea` unified slash command: `mcp-tools` and `mcp-restart` deemed not worth adding
-  (`/idea tools` already covers the user-facing need; dialog detection replaces `mcp-restart`).
-- [x] **E2E tests** (`npm run test:e2e`, opt-in, drift-detector): separate suite that fails loudly
-  via `beforeAll` when the IDE prerequisites aren't met, with distinct messages per failure mode
-  (IDE not running / project not open / plugin missing). Tests assert against extension outputs,
-  not raw MCP. Tier 1 (read-only smoke tests) done. Tier 2 (fixture files) and Tier 3
-  (mutation tests) deferred. See `extensions/idea/AGENTS.md` for the full rules.
-
-**Explicitly out of scope (duplicates of pi built-ins):**
+**Explicitly out of scope** (duplicates of pi built-ins):
 
 - `replace_text_in_file`, `create_new_file` — use pi's `edit` / `write`
 - `find_files_by_name_keyword` — use `find_files_by_glob`
-- `search_file`, `search_text`, `search_regex`, `search_in_files_by_text` — overlap with each
-  other and with pi's grep; pick one (`search_in_files_by_regex`) and skip the rest
-- `execute_terminal_command` — redundant with pi's `bash`; second path to arbitrary shell
-  execution with no meaningful benefit over the first
-
-#### Design decisions captured (so future sessions don't relitigate)
-
-- **Transport:** SSE on `http://127.0.0.1:64342/sse`, JSON-RPC POSTs to `/message?sessionId=…`
-- **Multi-project safety:** every project-scoped tool returns a uniform "Currently open projects"
-  error payload when `projectPath` is missing or wrong. The server **never** silently serves the
-  wrong project. Our wrapper relies on this.
-- **No phase-state machinery:** the extension does **not** filter tools by TDD phase (Red/Green/
-  Refactor). Discipline stays with the `tdd` and `clean-code` skills. Considered and rejected
-  because no machine-readable phase state exists today and inventing one is a multi-week project.
-- **No `idea` skill in v0.1:** mode vocabulary lives in the extension's top-level description and
-  per-tool tags. Spin out a skill only when cross-tool patterns accumulate.
+- `search_file`, `search_text`, `search_regex`, `search_in_files_by_text` — use `search_in_files_by_regex`
+- `execute_terminal_command` — redundant with pi's `bash`
 
 ## Agents
 
@@ -268,7 +184,7 @@ pi install git:github.com/t1/tdder
 The `quarkus` extension activates automatically in Quarkus projects (requires
 [jbang](https://www.jbang.dev/) on your PATH).
 
-The `idea` extension (planned) will activate when the IntelliJ IDEA MCP Server plugin is reachable
+The `idea` extension activates when the IntelliJ IDEA MCP Server plugin is reachable
 on `127.0.0.1:64342` and the current pi working directory matches an open IDE project.
 
 ### Claude Code

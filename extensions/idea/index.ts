@@ -426,6 +426,9 @@ export default function (pi: ExtensionAPI) {
         return;
       }
       if (sub === "open") {
+        // -n is required: without it, macOS brings IDEA to the foreground but silently
+        // ignores --args, so the project never opens. IDEA still de-duplicates internally
+        // and activates an existing window if the project is already open.
         spawn("open", ["-na", "IntelliJ IDEA", "--args", ctx.cwd], {
           detached: true,
           stdio: "ignore",

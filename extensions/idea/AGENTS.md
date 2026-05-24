@@ -1,7 +1,6 @@
 # idea extension
 
-Read `extensions/AGENTS.md` (parent) before this file. The no-peeking rule applies:
-do not read any sibling extension's source during v0.1.
+Read `extensions/AGENTS.md` (parent) before this file.
 
 ## Decisions captured
 
@@ -15,9 +14,6 @@ The extension **always injects pi's CWD as `projectPath`** on every forwarded ca
 Same way the LLM doesn't think about filesystem roots — `projectPath` is implicit context
 the extension manages, not something the LLM should reason about.
 
-This pattern may or may not generalise to other MCPs. Until we have a second MCP-backed
-extension to compare against, it stays here, not in the parent AGENTS.md.
-
 ### SSE client: hand-rolled
 
 We use `node:http` + manual SSE frame parsing + JSON-RPC over POST. No `eventsource`
@@ -30,12 +26,10 @@ package, no `@modelcontextprotocol/sdk`. Reasons:
 - Hand-rolling makes the wire behaviour visible in our own code, which matters when
   diagnosing why an LLM call to the IDE went wrong.
 
-Revisit if a second MCP-backed extension lands and the SDK starts to pay for itself
-across both.
+Revisit if the SDK starts paying for itself across multiple MCP-backed extensions.
 
 ### Testing framework: vitest
 
-Fresh choice, made without looking at sibling extensions per the no-peeking rule.
 Vitest because:
 
 - ESM-native (matches `"type": "module"` in `package.json`)
@@ -64,7 +58,7 @@ Consequences:
 - If JetBrains removes underlying behaviour, the extension can no longer classify it;
   tests fail honestly with a meaningful error
 - Every tool wrapper has a defined contract from day one. This is an architectural
-  decision that affects how all 8 v0.1 tools are wrapped
+  decision that affects how every tool is wrapped
 
 ### E2E tests (opt-in, drift detection)
 
@@ -99,9 +93,9 @@ didn't fail.
 
 ### E2E tier plan
 
-**Tier 1 (v0.1) — read-only, coarse assertions:**
+**Tier 1 — read-only, coarse assertions:**
 
-- All 8 v0.1 tools called against the tdder project itself
+- All registered tools called against the tdder project itself
 - Coarse assertions only: "got a response", "shape matches the extension's typed
   output", "errors classify correctly"
 - No fixtures yet
@@ -117,7 +111,7 @@ didn't fail.
 - Used to validate exact problem detection (`get_file_problems`), exact symbol
   resolution (`get_symbol_info`), etc.
 
-**Tier 3 (v0.3+ at earliest) — mutation tests on file copies:**
+**Tier 3 — mutation tests on file copies:**
 
 Deferred. Before implementing, the following questions must have concrete answers:
 
@@ -135,55 +129,10 @@ Deferred. Before implementing, the following questions must have concrete answer
 
 Do not start Tier 3 until all five are answered.
 
-### Unit tests (note on VCR pattern)
-
-Unit tests for the MCP client layer may benefit from VCR-style recordings (record
-real MCP responses once, replay in tests). Pros: deterministic, runs anywhere,
-recordings document the wire format. Cons: recordings can go stale silently —
-requires a manual re-record ritual when the plugin updates.
-
-**Not** appropriate for E2E tests (they exist to catch the very drift VCR hides).
-Consider for unit tests once hand-rolled mocks start feeling repetitive.
-
-### Real JetBrains MCP uses CRLF, not LF
-
-The JetBrains MCP Server sends SSE frames terminated by `\r\n\r\n` (CRLF), not
-`\n\n` (LF). Our SSE parser normalizes line endings via `replace(/\r\n?/g, "\n")`
-so both forms work and the rest of the parser only deals with LF.
-
-This was discovered after v0.1 unit tests passed but the live extension hung on
-`connect()`. The fake test server used LF; reality uses CRLF.
-
-**Implication for testing strategy:** unit tests against a hand-rolled fake server
-can diverge from real-wire behaviour in details the spec leaves ambiguous (SSE allows
-CRLF, LF, or bare CR). This is one of the strongest arguments for the E2E suite
-planned in this file — it would have caught this in minutes. When adding new
-protocol-level code, **always verify against the live IDE before declaring done.**
-
-### `/idea open` macOS launcher: requires `-n`
-
-On macOS, the working invocation is:
-
-```bash
-open -na "IntelliJ IDEA" --args "$PWD"
-```
-
-Counter-intuitively, `-n` (open a new instance) is **required** for IDEA to actually
-open the project. Without `-n`, `open` just brings IDEA to the foreground and the
-`--args` path is ignored — the project does not open. This contradicts what the
-`open(1)` man page implies, because IDEA's launcher inside the app bundle handles
-args differently from a generic macOS app.
-
-IDEA itself still de-duplicates: if the project is already open in an existing
-instance, `open -na ... --args "$PWD"` activates that instance instead of spawning
-a second window. So `-n` does **not** create competing IDE processes in practice.
-
-Do not "simplify" by removing `-n` — it has been tested empirically and `-n` is
-required.
-
 ### Exploring the live MCP server
 
-Before adding a tool, or changing a tool spec in any way where response shape or parameter details are relevant (guidance, `collapseResult`, parameter schema), run two probes. Both are cheap (one round-trip each)
+Before adding a tool, or changing a tool spec in any way where response shape or parameter details are relevant (
+guidance, `collapseResult`, parameter schema), run two probes. Both are cheap (one round-trip each)
 and together they give everything needed to write correct parameter schemas, guidance, and
 `collapseResult` renderers.
 
@@ -246,8 +195,12 @@ Replace `TOOL_NAME` and supply any required parameters. The output is the classi
 unavailable, check: run Probe 1. If it connects, the IDE is up and both probes are cheap.
 If the connection is refused, ask the user to start IDEA (or run `/idea open`) and wait
 before proceeding. Only if the user explicitly says to continue without it should you
-register the tool without `collapseResult` and leave a TODO comment. A renderer built on an assumed response shape is silently wrong
-and harder to spot than a verbose-but-correct full dump.
+register the tool without `collapseResult` and leave a TODO comment. A renderer built on an assumed response shape is
+silently wrong and harder to spot than a verbose-but-correct full dump.
+
+**Always verify new protocol-level code against the live IDE before declaring done.**
+Unit tests use a hand-rolled fake server that may diverge from real-wire behaviour in
+details the spec leaves ambiguous (e.g. line endings). The live IDE is the ground truth.
 
 ### `collapseResult` is a spec object, not a generic heuristic
 
@@ -264,7 +217,7 @@ would be useless. Its `expanded` renderer returns `parsed.tree` directly.
 The default expanded renderer (`prettyPrintContent`) is used only when the spec omits
 `expanded`, which is the right choice for tools that return plain data objects.
 
-### v0.5 debugger design decisions
+### Debugger design decisions
 
 **Security dialog scope:** Only `xdebug_start_debugger_session` (and `execute_run_configuration`)
 trigger the JetBrains security dialog. `xdebug_set_breakpoint` does not — confirmed empirically
@@ -277,58 +230,57 @@ above the editor. The widget is cleared in `finally` so it disappears the moment
 clicks Allow and the call returns. `ui.notify()` was rejected here because it is fire-and-forget
 and cannot be withdrawn. The 3 s window distinguishes the dialog case from fast warm starts.
 
-**`start_debugger_session` return semantics:** The call returns when the process has _launched_
-(state: `running`), not when the breakpoint is hit. Poll `xdebug_get_debugger_status` separately
-for `state: paused`.
-
-**Session ID suffix:** `xdebug_start_debugger_session` may return a session id with a `#N`
-suffix (e.g. `MyTest#10`) when a configuration has been run multiple times. The canonical id
-(without suffix) comes from `xdebug_get_debugger_status`. Guidance tells the LLM to use
-the status-reported id.
-
-**`filePath`+`line` synthesises test configs:** IDEA recognises a test method from its file
-and line number and creates a temporary run configuration automatically. No stored run
-configuration is required.
-
-**`control_session` response shape:** All actions (`step_over`, `step_into`, `step_out`,
-`pause`, `resume`, `stop`) return the same two shapes:
-- Paused: `{status:"paused", newPosition:{filePath, line}, frameValues:string, breakpointErrorsTail:[]}`
-- Stopped: `{status:"stopped", breakpointErrorsTail:[]}`
-
-`frameValues` is already included in the step/pause response — calling `get_frame_values`
-immediately after stepping is redundant.
-
-**`get_value_by_path` and `set_variable` path format:** Both tools require `path` as a
-string array, not dot-notation. E.g. `["office","address","street"]`, not
-`"office.address.street"`. The JetBrains server throws `Expected JsonArray` on a plain string.
-
-**`set_variable` on `val` fields:** Kotlin/Java immutable fields return
-`"Unsupported mutation: value is not modifiable."` — expected behaviour, not a bug.
-
-**`get_frame_values` response format:** Returns a formatted text tree, not JSON. `parseSafe`
-returns it as a raw string. Count root-level variables by lines starting with `├` or `└`.
-
-**`get_threads` verbosity:** A paused Quarkus app exposes ~38 threads. The `collapseResult`
-summarises to `N threads`; the LLM guidance directs it to the thread with `isCurrent:true`.
-
-**`pause` while running:** Tested against Quarkus startup — returns in 64 ms with the same
-shape as `step_over`. May land in JDK sources (`jar://` path) rather than project code.
-This confirms the `read_file` guidance (use for `jar://`/`jrt://`) is relevant in debugger
-context too.
-
-**All 13 tools registered:** `xdebug_set_variable` and `xdebug_run_to_line` were initially
-excluded as "dangerous", but the reasoning didn't hold up: `set_variable` fails gracefully on
-immutable fields; `run_to_line` is equivalent to "Run to Cursor". Both included with guidance.
+**`xdebug_set_variable` and `xdebug_run_to_line` are registered:** initially considered
+"dangerous", but `set_variable` fails gracefully on immutable fields and `run_to_line` is
+equivalent to "Run to Cursor". Don't remove them on safety grounds — the tool guidance
+strings carry the API-level details (path format, return semantics, response shapes).
 
 ### TDD discipline
 
 Follow the `tdd` skill. HITL is `off` at the repo level, so cycles run autonomously
 and report at the end. Baby steps still apply — never bundle two test cycles.
 
-## v0.1 scope reminder
+### No phase-state machinery
 
-See `README.md` (repo root) "idea" extension section for the full v0.1 TODO list.
-TL;DR: 8 read-only `explore/code` tools, lazy MCP connect, footer status with three
-states, `/idea status` slash command, `projectPath` auto-injection.
+The extension does **not** filter tools by TDD phase (Red/Green/Refactor). Discipline stays with
+the `tdd` and `clean-code` skills. Considered and rejected because no machine-readable phase state
+exists today and inventing one is a multi-week project with no clear benefit.
 
-Do **not** add v0.2+ functionality until v0.1 is shipped and exercised.
+### No `idea` skill: create only when patterns accumulate
+
+The modes vocabulary (explore/modify × code/runtime/session) lives in the extension's top-level
+description and per-tool tags, not in a dedicated skill. Spin out an `idea` skill only when
+cross-tool patterns accumulate — e.g. "always `search_symbol` before `rename_refactoring`".
+Don't create it speculatively.
+
+Related: consider propagating the modes vocabulary into `tdd`, `clean-code`, `maven`, and
+`unfolding-architecture` only if real confusion shows up in practice.
+
+### Caret position / current selection: confirmed absent
+
+The JetBrains MCP `open_file_in_editor` only takes `filePath` — no line, column, or selection
+range. Confirmed by live probe. Revisit if JetBrains exposes it in a future plugin version.
+
+### Inspection authoring tools: not registered
+
+The JetBrains MCP plugin exposes four inspection-authoring tools (`generate_inspection_kts_api`,
+`generate_inspection_kts_examples`, `generate_psi_tree`, `run_inspection_kts`). All four are
+reachable and functional (confirmed by live probe against a real project). They are not registered
+in this extension.
+
+**Pattern-finding is already covered.** `search_in_files_by_regex` and `search_symbol` handle
+the "find instances of X across the codebase" use case without requiring PSI-level semantics.
+The cases where regex genuinely can't express the structural pattern are rarer than they appear.
+
+**Architectural enforcement belongs in CI.** Rules that "should hold in the future" need to be
+in the test suite — ArchUnit, Checkstyle, a build-time check — not only in the IDE. An IDE-only
+inspection is a reminder, not enforcement. It doesn't fail the build, it's invisible to developers
+who haven't opened the file, and it disappears between sessions.
+
+**The one compelling scenario is already handled.** Running existing inspections as a pre-flight
+check before editing is already covered by `get_file_problems`, which surfaces the active
+inspection profile automatically. No explicit `run_inspection_kts` call is needed.
+
+**If reconsidered:** the value is in `run_inspection_kts` as a runner against *existing*
+human-authored inspections, not in the LLM authoring new ones. Scope it to that, not to the
+full authoring workflow.

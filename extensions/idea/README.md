@@ -2,11 +2,10 @@
 
 pi extension that bridges to the official JetBrains
 [MCP Server](https://plugins.jetbrains.com/plugin/26071-mcp-server) plugin, so the LLM can
-use IntelliJ IDEA's PSI, inspections, refactorings, and (eventually) debugger directly
+use IntelliJ IDEA's PSI, inspections, refactorings, and debugger directly
 from the chat.
 
-**Status:** v0.1 in progress. See the parent repo's `README.md` for scope and roadmap,
-and `AGENTS.md` in this directory for design decisions.
+See `AGENTS.md` in this directory for design decisions.
 
 ## Requirements
 
