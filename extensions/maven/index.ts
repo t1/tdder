@@ -21,18 +21,19 @@ import { collectReportPaths, parseReports } from "./report-collector.ts";
 import { renderMavenMessage, renderMavenRunResult } from "./renderer.ts";
 import { buildSummary as buildCollapsedSummary } from "./run-result-renderer.ts";
 import { formatProjectInfo } from "./formatter.ts";
+import type { ProjectInfoJson } from "./formatter.ts";
 import { buildMavenArgs, buildMavenCommand, type MavenAction, type TestScope } from "./maven-run.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
 import { saveRawLog } from "./log-store.ts";
-import { buildMetadataUrl, parseMetadata, selectVersion } from "./version-lookup.ts";
+import { buildMetadataUrl, fetchMetadata, selectVersion } from "./version-lookup.ts";
 import type { MavenProjectInfo, MavenRunResult, VersionLookupResult } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function buildProjectInfoJson(info: MavenProjectInfo): Record<string, unknown> {
+function buildProjectInfoJson(info: MavenProjectInfo): ProjectInfoJson {
   const { pomPath: _, projectTree, projectRoot, currentProject, ...infoRest } = info;
   const { modules, ...rootFields } = stripInternalFields(projectTree);
   return {
@@ -263,7 +264,7 @@ export default function (pi: ExtensionAPI) {
       const rawMavenOut = saveRawLog(info.projectRoot, action, rawOutput);
       const success = exitCode === 0;
 
-      const reportPaths = collectReportPaths(info.projectRoot, action, info.projectTree, testScope as TestScope | undefined);
+      const reportPaths = collectReportPaths(info.projectRoot, info.projectTree, testScope as TestScope | undefined);
       const testSummary = parseReports(reportPaths, info.projectRoot);
       const compilationErrors = extractCompilationErrors(rawOutput);
       const buildErrors = extractBuildErrors(rawOutput);
@@ -290,15 +291,15 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(args, theme, context) {
-      const text = (context.lastComponent as import("@earendil-works/pi-tui").Text | undefined)
+      const text = (context.lastComponent as Text | undefined)
         ?? new Text("", 0, 0);
       const { action, project, selector, testScope } = args as { action: string; project?: string; selector?: string; testScope?: TestScope };
       const info = getMavenProjectInfo(resolve(context.cwd));
       const runner = info?.runner ?? "mvn";
-      const command = buildMavenCommand({ action: action as import("./maven-run.ts").MavenAction, runner, project, selector, testScope });
+      const command = buildMavenCommand({ action: action as MavenAction, runner, project, selector, testScope });
       // After the result is available, context.state.result is set by renderResult.
       // Switch the pending icon to the final outcome icon so the command appears only once.
-      const result = (context.state as { result?: import("./types.ts").MavenRunResult }).result;
+      const result = (context.state as { result?: MavenRunResult }).result;
       const icon = result
         ? (result.success ? theme.fg("success", "✓") : theme.fg("error", "✗"))
         : theme.fg("muted", "○");
@@ -307,13 +308,13 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderResult(toolResult, { expanded }, theme, context) {
-      type RunDetails = { result: import("./types.ts").MavenRunResult; rawLogPathAbsolute: string };
+      type RunDetails = { result: MavenRunResult; rawLogPathAbsolute: string };
       const details = toolResult.details as RunDetails | undefined;
       // While executing there are no details yet — return nothing (the renderCall
       // line and the progress widget already convey what is happening).
       if (!details) return new Container();
       // Share the result with renderCall so it can update its icon.
-      (context.state as { result?: import("./types.ts").MavenRunResult }).result = details.result;
+      (context.state as { result?: MavenRunResult }).result = details.result;
       if (expanded) {
         // Use rawLogPathAbsolute as rawMavenOut so the renderer can show the correct path.
         const result = { ...details.result, rawMavenOut: details.rawLogPathAbsolute };
@@ -348,13 +349,7 @@ export default function (pi: ExtensionAPI) {
 
       onUpdate?.({ content: [{ type: "text" as const, text: `Fetching ${metadataUrl}…` }] });
 
-      const response = await fetch(metadataUrl, { signal });
-      if (!response.ok) {
-        throw new Error(`Maven Central returned ${response.status} for ${metadataUrl}`);
-      }
-      const xml = await response.text();
-
-      const { latestVersion, versions } = parseMetadata(xml);
+      const { latestVersion, versions } = await fetchMetadata(groupId, artifactId, signal);
       const { selectedVersion, prereleaseFiltered } = selectVersion(latestVersion, versions, includePrereleases);
 
       const result: VersionLookupResult = {
@@ -415,13 +410,9 @@ export default function (pi: ExtensionAPI) {
           return;
         }
         const [groupId, artifactId] = coord.split(":");
-        const metadataUrl = buildMetadataUrl(groupId, artifactId);
         ctx.ui.setStatus("maven", "maven: looking up version…");
         try {
-          const response = await fetch(metadataUrl);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const xml = await response.text();
-          const { latestVersion, versions } = parseMetadata(xml);
+          const { latestVersion, versions } = await fetchMetadata(groupId, artifactId);
           const { selectedVersion } = selectVersion(latestVersion, versions, false);
           ctx.ui.setStatus("maven", undefined);
           mavenMessage({ kind: "version", groupId, artifactId, selectedVersion });
@@ -435,8 +426,8 @@ export default function (pi: ExtensionAPI) {
       // project info
       if (sub === "info") {
         const info = getMavenProjectInfo(cwd);
-        const ctx2 = info ? buildProjectInfoJson(info) : null;
-        mavenMessage({ kind: "info", ctx: ctx2 });
+        const infoJson = info ? buildProjectInfoJson(info) : null;
+        mavenMessage({ kind: "info", ctx: infoJson });
         return;
       }
 

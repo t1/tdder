@@ -149,8 +149,8 @@ function buildNode(
 // ---------------------------------------------------------------------------
 
 /** Strip internal fields (`relativePath`, `pomPath`, `module`) from a node and recursively from all its children. */
-export function stripInternalFields(node: ProjectNode): Omit<ProjectNode, "relativePath" | "pomPath" | "module"> & { modules?: Record<string, ReturnType<typeof stripInternalFields>> } {
-  const { relativePath: _, pomPath: __, module: ___, modules, description, ...rest } = node;
+export function stripInternalFields(node: ProjectNode): Omit<ProjectNode, "relativePath" | "pomPath"> & { modules?: Record<string, ReturnType<typeof stripInternalFields>> } {
+  const { relativePath: _, pomPath: __, modules, description, ...rest } = node;
   const strippedModules = modules
     ? Object.fromEntries(Object.entries(modules).map(([k, v]) => [k, stripInternalFields(v)]))
     : undefined;

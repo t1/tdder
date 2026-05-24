@@ -14,38 +14,35 @@ function quoteSelector(selector: string): string {
   return selector.includes("#") ? `'${selector}'` : selector;
 }
 
+interface PhaseOptions {
+  goals: string[];
+  flags: string[];
+  selectorFlag: string;
+}
+
+/** Maps action + testScope to the Maven goals, flags, and selector flag prefix. */
+function phaseOptions(action: MavenAction, testScope: TestScope | undefined): PhaseOptions {
+  if (action === "package") {
+    return { goals: ["package"], flags: ["-DskipTests"], selectorFlag: "" };
+  }
+  switch (testScope) {
+    case "failsafe": return { goals: ["verify"], flags: ["-Dskip.surefire.tests=true", "-DskipITs=false"], selectorFlag: "-Dit.test=" };
+    case "all":      return { goals: ["verify"], flags: ["-DskipITs=false"],                               selectorFlag: "-Dit.test=" };
+    default:         return { goals: ["test"],   flags: [],                                                selectorFlag: "-Dtest=" };
+  }
+}
+
 /**
  * Build the argv array for spawning Maven without a shell.
  * Selectors are passed as-is (no shell quoting needed).
  */
 export function buildMavenArgs(opts: MavenCommandOptions): string[] {
-  const { action, runner, selector, project, testScope } = opts;
-
-  const args: string[] = [runner];
+  const { runner, selector, project } = opts;
+  const { goals, flags, selectorFlag } = phaseOptions(opts.action, opts.testScope);
+  const args = [runner];
   if (project) args.push("-pl", project);
-
-  switch (action) {
-    case "test":
-      switch (testScope) {
-        case "surefire":
-          args.push("test");
-          if (selector) args.push(`-Dtest=${selector}`);
-          break;
-        case "failsafe":
-          args.push("verify", "-Dskip.surefire.tests=true", "-DskipITs=false");
-          if (selector) args.push(`-Dit.test=${selector}`);
-          break;
-        case "all":
-          args.push("verify", "-DskipITs=false");
-          if (selector) args.push(`-Dit.test=${selector}`);
-          break;
-      }
-      break;
-    case "package":
-      args.push("package", "-DskipTests");
-      break;
-  }
-
+  args.push(...goals, ...flags);
+  if (selector && selectorFlag) args.push(`${selectorFlag}${selector}`);
   return args;
 }
 
@@ -54,32 +51,11 @@ export function buildMavenArgs(opts: MavenCommandOptions): string[] {
  * Selectors containing '#' are quoted for readability.
  */
 export function buildMavenCommand(opts: MavenCommandOptions): string {
-  const { action, runner, selector, project, testScope } = opts;
-
-  const parts: string[] = [runner];
+  const { runner, selector, project } = opts;
+  const { goals, flags, selectorFlag } = phaseOptions(opts.action, opts.testScope);
+  const parts = [runner];
   if (project) parts.push(`-pl ${project}`);
-
-  switch (action) {
-    case "test":
-      switch (testScope) {
-        case "surefire":
-          parts.push("test");
-          if (selector) parts.push(`-Dtest=${quoteSelector(selector)}`);
-          break;
-        case "failsafe":
-          parts.push("verify", "-Dskip.surefire.tests=true", "-DskipITs=false");
-          if (selector) parts.push(`-Dit.test=${quoteSelector(selector)}`);
-          break;
-        case "all":
-          parts.push("verify", "-DskipITs=false");
-          if (selector) parts.push(`-Dit.test=${quoteSelector(selector)}`);
-          break;
-      }
-      break;
-    case "package":
-      parts.push("package", "-DskipTests");
-      break;
-  }
-
+  parts.push(...goals, ...flags);
+  if (selector && selectorFlag) parts.push(`${selectorFlag}${quoteSelector(selector)}`);
   return parts.join(" ");
 }

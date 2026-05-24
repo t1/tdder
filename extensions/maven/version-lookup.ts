@@ -12,6 +12,18 @@ export interface ParsedMetadata {
   versions: string[];
 }
 
+export async function fetchMetadata(
+  groupId: string,
+  artifactId: string,
+  signal?: AbortSignal,
+): Promise<ParsedMetadata> {
+  const metadataUrl = buildMetadataUrl(groupId, artifactId);
+  const response = await fetch(metadataUrl, { signal });
+  if (!response.ok) throw new Error(`Maven Central returned ${response.status} for ${metadataUrl}`);
+  const xml = await response.text();
+  return parseMetadata(xml);
+}
+
 export function parseMetadata(xml: string): ParsedMetadata {
   const releaseMatch = xml.match(/<release>([^<]+)<\/release>/);
   const versionMatches = [...xml.matchAll(/<version>([^<]+)<\/version>/g)];

@@ -21,7 +21,7 @@ describe("collectReportPaths — single module", () => {
 
   it("finds the report dir at the root for a single-module project", () => {
     const tree = buildProjectTree(singleRoot);
-    const paths = collectReportPaths(singleRoot, "test", tree);
+    const paths = collectReportPaths(singleRoot, tree);
     assert.deepEqual(paths, ["target/surefire-reports"]);
   });
 });
@@ -29,7 +29,7 @@ describe("collectReportPaths — single module", () => {
 describe("collectReportPaths — single module, no reports", () => {
   it("returns an empty array when no report dir exists", () => {
     const tree = buildProjectTree(singleRoot);
-    const paths = collectReportPaths(singleRoot, "test", tree);
+    const paths = collectReportPaths(singleRoot, tree);
     assert.deepEqual(paths, []);
   });
 });
@@ -54,14 +54,14 @@ describe("collectReportPaths — multi-module, reports in submodules", () => {
 
   it("collects report dirs from both submodules", () => {
     const tree = buildProjectTree(flatRoot);
-    const paths = collectReportPaths(flatRoot, "test", tree);
+    const paths = collectReportPaths(flatRoot, tree);
     assert.ok(paths.includes("module-a/target/surefire-reports"), `module-a not found in: ${paths}`);
     assert.ok(paths.includes("module-b/target/surefire-reports"), `module-b not found in: ${paths}`);
   });
 
   it("does not include the root target dir when root has no reports", () => {
     const tree = buildProjectTree(flatRoot);
-    const paths = collectReportPaths(flatRoot, "test", tree);
+    const paths = collectReportPaths(flatRoot, tree);
     assert.ok(!paths.includes("target/surefire-reports"), `root should not appear in: ${paths}`);
   });
 });
@@ -74,7 +74,7 @@ describe("collectReportPaths — multi-module, only one module has reports", () 
 
   it("includes only the module that has a report dir", () => {
     const tree = buildProjectTree(flatRoot);
-    const paths = collectReportPaths(flatRoot, "test", tree);
+    const paths = collectReportPaths(flatRoot, tree);
     assert.deepEqual(paths, ["module-a/target/surefire-reports"]);
   });
 });
@@ -95,7 +95,7 @@ describe("collectReportPaths — both report dirs for testScope=all", () => {
 
   it("collects both surefire-reports and failsafe-reports when testScope is all", () => {
     const tree = buildProjectTree(flatRoot);
-    const paths = collectReportPaths(flatRoot, "test", tree, "all");
+    const paths = collectReportPaths(flatRoot, tree, "all");
     assert.ok(paths.includes("module-a/target/surefire-reports"), `surefire missing in: ${paths}`);
     assert.ok(paths.includes("module-a/target/failsafe-reports"), `failsafe missing in: ${paths}`);
   });
@@ -109,13 +109,13 @@ describe("collectReportPaths — failsafe for testScope=failsafe", () => {
 
   it("looks for failsafe-reports when testScope is failsafe", () => {
     const tree = buildProjectTree(flatRoot);
-    const paths = collectReportPaths(flatRoot, "test", tree, "failsafe");
+    const paths = collectReportPaths(flatRoot, tree, "failsafe");
     assert.deepEqual(paths, ["module-a/target/failsafe-reports"]);
   });
 
   it("does not find surefire-reports when testScope is failsafe", () => {
     const tree = buildProjectTree(flatRoot);
-    const paths = collectReportPaths(flatRoot, "test", tree, "failsafe");
+    const paths = collectReportPaths(flatRoot, tree, "failsafe");
     assert.ok(!paths.some((p) => p.includes("surefire")), `unexpected surefire path in: ${paths}`);
   });
 });

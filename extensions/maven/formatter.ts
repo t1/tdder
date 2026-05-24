@@ -4,11 +4,11 @@ export interface JsonNode {
   version: string;
   name: string;
   packaging: string;
-  module?: string;
   modules?: Record<string, JsonNode>;
 }
 
 export interface ProjectInfoJson {
+  isMavenProject: boolean;
   rootPath: string;
   runner: string;
   currentPath: string;
@@ -16,6 +16,7 @@ export interface ProjectInfoJson {
   artifactId: string;
   version: string;
   name: string;
+  description?: string;
   packaging: string;
   modules?: Record<string, JsonNode>;
 }
