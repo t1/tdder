@@ -12,6 +12,8 @@ export interface IdeaToolSpec {
   guidance?: string;
   /** When set, render result collapsed by default; expand with Ctrl+O. */
   collapseResult?: CollapseSpec;
+  /** Override the default 5 s RPC timeout for long-blocking tools. */
+  executionTimeoutMs?: number;
 }
 
 /** Collapse spec for tools that return plain file text (not a structured list). */
@@ -179,6 +181,206 @@ export const ALL_TOOLS: IdeaToolSpec[] = [
     guidance:
       "Call this to open a file in the developer's editor, directing their attention to it" +
       " while you answer. Prefer this over just stating a file path.",
+  },
+  // v0.5 — debugger (explore/runtime + modify/runtime)
+  {
+    name: "xdebug_get_debugger_status",
+    category: "explore/runtime",
+    guidance:
+      "Call first to check whether a session is active and where it is paused." +
+      " Use the session id returned here — not the one from xdebug_start_debugger_session," +
+      " which may carry a different #N suffix — in all subsequent xdebug calls.",
+    collapseResult: {
+      summary: (p) => {
+        const r = p as { sessions?: Array<{ state: string; name?: string; currentPosition?: { filePath?: string; line?: number } }> };
+        const sessions = r.sessions ?? [];
+        if (sessions.length === 0) return "no sessions";
+        const paused = sessions.find((s) => s.state === "paused");
+        if (paused?.currentPosition) {
+          const filename = paused.currentPosition.filePath?.split("/").pop() ?? "";
+          return `paused at ${filename}:${paused.currentPosition.line}`;
+        }
+        return `${sessions.length} ${sessions.length === 1 ? "session" : "sessions"} (${sessions.map((s) => s.state).join(", ")})`;
+      },
+    },
+  },
+  {
+    name: "xdebug_get_stack",
+    category: "explore/runtime",
+    guidance: "Call when a session is paused to inspect the call stack. Use frameIndex to select a frame in subsequent calls.",
+    collapseResult: {
+      summary: (p) => {
+        const n = (p as { totalFrames?: number; frames?: unknown[] }).totalFrames
+          ?? (p as { frames?: unknown[] }).frames?.length ?? 0;
+        return `${n} ${n === 1 ? "frame" : "frames"}`;
+      },
+    },
+  },
+  {
+    name: "xdebug_get_frame_values",
+    category: "explore/runtime",
+    guidance:
+      "Returns local variables as a formatted text tree." +
+      " Skip this call right after control_session — the step/pause response already includes frameValues inline.",
+    collapseResult: {
+      summary: (p) => {
+        const text = typeof p === "string" ? p : "";
+        const n = text.split("\n").filter((l) => l.startsWith("\u251c") || l.startsWith("\u2514")).length;
+        return `${n} ${n === 1 ? "variable" : "variables"}`;
+      },
+      expanded: (p, raw) => (typeof p === "string" ? p : raw),
+    },
+  },
+  {
+    name: "xdebug_get_threads",
+    category: "explore/runtime",
+    guidance: "Returns all threads in the paused JVM — typically 30-40 for a Quarkus app. The thread with isCurrent:true is the one at the breakpoint.",
+    collapseResult: {
+      summary: (p) => {
+        const r = p as { threads?: unknown[]; totalCount?: number };
+        const n = r.totalCount ?? r.threads?.length ?? 0;
+        return `${n} ${n === 1 ? "thread" : "threads"}`;
+      },
+    },
+  },
+  {
+    name: "xdebug_evaluate_expression",
+    category: "explore/runtime",
+    guidance:
+      "Evaluates an expression in the current frame. The expression runs for real — method calls happen and side effects occur." +
+      " Prefer reading frame values first; use this only when you need to call a method to observe its return value.",
+    collapseResult: {
+      summary: (p) => {
+        const text = typeof p === "string" ? p : "";
+        return text.split("\n")[0]?.trim() ?? "expression evaluated";
+      },
+      expanded: (p, raw) => (typeof p === "string" ? p : raw),
+    },
+  },
+  {
+    name: "xdebug_get_value_by_path",
+    category: "explore/runtime",
+    guidance:
+      "path must be a string array, not dot-notation." +
+      ' E.g. ["office","address","street"] not "office.address.street".',
+    collapseResult: {
+      summary: (p) => {
+        const text = typeof p === "string" ? p : "";
+        return text.split("\n")[0]?.trim() ?? "value";
+      },
+      expanded: (p, raw) => (typeof p === "string" ? p : raw),
+    },
+  },
+  {
+    name: "xdebug_list_breakpoints",
+    category: "explore/runtime",
+    collapseResult: {
+      summary: (p) => {
+        const r = p as { totalCount?: number; enabledCount?: number };
+        return `${r.totalCount ?? 0} breakpoints (${r.enabledCount ?? 0} enabled)`;
+      },
+    },
+  },
+  {
+    name: "xdebug_set_breakpoint",
+    category: "modify/runtime",
+    guidance:
+      "filePath is project-relative (e.g. \"src/main/java/Foo.java\"). Does not require user confirmation." +
+      " Breakpoints can be set before starting a session or while paused at another breakpoint.",
+    collapseResult: {
+      summary: (p) => {
+        const r = p as { added?: { file?: string; line?: number }; message?: string };
+        if (r.added) {
+          const filename = r.added.file?.split("/").pop() ?? "";
+          return `breakpoint at ${filename}:${r.added.line}`;
+        }
+        return r.message ?? "breakpoint set";
+      },
+    },
+  },
+  {
+    name: "xdebug_remove_breakpoint",
+    category: "modify/runtime",
+    guidance: "Use the breakpointId from xdebug_set_breakpoint or xdebug_list_breakpoints. Always clean up agent-set breakpoints after the session ends.",
+    collapseResult: {
+      summary: (p) => {
+        const r = p as { message?: string; removedCount?: number };
+        return r.message ?? `removed ${r.removedCount ?? 0} breakpoint(s)`;
+      },
+    },
+  },
+  {
+    name: "xdebug_start_debugger_session",
+    category: "modify/runtime",
+    executionTimeoutMs: 120000,
+    guidance:
+      "IntelliJ IDEA will show a 'Confirm Command Execution' security dialog — the extension will notify you to switch to the IDE and click Allow." +
+      " Use filePath+line to run a specific test (IDEA synthesises the run configuration); use configurationName for a stored configuration." +
+      " The call returns when the process has launched (state: running), before any breakpoint is hit." +
+      " Poll xdebug_get_debugger_status for state: paused to know when the breakpoint is hit.",
+    collapseResult: {
+      summary: (p) => {
+        const r = p as { name?: string; state?: string };
+        return r.name ? `${r.name} (${r.state})` : (r.state ?? "started");
+      },
+    },
+  },
+  {
+    name: "xdebug_control_session",
+    category: "modify/runtime",
+    executionTimeoutMs: 30000,
+    guidance:
+      "action values: step_over, step_into, step_out, pause, resume, stop." +
+      " The response includes frameValues inline — no need to call xdebug_get_frame_values separately after stepping." +
+      " Do not call pause on a session you did not start.",
+    collapseResult: {
+      summary: (p) => {
+        const r = p as { status?: string; newPosition?: { filePath?: string; line?: number } };
+        if (r.status === "stopped") return "session stopped";
+        if (r.status === "paused" && r.newPosition) {
+          const filename = r.newPosition.filePath?.split("/").pop() ?? "";
+          return `paused at ${filename}:${r.newPosition.line}`;
+        }
+        return r.status ?? "unknown";
+      },
+      expanded: (p, raw) => {
+        const r = p as { frameValues?: string; newPosition?: { filePath?: string; line?: number } };
+        const parts: string[] = [];
+        if (r.newPosition) parts.push(`Position: ${r.newPosition.filePath}:${r.newPosition.line}`);
+        if (r.frameValues) parts.push(r.frameValues);
+        return parts.join("\n") || raw;
+      },
+    },
+  },
+  {
+    name: "xdebug_set_variable",
+    category: "modify/runtime",
+    guidance:
+      "path must be a string array (same format as xdebug_get_value_by_path)." +
+      ' E.g. ["office","name"] not "office.name".' +
+      " Fails with 'not modifiable' on val (immutable) fields — expected, not a bug.",
+    collapseResult: {
+      summary: (p) => {
+        const text = typeof p === "string" ? p : "";
+        return text.split("\n")[0]?.trim() || "variable set";
+      },
+      expanded: (p, raw) => (typeof p === "string" ? p : raw),
+    },
+  },
+  {
+    name: "xdebug_run_to_line",
+    category: "modify/runtime",
+    executionTimeoutMs: 30000,
+    guidance: "Advances execution to the specified line without stepping. The line must be reachable from the current position in the current thread.",
+    collapseResult: {
+      summary: (p) => {
+        const r = p as { outcome?: string; currentPosition?: { line?: number } };
+        if (r.outcome === "paused" && r.currentPosition?.line !== undefined) {
+          return `paused at line ${r.currentPosition.line}`;
+        }
+        return r.outcome ?? "done";
+      },
+    },
   },
   // v0.3 — modify/code (IDE-grade safe refactoring)
   {

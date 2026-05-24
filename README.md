@@ -164,9 +164,7 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
 
 **v0.5 — Runtime / debugger (`explore/runtime` + `modify/runtime`):**
 
-- [ ] **Design discussion first**: which `xdebug_*` actions are autonomous, which need human
-  confirmation, what happens if the LLM pauses the human's debug session uninvited
-- [ ] All 13 `xdebug_*` tools: `xdebug_get_stack`, `xdebug_get_frame_values`, `xdebug_get_threads`,
+- [x] All 13 `xdebug_*` tools: `xdebug_get_stack`, `xdebug_get_frame_values`, `xdebug_get_threads`,
   `xdebug_evaluate_expression`, `xdebug_get_value_by_path`, `xdebug_get_debugger_status`,
   `xdebug_list_breakpoints`, `xdebug_set_breakpoint`, `xdebug_remove_breakpoint`,
   `xdebug_set_variable`, `xdebug_run_to_line`, `xdebug_control_session`,
@@ -193,8 +191,8 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
   (e.g. "always `search_symbol` before `rename_refactoring`")
 - [ ] Propagate the modes vocabulary into `tdd`, `clean-code`, `maven`, and `unfolding-architecture`
   only if real confusion shows up in practice — **not** speculatively
-- [ ] `/idea` unified slash command grows more subcommands (`mcp-tools`, `mcp-restart`,
-  …) as the surface justifies it. `status` and `open` ship in v0.1.
+- [x] `/idea` unified slash command: `mcp-tools` and `mcp-restart` deemed not worth adding
+  (`/idea tools` already covers the user-facing need; dialog detection replaces `mcp-restart`).
 - [x] **E2E tests** (`npm run test:e2e`, opt-in, drift-detector): separate suite that fails loudly
   via `beforeAll` when the IDE prerequisites aren't met, with distinct messages per failure mode
   (IDE not running / project not open / plugin missing). Tests assert against extension outputs,

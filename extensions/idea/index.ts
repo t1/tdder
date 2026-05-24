@@ -15,6 +15,7 @@ const POLL_INTERVAL_MS = 2000;
 const DEBUG_FILE = process.env.IDEA_MCP_DEBUG_FILE;
 
 const TOOL_NAMES = ALL_TOOLS.map((t) => t.name);
+const DIALOG_WIDGET_KEY = "idea-confirm";
 const IDEA_TOOL_NAMES = ALL_TOOLS.map((t) => `idea_${t.name}`);
 const CATEGORY_BY_NAME = new Map(ALL_TOOLS.map((t) => [t.name, t.category]));
 const GUIDANCE_BY_NAME = new Map(
@@ -55,6 +56,35 @@ type ProbeState =
   | { kind: "disconnected" }
   | { kind: "project-not-open"; openProjects: string[] }
   | { kind: "ok" };
+
+/**
+ * After 3 s, checks whether IDEA's security dialog is blocking `start_debugger_session`.
+ * If no session has appeared yet, focuses the IDE and shows a confirm widget above the editor.
+ * Returns the timer handle so the caller can cancel it in `finally`.
+ */
+function scheduleConfirmWidget(
+  client: McpClient,
+  ctxRef: ExtensionContext | undefined,
+): ReturnType<typeof setTimeout> {
+  return setTimeout(() => {
+    client.callTool("xdebug_get_debugger_status", {}).then((status) => {
+      const text = (status as { content?: Array<{ text: string }> }).content?.[0]?.text ?? "{}";
+      const sessions = (JSON.parse(text) as { sessions?: unknown[] }).sessions ?? [];
+      if (sessions.length === 0) {
+        spawn("open", ["-na", "IntelliJ IDEA", "--args", ctxRef?.cwd ?? ""], {
+          detached: true,
+          stdio: "ignore",
+        }).unref();
+        ctxRef?.ui.setWidget(DIALOG_WIDGET_KEY, (_tui, theme) => ({
+          render: () => [
+            theme.fg("warning", "⚠ IntelliJ IDEA is waiting for your confirmation — click Allow"),
+          ],
+          invalidate: () => {},
+        }));
+      }
+    }).catch(() => { /* ignore — main call may already be done */ });
+  }, 3000);
+}
 
 function stateLabel(s: ProbeState): string {
   switch (s.kind) {
@@ -182,18 +212,32 @@ export default function (pi: ExtensionAPI) {
           : {}),
         async execute(_id, params) {
           if (!client) throw new Error("IDEA MCP client not initialised");
-          const result = await client.callTool(tool.name, { ...(params as object), ...(FORCED_ARGS[tool.name] ?? {}) });
-          if (result.kind === "project-not-open") {
-            throw new Error(
-              `Project not open in IDEA. Currently open: ${result.openProjects.join(", ")}`,
-            );
+          const mergedParams = { ...(params as object), ...(FORCED_ARGS[tool.name] ?? {}) };
+          const timeoutMs = spec?.executionTimeoutMs ?? 5000;
+
+          // For xdebug_start_debugger_session: after 3 s with no session appearing,
+          // IDEA is most likely showing the security dialog — show a widget and focus the IDE.
+          const dialogTimer = tool.name === "xdebug_start_debugger_session"
+            ? scheduleConfirmWidget(client, ctxRef)
+            : undefined;
+
+          try {
+            const result = await client.callTool(tool.name, mergedParams, timeoutMs);
+            if (result.kind === "project-not-open") {
+              throw new Error(
+                `Project not open in IDEA. Currently open: ${result.openProjects.join(", ")}`,
+              );
+            }
+            return {
+              content: (result.content as Array<{ type: "text"; text: string }>) ?? [
+                { type: "text" as const, text: "" },
+              ],
+              details: {},
+            };
+          } finally {
+            if (dialogTimer !== undefined) clearTimeout(dialogTimer);
+            ctxRef?.ui.setWidget(DIALOG_WIDGET_KEY, undefined);
           }
-          return {
-            content: (result.content as Array<{ type: "text"; text: string }>) ?? [
-              { type: "text" as const, text: "" },
-            ],
-            details: {},
-          };
         },
       });
     }

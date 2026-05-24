@@ -264,6 +264,62 @@ would be useless. Its `expanded` renderer returns `parsed.tree` directly.
 The default expanded renderer (`prettyPrintContent`) is used only when the spec omits
 `expanded`, which is the right choice for tools that return plain data objects.
 
+### v0.5 debugger design decisions
+
+**Security dialog scope:** Only `xdebug_start_debugger_session` (and `execute_run_configuration`)
+trigger the JetBrains security dialog. `xdebug_set_breakpoint` does not — confirmed empirically
+in < 5 ms in clean state. Earlier observations of `set_breakpoint` blocking were caused by a
+stale dialog from a timed-out `start_debugger_session` call surfacing at the wrong moment.
+
+**Dialog detection:** When `xdebug_start_debugger_session` blocks for > 3 s and
+`xdebug_get_debugger_status` shows no sessions, the extension sets a `setWidget` warning
+above the editor. The widget is cleared in `finally` so it disappears the moment the user
+clicks Allow and the call returns. `ui.notify()` was rejected here because it is fire-and-forget
+and cannot be withdrawn. The 3 s window distinguishes the dialog case from fast warm starts.
+
+**`start_debugger_session` return semantics:** The call returns when the process has _launched_
+(state: `running`), not when the breakpoint is hit. Poll `xdebug_get_debugger_status` separately
+for `state: paused`.
+
+**Session ID suffix:** `xdebug_start_debugger_session` may return a session id with a `#N`
+suffix (e.g. `MyTest#10`) when a configuration has been run multiple times. The canonical id
+(without suffix) comes from `xdebug_get_debugger_status`. Guidance tells the LLM to use
+the status-reported id.
+
+**`filePath`+`line` synthesises test configs:** IDEA recognises a test method from its file
+and line number and creates a temporary run configuration automatically. No stored run
+configuration is required.
+
+**`control_session` response shape:** All actions (`step_over`, `step_into`, `step_out`,
+`pause`, `resume`, `stop`) return the same two shapes:
+- Paused: `{status:"paused", newPosition:{filePath, line}, frameValues:string, breakpointErrorsTail:[]}`
+- Stopped: `{status:"stopped", breakpointErrorsTail:[]}`
+
+`frameValues` is already included in the step/pause response — calling `get_frame_values`
+immediately after stepping is redundant.
+
+**`get_value_by_path` and `set_variable` path format:** Both tools require `path` as a
+string array, not dot-notation. E.g. `["office","address","street"]`, not
+`"office.address.street"`. The JetBrains server throws `Expected JsonArray` on a plain string.
+
+**`set_variable` on `val` fields:** Kotlin/Java immutable fields return
+`"Unsupported mutation: value is not modifiable."` — expected behaviour, not a bug.
+
+**`get_frame_values` response format:** Returns a formatted text tree, not JSON. `parseSafe`
+returns it as a raw string. Count root-level variables by lines starting with `├` or `└`.
+
+**`get_threads` verbosity:** A paused Quarkus app exposes ~38 threads. The `collapseResult`
+summarises to `N threads`; the LLM guidance directs it to the thread with `isCurrent:true`.
+
+**`pause` while running:** Tested against Quarkus startup — returns in 64 ms with the same
+shape as `step_over`. May land in JDK sources (`jar://` path) rather than project code.
+This confirms the `read_file` guidance (use for `jar://`/`jrt://`) is relevant in debugger
+context too.
+
+**All 13 tools registered:** `xdebug_set_variable` and `xdebug_run_to_line` were initially
+excluded as "dangerous", but the reasoning didn't hold up: `set_variable` fails gracefully on
+immutable fields; `run_to_line` is equivalent to "Run to Cursor". Both included with guidance.
+
 ### TDD discipline
 
 Follow the `tdd` skill. HITL is `off` at the repo level, so cycles run autonomously

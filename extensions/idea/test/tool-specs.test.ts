@@ -238,6 +238,238 @@ describe("file-reader collapse specs", () => {
   });
 });
 
+describe("v0.5 tool specs", () => {
+  const xdebugTools = [
+    "xdebug_get_debugger_status",
+    "xdebug_get_stack",
+    "xdebug_get_frame_values",
+    "xdebug_get_threads",
+    "xdebug_evaluate_expression",
+    "xdebug_get_value_by_path",
+    "xdebug_list_breakpoints",
+    "xdebug_set_breakpoint",
+    "xdebug_remove_breakpoint",
+    "xdebug_start_debugger_session",
+    "xdebug_control_session",
+    "xdebug_set_variable",
+    "xdebug_run_to_line",
+  ];
+  const exploreRuntime = [
+    "xdebug_get_debugger_status",
+    "xdebug_get_stack",
+    "xdebug_get_frame_values",
+    "xdebug_get_threads",
+    "xdebug_evaluate_expression",
+    "xdebug_get_value_by_path",
+    "xdebug_list_breakpoints",
+  ];
+  const modifyRuntime = [
+    "xdebug_set_breakpoint",
+    "xdebug_remove_breakpoint",
+    "xdebug_start_debugger_session",
+    "xdebug_control_session",
+    "xdebug_set_variable",
+    "xdebug_run_to_line",
+  ];
+
+  for (const name of xdebugTools) {
+    it(`${name} is registered in ALL_TOOLS`, () => {
+      expect(names).toContain(name);
+    });
+    it(`${name} has collapseResult`, () => {
+      const spec = ALL_TOOLS.find((t) => t.name === name);
+      expect(spec?.collapseResult).toBeDefined();
+    });
+  }
+  for (const name of exploreRuntime) {
+    it(`${name} is explore/runtime`, () => {
+      expect(ALL_TOOLS.find((t) => t.name === name)?.category).toBe("explore/runtime");
+    });
+  }
+  for (const name of modifyRuntime) {
+    it(`${name} is modify/runtime`, () => {
+      expect(ALL_TOOLS.find((t) => t.name === name)?.category).toBe("modify/runtime");
+    });
+  }
+
+  // executionTimeoutMs
+  for (const name of ["xdebug_start_debugger_session", "xdebug_control_session", "xdebug_run_to_line"]) {
+    it(`${name} has executionTimeoutMs > 5000`, () => {
+      const spec = ALL_TOOLS.find((t) => t.name === name);
+      expect(spec?.executionTimeoutMs).toBeGreaterThan(5000);
+    });
+  }
+
+  // collapseResult summaries
+  it("xdebug_get_debugger_status summary: no sessions", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_get_debugger_status")!;
+    expect(collapseResult!.summary({ sessions: [] })).toBe("no sessions");
+  });
+  it("xdebug_get_debugger_status summary: paused session shows file:line", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_get_debugger_status")!;
+    const result = collapseResult!.summary({
+      sessions: [{ state: "paused", currentPosition: { filePath: "file:///project/Foo.kt", line: 42 } }],
+    });
+    expect(result).toMatch(/Foo\.kt:42/);
+  });
+  it("xdebug_get_debugger_status summary: running session shows state", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_get_debugger_status")!;
+    const result = collapseResult!.summary({ sessions: [{ state: "running", name: "MyTest" }] });
+    expect(result).toMatch(/running/);
+  });
+
+  it("xdebug_get_stack summary: 3 frames → '3 frames'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_get_stack")!;
+    expect(collapseResult!.summary({ frames: [{}, {}, {}], totalFrames: 3 })).toBe("3 frames");
+  });
+  it("xdebug_get_stack summary: 1 frame → '1 frame'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_get_stack")!;
+    expect(collapseResult!.summary({ frames: [{}], totalFrames: 1 })).toBe("1 frame");
+  });
+
+  it("xdebug_get_frame_values summary: counts root-level tree entries", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_get_frame_values")!;
+    const tree = "├─ + this = Foo@1\n└─ + office = Bar@2\n";
+    expect(collapseResult!.summary(tree)).toBe("2 variables");
+  });
+  it("xdebug_get_frame_values summary: 1 variable", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_get_frame_values")!;
+    expect(collapseResult!.summary("└─ coder = 0\n")).toBe("1 variable");
+  });
+  it("xdebug_get_frame_values expanded: returns tree text as-is", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_get_frame_values")!;
+    const tree = "├─ x = 1\n└─ y = 2\n";
+    expect(collapseResult!.expanded!(tree, tree)).toBe(tree);
+  });
+
+  it("xdebug_get_threads summary: N threads", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_get_threads")!;
+    expect(collapseResult!.summary({ threads: [], totalCount: 38 })).toBe("38 threads");
+  });
+  it("xdebug_get_threads summary: falls back to array length", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_get_threads")!;
+    expect(collapseResult!.summary({ threads: [{}, {}] })).toBe("2 threads");
+  });
+
+  it("xdebug_evaluate_expression summary: first line of result", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_evaluate_expression")!;
+    const text = "client.office(\"Hamburg\") = OfficeDTO(...)\nmore detail";
+    expect(collapseResult!.summary(text)).toBe('client.office("Hamburg") = OfficeDTO(...)');
+  });
+  it("xdebug_evaluate_expression expanded: returns full text", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_evaluate_expression")!;
+    const text = "x = 42\ndetail";
+    expect(collapseResult!.expanded!(text, text)).toBe(text);
+  });
+
+  it("xdebug_get_value_by_path summary: the result text itself", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_get_value_by_path")!;
+    expect(collapseResult!.summary("name = \"Hamburg\"")).toBe('name = "Hamburg"');
+  });
+
+  it("xdebug_list_breakpoints summary: N breakpoints (M enabled)", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_list_breakpoints")!;
+    expect(collapseResult!.summary({ totalCount: 3, enabledCount: 1 })).toBe("3 breakpoints (1 enabled)");
+  });
+
+  it("xdebug_set_breakpoint summary: shows filename and line", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_set_breakpoint")!;
+    const result = collapseResult!.summary({
+      added: { file: "file:///project/Foo.kt", line: 49 },
+    });
+    expect(result).toMatch(/Foo\.kt:49/);
+  });
+
+  it("xdebug_remove_breakpoint summary: uses message field", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_remove_breakpoint")!;
+    expect(collapseResult!.summary({ message: "Removed 1 breakpoint(s)." })).toBe("Removed 1 breakpoint(s).");
+  });
+
+  it("xdebug_start_debugger_session summary: name and state", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_start_debugger_session")!;
+    expect(collapseResult!.summary({ name: "MyTest", state: "running" })).toBe("MyTest (running)");
+  });
+
+  it("xdebug_control_session summary: paused shows filename:line", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_control_session")!;
+    const result = collapseResult!.summary({
+      status: "paused",
+      newPosition: { filePath: "file:///project/Foo.kt", line: 51 },
+    });
+    expect(result).toMatch(/Foo\.kt:51/);
+  });
+  it("xdebug_control_session summary: paused in jar shows filename:line", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_control_session")!;
+    const result = collapseResult!.summary({
+      status: "paused",
+      newPosition: { filePath: "jar:///sdk/src.zip!/java.base/java/lang/AbstractStringBuilder.java", line: 1839 },
+    });
+    expect(result).toMatch(/AbstractStringBuilder\.java:1839/);
+  });
+  it("xdebug_control_session summary: stopped → 'session stopped'", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_control_session")!;
+    expect(collapseResult!.summary({ status: "stopped" })).toBe("session stopped");
+  });
+  it("xdebug_control_session expanded: shows frameValues when present", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_control_session")!;
+    const result = collapseResult!.expanded!(
+      { status: "paused", frameValues: "└─ x = 1\n", newPosition: { filePath: "Foo.kt", line: 51 } },
+      "",
+    );
+    expect(result).toContain("└─ x = 1");
+  });
+
+  it("xdebug_set_variable summary: shows result text", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_set_variable")!;
+    expect(collapseResult!.summary("Unsupported mutation: value is not modifiable.")).toMatch(/not modifiable/);
+  });
+
+  it("xdebug_run_to_line summary: paused at line N", () => {
+    const { collapseResult } = ALL_TOOLS.find((t) => t.name === "xdebug_run_to_line")!;
+    expect(collapseResult!.summary({ outcome: "paused", currentPosition: { line: 51 } })).toBe("paused at line 51");
+  });
+
+  // guidance
+  it("xdebug_get_debugger_status guidance mentions canonical session id", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "xdebug_get_debugger_status");
+    expect(spec?.guidance).toMatch(/canonical|suffix|#/i);
+  });
+  it("xdebug_get_frame_values guidance mentions step response already has values", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "xdebug_get_frame_values");
+    expect(spec?.guidance).toMatch(/control_session|step|already/i);
+  });
+  it("xdebug_evaluate_expression guidance warns about side effects", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "xdebug_evaluate_expression");
+    expect(spec?.guidance).toMatch(/side effect|executes|runs for real/i);
+  });
+  it("xdebug_get_value_by_path guidance mentions array path format", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "xdebug_get_value_by_path");
+    expect(spec?.guidance).toMatch(/array|\[/i);
+  });
+  it("xdebug_set_variable guidance mentions array path and immutable fields", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "xdebug_set_variable");
+    expect(spec?.guidance).toMatch(/array|\[/i);
+    expect(spec?.guidance).toMatch(/val|immutable|not modifiable/i);
+  });
+  it("xdebug_start_debugger_session guidance mentions security dialog and polling", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "xdebug_start_debugger_session");
+    expect(spec?.guidance).toMatch(/allow|confirm|dialog/i);
+    expect(spec?.guidance).toMatch(/poll|get_debugger_status|running/i);
+  });
+  it("xdebug_control_session guidance warns about pause on unowned sessions", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "xdebug_control_session");
+    expect(spec?.guidance).toMatch(/pause|did not start|unowned/i);
+  });
+  it("xdebug_set_breakpoint guidance mentions project-relative path", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "xdebug_set_breakpoint");
+    expect(spec?.guidance).toMatch(/project.relative|project-relative/i);
+  });
+  it("xdebug_remove_breakpoint guidance mentions cleanup", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "xdebug_remove_breakpoint");
+    expect(spec?.guidance).toMatch(/clean|remove|after/i);
+  });
+});
+
 describe("v0.3 tool specs", () => {
   it("rename_refactoring is registered as modify/code", () => {
     const spec = ALL_TOOLS.find((t) => t.name === "rename_refactoring");

@@ -62,11 +62,11 @@ export class McpClient {
     await this.transport.send(serializeNotification("notifications/initialized", {}));
   }
 
-  async callTool(name: string, args: object): Promise<ToolCallResult> {
+  async callTool(name: string, args: object, timeoutMs = 5000): Promise<ToolCallResult> {
     const response = await this.sendRequest("tools/call", {
       name,
       arguments: { ...args, projectPath: this.projectPath },
-    });
+    }, timeoutMs);
     if (response.kind !== "response" || !response.result) {
       return { kind: "ok", content: null };
     }
