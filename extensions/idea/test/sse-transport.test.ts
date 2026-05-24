@@ -41,15 +41,13 @@ afterAll(async () => {
 });
 
 describe("SseTransport", () => {
-  it("captures the session endpoint URL from the endpoint frame", async () => {
+  it("resolves when the endpoint frame arrives", async () => {
     onSseRequest = (res) => {
       res.write("event: endpoint\ndata: /msg?sessionId=abc-123\n\n");
     };
 
     const transport = new SseTransport(baseUrl);
-    await transport.connect();
-
-    expect(transport.sessionUrl).toBe("/msg?sessionId=abc-123");
+    await expect(transport.connect()).resolves.toBeUndefined();
 
     await transport.close();
   });

@@ -9,7 +9,7 @@ import { SseTransport } from "./sse-transport.ts";
 export class McpClient {
   private transport: SseTransport;
   private nextId = 1;
-  private pending = new Map<number, (msg: Message) => void>();
+  private pending = new Map<number, { resolve: (msg: Message) => void; reject: (err: Error) => void }>();
 
   constructor(baseUrl: string, private projectPath: string) {
     this.transport = new SseTransport(baseUrl);
@@ -22,7 +22,7 @@ export class McpClient {
         const handler = this.pending.get(msg.id);
         if (handler) {
           this.pending.delete(msg.id);
-          handler(msg);
+          handler.resolve(msg);
         }
       }
     };
@@ -40,9 +40,15 @@ export class McpClient {
         this.pending.delete(id);
         reject(new Error(`MCP request '${method}' timed out after ${timeoutMs}ms`));
       }, timeoutMs);
-      this.pending.set(id, (msg) => {
-        clearTimeout(timer);
-        resolve(msg);
+      this.pending.set(id, {
+        resolve: (msg) => {
+          clearTimeout(timer);
+          resolve(msg);
+        },
+        reject: (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
       });
       this.transport.send(serializeRequest(method, params, id)).catch((err) => {
         clearTimeout(timer);
@@ -67,7 +73,10 @@ export class McpClient {
       name,
       arguments: { ...args, projectPath: this.projectPath },
     }, timeoutMs);
-    if (response.kind !== "response" || !response.result) {
+    if (response.kind !== "response") {
+      throw new Error(`Unexpected MCP message kind '${response.kind}' for tools/call '${name}'`);
+    }
+    if (!response.result) {
       return { kind: "ok", content: null };
     }
     const result = response.result as { content?: unknown; isError?: boolean };
@@ -86,6 +95,10 @@ export class McpClient {
   }
 
   async close(): Promise<void> {
+    for (const { reject } of this.pending.values()) {
+      reject(new Error("client closed"));
+    }
+    this.pending.clear();
     await this.transport.close();
   }
 }

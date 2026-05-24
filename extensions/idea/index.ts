@@ -29,11 +29,6 @@ interface ToolsListDetails {
   tools: Array<{ name: string; category: string; description: string }>;
 }
 
-// Parameters injected by the extension for specific tools; stripped from the schema so the LLM never sees them.
-const FORCED_ARGS: Record<string, Record<string, unknown>> = {
-  get_file_problems: { errorsOnly: false }, // IntelliJ defaults to true (errors only); we always want warnings too.
-};
-
 let writeFailureWarned = false;
 function log(msg: string, err?: unknown): void {
   if (err) console.error(`[idea] ${msg}`, err);
@@ -104,6 +99,7 @@ export default function (pi: ExtensionAPI) {
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let ctxRef: ExtensionContext | undefined;
   let tickInFlight = false;
+  let isFirstTick = true;
 
   // Captured at tool-registration time so `/idea tools` doesn't need to re-query MCP.
   let registeredToolMeta: Array<{ name: string; category: string; description: string }> = [];
@@ -150,6 +146,89 @@ export default function (pi: ExtensionAPI) {
     } as unknown as TSchema;
   }
 
+  function registerSingleTool(tool: { name: string; description?: string; inputSchema?: Record<string, unknown> }): void {
+    const spec = ALL_TOOLS.find((s) => s.name === tool.name);
+    const category = CATEGORY_BY_NAME.get(tool.name) ?? "unknown";
+    const guidance = GUIDANCE_BY_NAME.get(tool.name);
+    const mcpDescription = tool.description ?? "";
+    const description = guidance
+      ? `[${category}]\n${guidance}\n\n${mcpDescription}`
+      : `[${category}] ${mcpDescription}`;
+    registeredToolMeta.push({ name: tool.name, category, description: mcpDescription });
+    // IntelliJ defaults errorsOnly to true; we always want warnings too.
+    const forcedArgs = tool.name === "get_file_problems" ? { errorsOnly: false } : {};
+    const strippedKeys = Object.keys(forcedArgs);
+    pi.registerTool({
+      name: `idea_${tool.name}`,
+      label: tool.name,
+      description,
+      parameters: buildParameters(tool.inputSchema, ["projectPath", ...strippedKeys]),
+      renderCall(args, theme, _context) {
+        const paramStr = Object.entries(args as Record<string, unknown>)
+          .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
+          .join(" ");
+        return {
+          render(width: number): string[] {
+            const prefixLen = tool.name.length + 2; // "name: "
+            const available = Math.max(0, width - prefixLen);
+            const params =
+              paramStr.length > available ? `${paramStr.slice(0, available - 1)}…` : paramStr;
+            return [`${theme.fg("toolTitle", tool.name)}: ${theme.fg("dim", params)}`];
+          },
+          invalidate(): void {},
+        };
+      },
+      ...(spec?.collapseResult
+        ? {
+            renderResult(
+              result: { content?: Array<{ type: string; text: string }> },
+              { expanded }: { expanded: boolean; isPartial: boolean },
+              theme: { fg(color: string, text: string): string },
+            ) {
+              const collapse = spec!.collapseResult!;
+              const rawText = result.content?.find((c) => c.type === "text")?.text ?? "";
+              const parsed = parseSafe(rawText);
+              const body = expanded
+                ? (collapse.expanded?.(parsed, rawText) ?? prettyPrintContent(rawText))
+                : collapse.summary(parsed) +
+                  " " +
+                  theme.fg("dim", keyHint("app.tools.expand", "to expand"));
+              return new Text(body, 0, 0);
+            },
+          }
+        : {}),
+      async execute(_id, params) {
+        if (!client) throw new Error("IDEA MCP client not initialised");
+        const mergedParams = { ...(params as object), ...forcedArgs };
+        const timeoutMs = spec?.executionTimeoutMs ?? 5000;
+
+        // For xdebug_start_debugger_session: after 3 s with no session appearing,
+        // IDEA is most likely showing the security dialog — show a widget and focus the IDE.
+        const dialogTimer = tool.name === "xdebug_start_debugger_session"
+          ? scheduleConfirmWidget(client, ctxRef)
+          : undefined;
+
+        try {
+          const result = await client.callTool(tool.name, mergedParams, timeoutMs);
+          if (result.kind === "project-not-open") {
+            throw new Error(
+              `Project not open in IDEA. Currently open: ${result.openProjects.join(", ")}`,
+            );
+          }
+          return {
+            content: (result.content as Array<{ type: "text"; text: string }>) ?? [
+              { type: "text" as const, text: "" },
+            ],
+            details: {},
+          };
+        } finally {
+          if (dialogTimer !== undefined) clearTimeout(dialogTimer);
+          ctxRef?.ui.setWidget(DIALOG_WIDGET_KEY, undefined);
+        }
+      },
+    });
+  }
+
   async function ensureToolsRegistered(c: McpClient): Promise<void> {
     if (toolsRegistered) return;
     const allTools = (await c.listTools()) as Array<{
@@ -163,83 +242,7 @@ export default function (pi: ExtensionAPI) {
     );
     registeredToolMeta = [];
     for (const tool of toRegister) {
-      const spec = ALL_TOOLS.find((s) => s.name === tool.name);
-      const category = CATEGORY_BY_NAME.get(tool.name) ?? "unknown";
-      const guidance = GUIDANCE_BY_NAME.get(tool.name);
-      const mcpDescription = tool.description ?? "";
-      const description = guidance
-        ? `[${category}]\n${guidance}\n\n${mcpDescription}`
-        : `[${category}] ${mcpDescription}`;
-      registeredToolMeta.push({ name: tool.name, category, description: mcpDescription });
-      pi.registerTool({
-        name: `idea_${tool.name}`,
-        label: tool.name,
-        description,
-        parameters: buildParameters(tool.inputSchema, ["projectPath", ...Object.keys(FORCED_ARGS[tool.name] ?? {})]),
-        renderCall(args, theme, _context) {
-          const paramStr = Object.entries(args as Record<string, unknown>)
-            .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
-            .join(" ");
-          return {
-            render(width: number): string[] {
-              const prefixLen = tool.name.length + 2; // "name: "
-              const available = Math.max(0, width - prefixLen);
-              const params =
-                paramStr.length > available ? `${paramStr.slice(0, available - 1)}…` : paramStr;
-              return [`${theme.fg("toolTitle", tool.name)}: ${theme.fg("dim", params)}`];
-            },
-            invalidate(): void {},
-          };
-        },
-        ...(spec?.collapseResult
-          ? {
-              renderResult(
-                result: { content?: Array<{ type: string; text: string }> },
-                { expanded }: { expanded: boolean; isPartial: boolean },
-                theme: { fg(color: string, text: string): string },
-              ) {
-                const collapse = spec!.collapseResult!;
-                const rawText = result.content?.find((c) => c.type === "text")?.text ?? "";
-                const parsed = parseSafe(rawText);
-                const body = expanded
-                  ? (collapse.expanded?.(parsed, rawText) ?? prettyPrintContent(rawText))
-                  : collapse.summary(parsed) +
-                    " " +
-                    theme.fg("dim", keyHint("app.tools.expand", "to expand"));
-                return new Text(body, 0, 0);
-              },
-            }
-          : {}),
-        async execute(_id, params) {
-          if (!client) throw new Error("IDEA MCP client not initialised");
-          const mergedParams = { ...(params as object), ...(FORCED_ARGS[tool.name] ?? {}) };
-          const timeoutMs = spec?.executionTimeoutMs ?? 5000;
-
-          // For xdebug_start_debugger_session: after 3 s with no session appearing,
-          // IDEA is most likely showing the security dialog — show a widget and focus the IDE.
-          const dialogTimer = tool.name === "xdebug_start_debugger_session"
-            ? scheduleConfirmWidget(client, ctxRef)
-            : undefined;
-
-          try {
-            const result = await client.callTool(tool.name, mergedParams, timeoutMs);
-            if (result.kind === "project-not-open") {
-              throw new Error(
-                `Project not open in IDEA. Currently open: ${result.openProjects.join(", ")}`,
-              );
-            }
-            return {
-              content: (result.content as Array<{ type: "text"; text: string }>) ?? [
-                { type: "text" as const, text: "" },
-              ],
-              details: {},
-            };
-          } finally {
-            if (dialogTimer !== undefined) clearTimeout(dialogTimer);
-            ctxRef?.ui.setWidget(DIALOG_WIDGET_KEY, undefined);
-          }
-        },
-      });
+      registerSingleTool(tool);
     }
     toolsRegistered = true;
   }
@@ -259,20 +262,19 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
-  let tickCount = 0;
   async function tick(): Promise<void> {
     if (tickInFlight) return; // skip overlapping ticks
     if (!ctxRef) return; // shutting down / not yet started
     tickInFlight = true;
-    tickCount++;
-    const tStart = performance.now();
-    const isFirst = tickCount === 1;
+    const isFirst = isFirstTick;
+    isFirstTick = false;
+    const tStart = isFirst ? performance.now() : 0;
     if (isFirst) log("tick #1 start");
     const prevLabel = stateLabel(state);
     try {
       if (!client) {
         client = new McpClient(IDEA_BASE_URL, ctxRef.cwd);
-        const tConnect = performance.now();
+        const tConnect = isFirst ? performance.now() : 0;
         try {
           await client.connect();
           if (isFirst) log(`tick #1 connect ok (${(performance.now() - tConnect).toFixed(1)}ms)`);
@@ -283,7 +285,7 @@ export default function (pi: ExtensionAPI) {
       }
 
       let probe;
-      const tProbe = performance.now();
+      const tProbe = isFirst ? performance.now() : 0;
       try {
         probe = await client.callTool("get_project_modules", {});
         if (isFirst) log(`tick #1 probe ok (${(performance.now() - tProbe).toFixed(1)}ms)`);
