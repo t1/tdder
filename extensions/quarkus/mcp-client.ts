@@ -49,9 +49,9 @@ export class McpClient {
   private nextId = 1;
   private pending = new Map<number, Pending>();
   private ready: Promise<void>;
-  private _tools: McpTool[] = [];
+  private discoveredTools: McpTool[] = [];
   private closed = false;
-  private _closeListeners: Array<() => void> = [];
+  private closeListeners: Array<() => void> = [];
 
   constructor(command: string, args: string[], cwd: string, env?: Record<string, string>) {
     this.proc = spawn(command, args, {
@@ -91,18 +91,18 @@ export class McpClient {
         p.reject(new Error("MCP server process closed"));
       }
       this.pending.clear();
-      for (const cb of this._closeListeners) cb();
+      for (const cb of this.closeListeners) cb();
     });
 
     this.ready = this._initialize();
   }
 
   addCloseListener(cb: () => void): void {
-    this._closeListeners.push(cb);
+    this.closeListeners.push(cb);
   }
 
   get tools(): McpTool[] {
-    return this._tools;
+    return this.discoveredTools;
   }
 
   private send(msg: JsonRpcRequest | JsonRpcNotification): void {
@@ -138,7 +138,7 @@ export class McpClient {
 
     // Discover tools
     const result = await this.request<{ tools: McpTool[] }>("tools/list", {});
-    this._tools = result?.tools ?? [];
+    this.discoveredTools = result?.tools ?? [];
   }
 
   /** Wait for the MCP handshake and tool discovery to complete. */

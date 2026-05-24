@@ -65,23 +65,23 @@ describe("test subcommand split", () => {
   });
 
   it("test-affected dispatches to devui-testing_runAffectedTests", () => {
-    // The handler block must reference both "test-affected" and runAffectedTests.
-    const handlerIdx = src.indexOf("TEST_SUBCOMMANDS as readonly");
-    assert.ok(handlerIdx >= 0, "TEST_SUBCOMMANDS dispatch block not found");
+    // The handleTestSubcommand function must reference runAffectedTests.
+    const handlerIdx = src.indexOf("async function handleTestSubcommand(");
+    assert.ok(handlerIdx >= 0, "handleTestSubcommand not found in index.ts");
     const handlerBlock = src.slice(handlerIdx, handlerIdx + 600);
     assert.ok(
       handlerBlock.includes("runAffectedTests"),
-      `devui-testing_runAffectedTests must appear in the TEST_SUBCOMMANDS dispatch block`,
+      `devui-testing_runAffectedTests must appear in handleTestSubcommand`,
     );
   });
 
   it("test-all dispatches to devui-testing_runTests", () => {
-    const handlerIdx = src.indexOf("TEST_SUBCOMMANDS as readonly");
-    assert.ok(handlerIdx >= 0, "TEST_SUBCOMMANDS dispatch block not found");
+    const handlerIdx = src.indexOf("async function handleTestSubcommand(");
+    assert.ok(handlerIdx >= 0, "handleTestSubcommand not found in index.ts");
     const handlerBlock = src.slice(handlerIdx, handlerIdx + 600);
     assert.ok(
       handlerBlock.includes("runTests"),
-      `devui-testing_runTests must appear in the TEST_SUBCOMMANDS dispatch block`,
+      `devui-testing_runTests must appear in handleTestSubcommand`,
     );
   });
 });

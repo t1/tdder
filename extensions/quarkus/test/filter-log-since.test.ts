@@ -11,26 +11,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-
-// ---------------------------------------------------------------------------
-// Copy of the function under test — kept in sync with index.ts.
-// We test the pure function directly rather than importing the whole extension.
-// ---------------------------------------------------------------------------
-
-function filterLogSince(lines: string[], sinceMs: number): string[] {
-  const cutoff = sinceMs - 3_000;
-  const result: string[] = [];
-  let lastPassed = false;
-  for (const line of lines) {
-    const m = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})[,.]?(\d{3})?/);
-    if (m) {
-      const ts = new Date(m[1]!.replace(" ", "T") + (m[2] ? `.${m[2]}` : "")).getTime();
-      lastPassed = !Number.isNaN(ts) && ts >= cutoff;
-    }
-    if (lastPassed) result.push(line);
-  }
-  return result;
-}
+import { filterLogSince } from "../utils.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

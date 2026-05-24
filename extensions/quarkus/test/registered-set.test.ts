@@ -59,16 +59,16 @@ describe("registerMcpTools idempotency guard", () => {
     assert.deepEqual(calls, [], "no re-registration expected when guard is intact");
   });
 
-  it("mcp-restart handler does not call registered.clear()", () => {
-    // Read the source and assert the clear() call is absent from the mcp-restart block.
+  it("mcp-restart handler does not call registeredToolNames.clear()", () => {
+    // Read the source and assert the clear() call is absent from the handleMcpRestart function.
     const src = readFileSync(resolve(import.meta.dirname, "../index.ts"), "utf8");
-    const mcpRestartBlock = src.slice(src.indexOf("mcp-restart: server management"));
-    const afterBlock = mcpRestartBlock.indexOf("// ──");
+    const mcpRestartBlock = src.slice(src.indexOf("async function handleMcpRestart("));
+    const afterBlock = mcpRestartBlock.indexOf("\n  async function ");
     const block = afterBlock > 0 ? mcpRestartBlock.slice(0, afterBlock) : mcpRestartBlock.slice(0, 500);
 
     assert.ok(
-      !block.includes("registered.clear()"),
-      "mcp-restart handler must not call registered.clear() — it causes duplicate pi.registerTool() calls",
+      !block.includes("registeredToolNames.clear()"),
+      "handleMcpRestart must not call registeredToolNames.clear() — it causes duplicate pi.registerTool() calls",
     );
   });
 });

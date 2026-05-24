@@ -85,8 +85,8 @@ describe("ensureClient concurrency guard", () => {
     const body = src.slice(start, start + 400);
 
     assert.ok(
-      body.includes("starting"),
-      "ensureClient must reference an in-flight promise variable (e.g. 'starting') to prevent concurrent spawns",
+      body.includes("pendingStart"),
+      "ensureClient must reference the in-flight promise variable 'pendingStart' to prevent concurrent spawns",
     );
   });
 });
