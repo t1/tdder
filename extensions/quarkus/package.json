@@ -1,6 +1,6 @@
 {
   "name": "pi-quarkus",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Quarkus extension for pi — dev-mode management via quarkus-agent-mcp",
   "keywords": ["pi-package"],
   "license": "Apache-2.0",
