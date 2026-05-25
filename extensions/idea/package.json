@@ -1,6 +1,6 @@
 {
   "name": "pi-idea",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "IntelliJ IDEA MCP bridge for pi",
   "keywords": ["pi-package"],
   "license": "Apache-2.0",
