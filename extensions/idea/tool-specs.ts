@@ -33,7 +33,16 @@ export const ALL_TOOLS: IdeaToolSpec[] = [
     name: "search_symbol",
     category: "explore/code",
     guidance:
-      "If IDEA is currently indexing (e.g. after files were created or modified)," +
+      "Matching is case-insensitive substring on the symbol name." +
+      " For common names, add a package qualifier to reduce noise: \"office.Office\" scopes" +
+      " to the office package, while bare \"Office\" also matches fields and methods in other" +
+      " packages whose names contain the word. One qualifying segment is enough —" +
+      " \"office.Office\" and the full FQN return the same results." +
+      " To enumerate all symbols in a package use \"package.*\", but expect a slow response" +
+      " (several seconds); on large codebases it may time out." +
+      " Searching by a bare package prefix returns nothing: the last segment is always" +
+      " matched against symbol names, so \"de.codecentric\" finds zero results." +
+      " If IDEA is currently indexing (e.g. after files were created or modified)," +
       " the first call may return 0 results even if the symbol exists." +
       " Retry once if the result seems inconsistent with what you know about the codebase.",
     collapseResult: {

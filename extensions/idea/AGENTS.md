@@ -74,6 +74,13 @@ Read `decisions/mcp-probing.md` before adding a tool or changing a tool spec (pr
 Read `decisions/debugger.md` when touching any `xdebug_*` tool (security dialogue scope,
 widget detection, registered-but-safe tools).
 
+### search_symbol matching behaviour
+
+Read `decisions/search-symbol.md` for the full probe findings (substring vs FQN vs
+`package.*` vs CamelCase). Two things are relevant when writing or reviewing guidance:
+- A package-qualified name (`"office.Office"`) reduces noise vs a bare name.
+- `"package.*"` enumerates a package but is slow and may time out.
+
 ### MCP behaviour during indexing
 
 Read `decisions/mcp-indexing.md` when touching retry logic, `rename_refactoring`, or any
