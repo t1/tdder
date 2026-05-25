@@ -15,6 +15,13 @@ const POLL_INTERVAL_MS = 2000;
 const DEBUG_FILE = process.env.IDEA_MCP_DEBUG_FILE;
 
 const TOOL_NAMES = ALL_TOOLS.map((t) => t.name);
+// Two distinct error texts IDEA returns when a tool call is rejected during indexing.
+const INDEXING_ERROR_TEXTS = [
+  "MCP tool call has been cancelled", // fast-cancel before index lock
+  "IndexNotReadyException",           // dumb-mode rejection after first retry
+];
+const INDEXING_RETRY_DELAY_MS = 1_000;
+const INDEXING_RETRY_CEILING_MS = 30_000;
 const DIALOG_WIDGET_KEY = "idea-confirm";
 const IDEA_TOOL_NAMES = ALL_TOOLS.map((t) => `idea_${t.name}`);
 const CATEGORY_BY_NAME = new Map(ALL_TOOLS.map((t) => [t.name, t.category]));
@@ -201,6 +208,7 @@ export default function (pi: ExtensionAPI) {
         if (!client) throw new Error("IDEA MCP client not initialised");
         const mergedParams = { ...(params as object), ...forcedArgs };
         const timeoutMs = spec?.executionTimeoutMs ?? 5000;
+        const retryCeiling = Date.now() + INDEXING_RETRY_CEILING_MS;
 
         // For xdebug_start_debugger_session: after 3 s with no session appearing,
         // IDEA is most likely showing the security dialog — show a widget and focus the IDE.
@@ -209,7 +217,17 @@ export default function (pi: ExtensionAPI) {
           : undefined;
 
         try {
-          const result = await client.callTool(tool.name, mergedParams, timeoutMs);
+          let result = await client.callTool(tool.name, mergedParams, timeoutMs);
+          while (
+            result.kind === "ok" &&
+            (result.content as Array<{ text?: string }> | null)
+              ?.some((c) => INDEXING_ERROR_TEXTS.some((t) => c.text?.includes(t))) &&
+            Date.now() < retryCeiling
+          ) {
+            log(`tool '${tool.name}' rejected during indexing — retrying in ${INDEXING_RETRY_DELAY_MS}ms`);
+            await new Promise((r) => setTimeout(r, INDEXING_RETRY_DELAY_MS));
+            result = await client.callTool(tool.name, mergedParams, timeoutMs);
+          }
           if (result.kind === "project-not-open") {
             throw new Error(
               `Project not open in IDEA. Currently open: ${result.openProjects.join(", ")}`,

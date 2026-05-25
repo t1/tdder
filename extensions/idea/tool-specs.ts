@@ -32,6 +32,10 @@ export const ALL_TOOLS: IdeaToolSpec[] = [
   {
     name: "search_symbol",
     category: "explore/code",
+    guidance:
+      "If IDEA is currently indexing (e.g. after files were created or modified)," +
+      " the first call may return 0 results even if the symbol exists." +
+      " Retry once if the result seems inconsistent with what you know about the codebase.",
     collapseResult: {
       summary: (p) => {
         const n = (p as { items?: unknown[] })?.items?.length ?? 0;
@@ -142,6 +146,10 @@ export const ALL_TOOLS: IdeaToolSpec[] = [
   {
     name: "get_project_dependencies",
     category: "explore/code",
+    guidance:
+      "The result may be stale while a Gradle/Maven sync is in progress — no error is raised." +
+      " On a brand-new project the count will be 0; on an existing project it will reflect the" +
+      " previous sync. If you just modified a build file, wait for the sync to finish and retry.",
     collapseResult: {
       summary: (p) => {
         const n = (p as { dependencies?: unknown[] })?.dependencies?.length ?? 0;
