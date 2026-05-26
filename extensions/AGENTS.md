@@ -63,7 +63,13 @@ visibility only, not LLM inclusion. There is no `excludeFromContext` flag on `Cu
    `undefined` (not `{ messages: event.messages }`) when nothing was filtered, to keep
    the hot path cheap.
 
-Used by: `idea` (`/idea tools` listing, `customType: "idea-tools"`).
+Used by: `idea` (`/idea tools` listing), `quarkus` (info and startup-log displays), `maven`
+(all `/maven` output).
+
+**Exception:** a custom message whose `content` IS the LLM prompt (e.g. `quarkus-test`
+messages that set `triggerTurn: true`) must NOT be filtered — filtering it removes the
+prompt from the LLM before it can act on it. Only filter pure display-only messages
+(those with `content: ""` and `triggerTurn: false`).
 
 **Caveats:**
 
@@ -74,26 +80,211 @@ Used by: `idea` (`/idea tools` listing, `customType: "idea-tools"`).
 - Promote to a first-class pi API if/when the gap closes upstream; until then, document
   it here so the next extension author doesn't re-derive it from scratch.
 
-## To be filled in (after extension #2 exists)
+### Footer status icons (n=2: quarkus, idea)
 
-Questions to answer empirically by comparing extensions, not by inventing answers up front:
+Both extensions use a consistent three-symbol vocabulary for the pi footer.
+Adopt this in all future extensions that reflect connection or process state:
 
-- State management: where does extension state live, how is it reset between sessions?
-- Footer updates: cadence, debouncing, what state transitions deserve a redraw?
-- Error forwarding to the LLM: when does a failure auto-bounce back to the LLM vs. surface
-  as a notification?
-- Slash-command vs tool tradeoffs: which interactions deserve a slash command, which are
-  better as MCP-style tools the LLM calls?
-- Testing strategy: what's worth a unit test, what needs the real pi runtime?
-- Lazy MCP startup patterns: handshake sequence, session lifecycle, reconnection.
-- Context auto-injection: which extensions wrap MCP calls to inject implicit context, and
-  what's the common shape?
-- **Debug logging convention.** The `idea` extension uses `IDEA_MCP_DEBUG_FILE=<path>`
-  for opt-in debug output. Path comes from the env var; file is append-only;
-  format is unstable; pi's TUI swallows `console.error`, so file output is the only
-  user-visible diagnostic. If a second extension adopts the same shape
-  (`<TOOL>_<TARGET>_DEBUG_FILE`), promote the pattern to a shared rule here.
-  (Not promoted under the n=1 exception because the env-var name shape encodes a
-  naming choice, not a pi-API workaround.)
+| Symbol | Meaning               | Example                              |
+|--------|-----------------------|--------------------------------------|
+| `●`    | healthy / connected   | `idea ●`, `quarkus ● :8080`          |
+| `◌`    | transitioning/starting | `quarkus ◌ starting…`               |
+| `⚠`    | degraded / warning    | `idea ⚠ not open`, `quarkus ⚠ crashed` |
+| (blank) | absent / not active  | `ctx.ui.setStatus(key, undefined)`   |
 
-Each of these gets a real answer only once we can compare two independently-built extensions.
+Use one stable key per extension (e.g. `"idea"`, `"quarkus-app"`). Update it on every
+state transition; clear it to `undefined` when the extension has nothing to show.
+
+### Slash command subcommand dispatch (n=3: quarkus, idea, maven)
+
+All three follow the same skeleton:
+
+```typescript
+const SUBCOMMANDS = ["foo", "bar"] as const;
+const DESCRIPTIONS: Record<string, string> = { foo: "…", bar: "…" };
+
+pi.registerCommand("x", {
+  getArgumentCompletions: (prefix) =>
+    SUBCOMMANDS
+      .filter(s => s.startsWith(prefix))
+      .map(s => ({ value: s, label: s, description: DESCRIPTIONS[s] })),
+  handler: async (args, ctx) => {
+    const [sub, ...rest] = (args?.trim() ?? "").split(/\s+/);
+    const extra = rest.join(" ") || undefined;
+    // dispatch on sub
+  },
+});
+```
+
+Define `SUBCOMMANDS` and `DESCRIPTIONS` as a single source of truth so completions
+and error messages never drift apart.
+
+### Session lifecycle invariant (n=3)
+
+Every resource acquired in `session_start` must be released in `session_shutdown`:
+
+- Every `setInterval` → `clearInterval` in shutdown
+- Every MCP client started → `.close()` in shutdown
+- Every `ctx.ui.setStatus(key, v)` → `ctx.ui.setStatus(key, undefined)` in shutdown
+- Every `ctx.ui.setWidget(key, v)` → `ctx.ui.setWidget(key, undefined)` in shutdown
+
+State accumulated across MCP calls (tool lists, app state) lives as `let` variables
+inside the `export default function(pi)` closure. It persists across
+`session_start`/`session_shutdown` cycles within the same process — it is NOT reset
+between sessions. Design accordingly; do not assume a fresh slate on each `session_start`.
+
+### Error forwarding to the LLM (n=2: quarkus, maven)
+
+Three tiers, validated by the quarkus `/quarkus` command:
+
+1. **Direct human actions** (non-analytical slash subcommands): call the tool, show the
+   result as `ctx.ui.notify`. On failure, forward the error to the LLM via
+   `pi.sendUserMessage(…, { deliverAs: "followUp" })` with a structured prompt
+   (*"what went wrong and how should I fix it?"*).
+2. **Always-analytical subcommands** (test runs, update checks, search): always forward
+   output to the LLM regardless of success or failure — the human is not the primary
+   consumer of the raw output.
+3. **LLM-initiated tool calls**: throw from `execute()`. pi surfaces the error as a tool
+   error result; the LLM handles recovery itself.
+
+### Lazy MCP startup (n=2: quarkus, idea)
+
+Both extensions lazy-start their MCP connection; the strategies differ by use case:
+
+**Promise coalescing** (quarkus): best when startup is expensive and multiple callers
+may race (e.g. `session_start` fires a background startup while the first tool call
+also triggers `ensureClient`).
+
+```typescript
+async function ensureClient(cwd: string): Promise<McpClient> {
+  if (state.client) return state.client;
+  if (!state.pendingStart) {
+    state.pendingStart = startClient(cwd).then(c => {
+      state.client = c;
+      state.pendingStart = null;
+      return c;
+    });
+  }
+  return state.pendingStart;
+}
+```
+
+**Poll-with-inflight-guard** (idea): best when the connection is self-healing via
+polling and you want to avoid overlapping health checks.
+
+```typescript
+let tickInFlight = false;
+async function tick(): Promise<void> {
+  if (tickInFlight) return;
+  tickInFlight = true;
+  try { /* probe, reconnect if needed */ }
+  finally { tickInFlight = false; }
+}
+pollTimer = setInterval(() => tick().catch(…), POLL_INTERVAL_MS);
+```
+
+### Context auto-injection (n=2: quarkus, idea)
+
+Both extensions inject the pi working directory into MCP calls so the LLM never needs
+to think about it — but they do it differently:
+
+- **idea**: always merges `projectPath = ctx.cwd` into *every* tool call inside
+  `execute()`, overriding whatever the LLM supplies.
+- **quarkus**: injects `projectDir = cwd` explicitly in slash-command handlers but
+  does NOT auto-inject it in the dynamically-registered MCP proxy tools. The LLM
+  must supply `projectDir` when calling those tools directly.
+
+The idea approach (always-inject in `execute`) is safer: the LLM cannot accidentally
+omit or mis-specify the project path. Prefer it for any extension that wraps an
+external server that requires a project scope.
+
+### MCP client pattern (n=2: quarkus, idea)
+
+Any extension that wraps an external MCP server needs an `McpClient`. Do not write one
+from scratch — pick the right transport variant below and use the existing implementation
+as your starting point.
+
+**What is fixed (the JSON-RPC session layer — same in every client):**
+
+```typescript
+class McpClient {
+  private nextId = 1;
+  private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+
+  // 1. Send initialize request
+  // 2. Send notifications/initialized (no response expected)
+  // 3. Call tools/list to discover available tools
+  private async _initialize(): Promise<void> { … }
+
+  private request<T>(method: string, params?: unknown): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const id = this.nextId++;
+      this.pending.set(id, { resolve, reject });
+      this.send({ jsonrpc: "2.0", id, method, params });
+    });
+  }
+
+  // On each incoming line/message: look up pending by id, resolve or reject.
+  // On close/error: reject all pending with a descriptive error, then invoke close listeners.
+
+  async callTool(name: string, args: Record<string, unknown>): Promise<…> {
+    await this.ready; // wait for _initialize() to complete
+    return this.request("tools/call", { name, arguments: args });
+  }
+
+  async close(): Promise<void> {
+    // reject remaining pending, then tear down the transport
+  }
+}
+```
+
+**What varies (the transport layer — pick one):**
+
+| Transport | When to use | Reference |
+|-----------|-------------|-------------------|
+| **stdio** | Server is a local process you spawn (e.g. jbang, npx) | `extensions/quarkus/mcp-client.ts` |
+| **SSE**   | Server is a local HTTP endpoint (e.g. IDE plugin, dev server) | `extensions/idea/mcp-client.ts` + `sse-transport.ts` + `jsonrpc.ts` |
+
+**stdio specifics** (`quarkus`):
+- `spawn(command, args, { stdio: ["pipe","pipe","pipe"] })` and `readline` over stdout.
+- Messages are newline-delimited JSON; write to `proc.stdin`.
+- The process may take tens of seconds to start — use the promise-coalescing pattern
+  from the *Lazy MCP startup* section above.
+- Register a `close` listener on the child process to detect crashes and reset state.
+
+**SSE specifics** (`idea`):
+- Connect to `<baseUrl>/sse`; the server pushes a `endpoint` event containing the
+  POST URL for client-to-server messages.
+- Send requests as HTTP POST; receive responses as SSE events on the same stream.
+- Each tool call should carry a `timeoutMs` because HTTP requests can hang silently.
+- The `projectPath` context injection (always overwrite with `ctx.cwd`) belongs in
+  `callTool`, not at the transport level — see *Context auto-injection* above.
+
+**Protocol constants to copy verbatim** (wrong values here cause silent failures):
+
+```typescript
+// initialize request
+{ protocolVersion: "2024-11-05",  // or "2025-03-26" for newer servers
+  capabilities: {},
+  clientInfo: { name: "pi-<extension>", version: "0.1.0" } }
+
+// after initialize response — send as notification (no id, no response expected)
+{ jsonrpc: "2.0", method: "notifications/initialized" }
+
+// tool discovery
+request("tools/list", {})
+
+// tool call
+request("tools/call", { name, arguments: args })
+```
+
+## Still to be answered
+
+- **Testing strategy:** what's worth a unit test vs. what requires the real pi runtime?
+  (`idea` has a unit + e2e split; `maven` has unit tests only; `quarkus` has unit tests.
+  No cross-cutting rule has emerged yet.)
+- **Debug logging convention:** `idea` uses `IDEA_MCP_DEBUG_FILE=<path>` for opt-in
+  append-only debug output. `pi`'s TUI swallows `console.error`, making file output the
+  only user-visible diagnostic. If a second extension adopts the same env-var shape
+  (`<EXTENSION>_DEBUG_FILE`), promote it here. Not promoted at n=1 because the naming
+  convention encodes a deliberate choice, not a pi-API workaround.

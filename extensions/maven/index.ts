@@ -177,6 +177,14 @@ export default function (pi: ExtensionAPI) {
     pi.sendMessage({ customType: MAVEN_MSG_TYPE, content: "", display: true, details });
   }
 
+  // Keep display-only /maven messages out of the LLM context.
+  pi.on("context", async (event) => {
+    const filtered = event.messages.filter(
+      (m) => !(m.role === "custom" && m.customType === MAVEN_MSG_TYPE),
+    );
+    return filtered.length === event.messages.length ? undefined : { messages: filtered };
+  });
+
   // ── maven_project_info ────────────────────────────────────────────────────
 
   pi.registerTool({
