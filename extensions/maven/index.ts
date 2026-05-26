@@ -23,6 +23,7 @@ import { buildSummary as buildCollapsedSummary } from "./run-result-renderer.ts"
 import { formatProjectInfo } from "./formatter.ts";
 import type { ProjectInfoJson } from "./formatter.ts";
 import { buildMavenArgs, buildMavenCommand, type MavenAction, type TestScope } from "./maven-run.ts";
+import { loadJarSkills } from "./jar-skills.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
 import { saveRawLog } from "./log-store.ts";
@@ -150,6 +151,13 @@ async function runMaven(
 const MAVEN_MSG_TYPE = "maven";
 
 export default function (pi: ExtensionAPI) {
+
+  pi.on("resources_discover", async (event) => {
+    const skills = await loadJarSkills(event.cwd);
+    if (!skills) return {};
+    return { skillPaths: [skills] };
+  });
+
 
   // ── Message renderer ───────────────────────────────────────────────────────
   // All /maven command output goes through here — styled, no LLM involved.
