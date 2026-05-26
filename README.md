@@ -120,13 +120,13 @@ descriptions; it may later be promoted to a dedicated `idea` skill if cross-tool
 
 **Available tools** — tagged with the 2×3 modes vocabulary above (31 total):
 
-| Modes | Tools |
-|-------|-------|
-| explore/code | `search_symbol`, `get_symbol_info`, `search_in_files_by_regex`, `find_files_by_glob`, `list_directory_tree`, `get_project_modules`, `read_file`, `get_file_problems`, `get_project_dependencies`, `get_file_text_by_path`, `get_repositories` |
-| explore/session | `get_all_open_file_paths` |
-| modify/session | `open_file_in_editor` |
-| modify/code | `rename_refactoring`, `reformat_file` |
-| modify/runtime | `build_project`, `get_run_configurations`, `execute_run_configuration` |
+| Modes                            | Tools                                                                                                                                                                                                                                                                                                                                               |
+|----------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| explore/code                     | `search_symbol`, `get_symbol_info`, `search_in_files_by_regex`, `find_files_by_glob`, `list_directory_tree`, `get_project_modules`, `read_file`, `get_file_problems`, `get_project_dependencies`, `get_file_text_by_path`, `get_repositories`                                                                                                       |
+| explore/session                  | `get_all_open_file_paths`                                                                                                                                                                                                                                                                                                                           |
+| modify/session                   | `open_file_in_editor`                                                                                                                                                                                                                                                                                                                               |
+| modify/code                      | `rename_refactoring`, `reformat_file`                                                                                                                                                                                                                                                                                                               |
+| modify/runtime                   | `build_project`, `get_run_configurations`, `execute_run_configuration`                                                                                                                                                                                                                                                                              |
 | explore/runtime + modify/runtime | `xdebug_get_stack`, `xdebug_get_frame_values`, `xdebug_get_threads`, `xdebug_evaluate_expression`, `xdebug_get_value_by_path`, `xdebug_get_debugger_status`, `xdebug_list_breakpoints`, `xdebug_set_breakpoint`, `xdebug_remove_breakpoint`, `xdebug_set_variable`, `xdebug_run_to_line`, `xdebug_control_session`, `xdebug_start_debugger_session` |
 
 **Explicitly out of scope** (duplicates of pi built-ins):

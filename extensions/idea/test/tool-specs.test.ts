@@ -52,6 +52,10 @@ describe("collapsed-result specs", () => {
     const { collapseResult } = ALL_TOOLS.find((t) => t.name === "find_files_by_glob")!;
     expect(collapseResult!.summary({ files: ["a", "b", "c", "d"] })).toBe("4 files");
   });
+  it("list_directory_tree has guidance warning about unlimited depth", () => {
+    const spec = ALL_TOOLS.find((t) => t.name === "list_directory_tree");
+    expect(spec?.guidance).toMatch(/unlimited/i);
+  });
   it("list_directory_tree summary shows the directory name", () => {
     const { collapseResult } = ALL_TOOLS.find((t) => t.name === "list_directory_tree")!;
     expect(collapseResult!.summary({ traversedDirectory: "/foo/bar/baz" })).toBe("baz/");

@@ -76,6 +76,7 @@ export const ALL_TOOLS: IdeaToolSpec[] = [
   {
     name: "list_directory_tree",
     category: "explore/code",
+    guidance: "omitting maxDepth gives unlimited depth, which can produce enormous output on projects with deep subtrees (e.g. node_modules, .git/objects).",
     collapseResult: {
       summary: (p) => {
         const dir = (p as { traversedDirectory?: string })?.traversedDirectory ?? "";
