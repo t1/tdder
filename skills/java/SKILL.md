@@ -1,10 +1,6 @@
 ---
 name: java
-description: >
-  This skill should be used when working on Java projects and the user asks to "write Java code",
-  "add a Java class", "fix Java code", or when TDD or clean code skills are active in a project
-  containing .java files. Provides Java-specific coding conventions that complement the
-  language-agnostic TDD and clean code skills.
+description: Always load this skill when writing or modifying Java source code, regardless of how the user phrases the request.
 version: 0.2.0
 ---
 
