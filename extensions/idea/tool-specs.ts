@@ -406,7 +406,8 @@ export const ALL_TOOLS: IdeaToolSpec[] = [
     category: "modify/code",
     guidance:
       "Use this instead of a text search-replace when renaming a symbol." +
-      " It handles imports, qualified names, and JavaDoc references correctly.",
+      " It handles imports, qualified names, and JavaDoc references correctly." +
+      " Does not clean up old .class files — delete them manually after renaming (see the java skill).",
   },
   {
     name: "reformat_file",

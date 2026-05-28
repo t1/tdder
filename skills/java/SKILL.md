@@ -31,8 +31,8 @@ Use `most_recent_lts` only when explicitly asked for LTS.
 ### Line Breaks
 
 * Annotations can often go in the same line as the field or method they apply to.
-  * Java: `@Override void foo() {` or `@Test void should() {`
-  * Kotlin: `override fun foo() {` or `@Test fun should() {`
+    * Java: `@Override void foo() {` or `@Test void should() {`
+    * Kotlin: `override fun foo() {` or `@Test fun should() {`
 
 ### Local Type Inference
 
@@ -114,6 +114,7 @@ it makes, e.g., unit-testing (when DI is *not* available) easier than field inje
 Injecting with setters is very seldom a sensible option to choose.
 
 If the value of a field doesn't depend on constructor parameters, then use a **Field initializer**:
+
 * Java: `private final HttpClient httpClient = HttpClient.newHttpClient();`
 * Kotlin: `val httpClient = HttpClient.newHttpClient()`
 
@@ -121,6 +122,7 @@ If the value of a field doesn't depend on constructor parameters, then use a **F
 
 Only well-defined APIs are `public`. Internals are not, but have limited visibility,
 i.e. `private` if possible. If wider than `private` is needed:
+
 * Java: use package-private (no modifier)
 * Kotlin: use `internal` (module-visible)
 
@@ -133,6 +135,7 @@ i.e. `private` if possible. If wider than `private` is needed:
 Use BDD-style method names.
 
 Java:
+
 ```java
 @Test void shouldParseSemanticVersion() { ... }
 
@@ -140,6 +143,7 @@ Java:
 ```
 
 Kotlin:
+
 ```kotlin
 @Test fun shouldParseSemanticVersion() { ... }
 
@@ -178,6 +182,7 @@ If the `then` of AssertJ is imported, too, fall back to `verify`.
 - Within these blocks, do **not** add empty lines between statements
 
 Java:
+
 ```java
 @Test void shouldCalculateTotal() {
     given(taxService.rate()).willReturn(0.1);
@@ -190,6 +195,7 @@ Java:
 ```
 
 Kotlin:
+
 ```kotlin
 @Test fun shouldCalculateTotal() {
     given(taxService.rate()).willReturn(0.1)
@@ -206,12 +212,14 @@ Kotlin:
 Use `@Disabled` for pending tests in the TDD test list.
 
 Java:
+
 ```java
 @Disabled("TODO handle the edge case")
 @Test void shouldHandleEdgeCase() { ... }
 ```
 
 Kotlin:
+
 ```kotlin
 @Disabled("TODO handle the edge case")
 @Test fun shouldHandleEdgeCase() { ... }
@@ -228,7 +236,8 @@ If the setup is expensive, use `@BeforeAll` and a static field within the nested
 (and `@AfterAll` to clean up).
 Keep setup close to tests — only extract to `@BeforeEach` when multiple tests repeat the same given block.
 
-In Kotlin, `@Nested` test classes must be declared as `inner class` (JUnit 5 requires non-static nested classes, and Kotlin nested classes are static by default).
+In Kotlin, `@Nested` test classes must be declared as `inner class` (JUnit 5 requires non-static nested classes, and
+Kotlin nested classes are static by default).
 
 ```java
 class OrderServiceTest {
@@ -301,6 +310,34 @@ Name ST classes with the suffix `ST` (e.g., `BookResourceST.java` / `BookResourc
 naming is not recognized by Surefire's default includes, so STs are
 automatically excluded from normal test runs.
 
+## Moving and Deleting Source Files
+
+The Java compiler outputs one `.class` file per top-level type **plus** one per nested/anonymous
+type or lambda capture, all derived from a single source file. Build tools normally only add new class files;
+they never remove stale ones. So if you move or delete a source file, orphaned `.class` files remain
+on disk and can silently shadow the new code or cause other problems.
+
+This also happens with refactoring tools, i.e. a rename does **not** clean up old class files.
+
+After deleting, moving, or renaming a source file, immediately remove the matching class files from the build output:
+
+```bash
+# Example: deleted src/main/java/com/example/Foo.java
+find target/classes/com/example \( -name 'Foo.class' -o -name 'Foo$*.class' \) -delete
+
+# Example: deleted src/test/java/com/example/FooTest.java
+find target/test-classes/com/example \( -name 'FooTest.class' -o -name 'FooTest$*.class' \) -delete
+```
+
+The glob `Foo$*.class` covers all nested and anonymous types (`Foo$Bar.class`, `Foo$1.class`, …).
+
+Derive the output path from the source path by replacing:
+
+* `src/main/java` → `target/classes`
+* `src/test/java` → `target/test-classes`
+
+(For multi-module projects, prefix with the module directory as usual.)
+
 ## IDE Integration
 
 After editing Java or Kotlin files, always check with the IDE for:
@@ -313,7 +350,8 @@ After editing Java or Kotlin files, always check with the IDE for:
 
 **Java:** Use `package-info.java` files for package-level documentation and architecture.
 
-**Kotlin:** Use a `package.md` file (or a dedicated `.kt` file with only a `@file:` doc comment and the package declaration) for the same purpose.
+**Kotlin:** Use a `package.md` file (or a dedicated `.kt` file with only a `@file:` doc comment and the package
+declaration) for the same purpose.
 
 Read these files whenever you read files within a package.
 They should help agents to work with the files in a package.
