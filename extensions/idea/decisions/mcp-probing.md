@@ -16,6 +16,25 @@ A raw script hit CRLF parsing issues and timed out; `McpClient` already handles 
 `npx tsx - << 'EOF'`, `import.meta.url` resolves to something stdin-based, not the
 extensions/idea directory. Hardcode the project path in the `McpClient` constructor.
 
+### Probe 0 — discover which projects are open
+
+Every probe needs a valid `projectPath`. If you don't know the path, call any tool with a
+fake path — the MCP returns a `project-not-open` error whose payload contains the full list:
+
+```bash
+cd extensions/idea
+npx tsx - << 'EOF'
+import { McpClient } from "./mcp-client.ts";
+
+const client = new McpClient("http://127.0.0.1:64342", "/nonexistent");
+await client.connect();
+const result = await client.callTool("get_project_modules", {});
+console.log(JSON.stringify(result, null, 2)); // { kind: "project-not-open", openProjects: [...] }
+await client.close();
+process.exit(0);
+EOF
+```
+
 ### Probe 1 — list all tools and their parameters
 
 Run once to see what the IDE currently advertises. Reveals parameter names and which are required.

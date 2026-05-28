@@ -14,6 +14,10 @@ The extension **always injects pi's CWD as `projectPath`** on every forwarded ca
 Same way the LLM doesn't think about filesystem roots — `projectPath` is implicit context
 the extension manages, not something the LLM should reason about.
 
+Consequence: all `idea_*` tools are **scoped to the single IntelliJ window where pi is
+running**. Other open IDEA windows are invisible. To work on a different project, start pi
+from that project's directory.
+
 ### SSE client: hand-rolled
 
 We use `node:http` + manual SSE frame parsing + JSON-RPC over POST. No `eventsource`
@@ -66,8 +70,8 @@ Read `decisions/e2e-testing.md` when working on the E2E suite.
 
 ### Adding or modifying a tool spec
 
-Read `decisions/mcp-probing.md` before adding a tool or changing a tool spec (probe scripts,
-`collapseResult` design, live-IDE verification rule).
+Read `decisions/mcp-probing.md` before probing the MCP directly, adding a tool, or changing a
+tool spec (probe scripts, `collapseResult` design, live-IDE verification rule).
 
 ### Debugger design decisions
 
