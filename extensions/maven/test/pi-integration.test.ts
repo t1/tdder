@@ -10,7 +10,7 @@
  *   - maven_run keeps raw Maven output out of LLM-facing content
  */
 
-import { describe, it, before } from "node:test";
+import { beforeAll as before, describe, it } from "vitest";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";

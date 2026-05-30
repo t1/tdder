@@ -18,6 +18,12 @@ subdirectory is a TypeScript project with a test suite — see its own README fo
 
 When doing TDD on the maven extension, load and follow the `tdd` skill.
 
+Root dependency sections in `package.json` (`dependencies`, `devDependencies`,
+`peerDependencies`, `optionalDependencies`) are generated from the union of the same
+sections in `extensions/*/package.json`. There is currently no mechanism for manual
+root-only entries in those sections. After changing an extension dependency section,
+run `npm run sync-root-deps` and keep `package-lock.json` in sync.
+
 To test changes, load the plugin locally:
 
 ```bash

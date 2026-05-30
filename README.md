@@ -211,6 +211,16 @@ Add tdder to the `plugin` array in your `opencode.json` (global or project-level
 
 Restart OpenCode. The plugin auto-installs and registers all skills.
 
+## Development
+
+Development currently requires [`tsx`](https://github.com/privatenumber/tsx) to be installed and available on your `PATH`, because repo utility scripts use a `#!/usr/bin/env tsx` shebang.
+
+For example:
+
+```bash
+npm install -g tsx
+```
+
 ## Updating
 
 ### Claude Code

@@ -1,13 +1,14 @@
 {
   "name": "tdder",
   "version": "0.4.0",
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "test": "node --import tsx/esm --test extensions/maven/test/*.test.ts"
-  },
-  "devDependencies": {
-    "tsx": "^4.21.0"
+    "sync-root-deps": "./scripts/sync-root-deps.ts",
+    "test": "npm --prefix extensions/maven test"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
@@ -15,8 +16,24 @@
     "@earendil-works/pi-tui": "*",
     "typebox": "*"
   },
+  "tdder": {
+    "generatedRootDependencies": true,
+    "generatedRootDependenciesNote": "Root dependency sections (dependencies, devDependencies, peerDependencies, optionalDependencies) are generated from extensions/*/package.json by npm run sync-root-deps. Do not edit those sections in the root package.json manually."
+  },
   "pi": {
-    "extensions": ["./extensions"],
-    "skills": ["./skills"]
+    "extensions": [
+      "./extensions"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.7"
   }
 }
