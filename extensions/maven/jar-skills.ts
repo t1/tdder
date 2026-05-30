@@ -1,3 +1,5 @@
+import { detectRunner } from "./project-info.ts";
+
 export function parseClasspath(raw: string): string[] {
   return raw ? raw.split(":") : [];
 }
@@ -58,8 +60,9 @@ async function resolveClasspath(projectRoot: string, signal?: AbortSignal): Prom
   const { tmpdir } = await import("node:os");
 
   const outFile = join(mkdtempSync(join(tmpdir(), "pi-cp-")), "classpath.txt");
+  const runner = detectRunner(projectRoot);
   const result = spawnSync(
-    "mvn",
+    runner,
     ["dependency:build-classpath", "-q", `-Dmdep.outputFile=${outFile}`],
     { cwd: projectRoot, encoding: "utf8", signal },
   );
