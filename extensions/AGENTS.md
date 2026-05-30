@@ -28,6 +28,31 @@ instead — ask the pi docs, ask the user, or make a deliberate choice and docum
 
 ## Extension-specific learnings
 
+### Vendored shared TypeScript for separately released extensions
+
+Separately released extension packages in this repo vendor shared TypeScript from
+elsewhere in the repo instead of publishing a separate shared package. Treat the sync
+step as mandatory development hygiene.
+
+#### Sync contract
+
+- The extension must expose a `scripts.sync` command in its `package.json`.
+- `scripts.sync` must be idempotent.
+- `pretest` and `prepack` must delegate to that same sync command; don't duplicate the
+  sync logic in multiple scripts.
+- `scripts.sync` may update only generated/vendor files for that extension. It must not
+  have unrelated side effects elsewhere in the repo.
+- Never edit generated vendored files directly; edit the canonical source, then sync.
+
+#### Workflow
+
+- `pretest` and `prepack` are only backstops.
+- After every edit to shared code or to a consumer of that shared code, run
+  `npm run sync-extensions` from the repo root immediately.
+- Do not keep working against a stale vendored copy and assume packaging will fix it
+  later.
+
+
 Patterns that turn out to be specific to one extension live in that extension's own `AGENTS.md`
 (e.g. `extensions/idea/AGENTS.md`). Only patterns that are validated across multiple extensions
 get promoted to this file.

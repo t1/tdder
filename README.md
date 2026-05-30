@@ -221,6 +221,12 @@ For example:
 npm install -g tsx
 ```
 
+Separately released pi extension packages in this repo vendor shared TypeScript from
+elsewhere in this repo during a sync step instead of publishing a separate shared
+package. In this setup, `pretest` and `prepack` are only safety nets: after every edit
+to shared code or to a consumer of that shared code, run `npm run sync-extensions`
+immediately so development, tests, and packaging all see the same files.
+
 ## Updating
 
 ### Claude Code

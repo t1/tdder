@@ -24,6 +24,15 @@ sections in `extensions/*/package.json`. There is currently no mechanism for man
 root-only entries in those sections. After changing an extension dependency section,
 run `npm run sync-root-deps` and keep `package-lock.json` in sync.
 
+Separately released pi extension packages vendor shared TypeScript into the package at
+sync time instead of publishing a separate shared package. In this repo, `pretest` and
+`prepack` are safety nets, not the normal development workflow: after every edit to
+shared code or to a consumer of that shared code, run `npm run sync-extensions`
+immediately before continuing.
+
+If you change any extension's `scripts.sync`, re-run and verify `npm run sync-extensions`
+from the repo root, not just the extension-local sync command.
+
 To test changes, load the plugin locally:
 
 ```bash
