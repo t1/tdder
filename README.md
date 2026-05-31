@@ -102,6 +102,7 @@ that has shell access (Claude Code, OpenCode, Cursor, terminal, …). Requires
 tdder-maven info                                          # project structure
 tdder-maven run test --scope surefire --selector MyTest    # unit tests
 tdder-maven run test --scope failsafe                      # integration tests
+tdder-maven run test --scope all --project blog            # tests in a module
 tdder-maven run package                                    # package without tests
 tdder-maven lookup-version org.assertj assertj-core        # Maven Central lookup
 ```

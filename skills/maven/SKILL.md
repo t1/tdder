@@ -32,9 +32,35 @@ Prefer structured tools over raw `mvn` commands — they enforce correct flags,
 parse Surefire/Failsafe XML reports, extract compilation errors, and return
 a single JSON result.
 
-**When the `maven_run` tool is available** (pi extension), use it.
+**When the `maven_run` tool is available** (pi extension), use it:
 
-**Otherwise, use the `tdder-maven` CLI** via `bash`:
+```
+# Unit tests
+maven_run(action="test", testScope="surefire")
+
+# Unit test with selector
+maven_run(action="test", testScope="surefire", selector="MyTest#myMethod")
+
+# Integration tests only
+maven_run(action="test", testScope="failsafe")
+
+# All tests
+maven_run(action="test", testScope="all")
+
+# Tests in a specific module (multi-module project)
+maven_run(action="test", testScope="all", project="module-a")
+
+# Package without tests
+maven_run(action="package")
+
+# Package a specific module
+maven_run(action="package", project="module-a")
+```
+
+**Only if `maven_run` is not available**, fall back to the `tdder-maven` CLI via `bash`,
+if `tdder-maven` is available on the PATH.
+Never `cd` to a subdirectory — use `--project` instead to avoid security prompts.
+The module name is the subdirectory name, matching the `<module>` element in the parent POM:
 
 ```bash
 # Unit tests
@@ -49,6 +75,9 @@ tdder-maven run test --scope failsafe
 # All tests
 tdder-maven run test --scope all
 
+# Tests in a specific module (multi-module project)
+tdder-maven run test --scope all --project module-a
+
 # Package without tests
 tdder-maven run package
 
@@ -59,11 +88,14 @@ tdder-maven info
 tdder-maven lookup-version org.assertj assertj-core
 ```
 
-| `--scope`    | What runs                        | Maven command                                        |
-|--------------|----------------------------------|------------------------------------------------------|
-| `surefire`   | Unit tests only                  | `mvn test`                                           |
-| `failsafe`   | Integration tests only           | `mvn verify -Dskip.surefire.tests=true -DskipITs=false` |
-| `all`        | Unit tests + integration tests   | `mvn verify -DskipITs=false`                         |
+| `--scope`  | What runs                      | Maven command                                           |
+|------------|--------------------------------|---------------------------------------------------------|
+| `surefire` | Unit tests only                | `mvn test`                                              |
+| `failsafe` | Integration tests only         | `mvn verify -Dskip.surefire.tests=true -DskipITs=false` |
+| `all`      | Unit tests + integration tests | `mvn verify -DskipITs=false`                            |
+
+Only if neither the pi extension's `maven_run` tool nor the `tdder-maven` cli command is available, fall back
+to raw `mvn`.
 
 #### `SUREFIRE_SKIP_NOT_CONFIGURED` error
 

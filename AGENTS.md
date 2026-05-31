@@ -11,6 +11,18 @@ Don't apologize for any mistakes, just tell me what went wrong and how we can st
 **AND NEVER EVER PUBLISH ANYTHING** — no `git push`, `maven deploy`, `npm publish`, or anything that sends
 code or artifacts to a remote. All that's the user's privilege!
 
+## File locations
+
+`~/.pi/agent/git/github.com/t1/tdder/` is a read-only checkout of **this** project.
+Never edit files there — edit the files in this repo instead.
+
+## Claude Code vs pi
+
+Claude Code agents cannot use tools provided by pi extensions (e.g. `maven_run`,
+`maven_project_info`, `maven_lookup_version`). They must use the equivalent
+`tdder-maven` CLI commands via `bash` instead. The skill files document both
+approaches.
+
 ## Development
 
 Most content is Markdown or JSON with no build step. However, the `extensions/maven/`
