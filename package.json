@@ -6,6 +6,9 @@
   ],
   "license": "Apache-2.0",
   "type": "module",
+  "bin": {
+    "tdder-maven": "./extensions/maven/cli.ts"
+  },
   "scripts": {
     "sync-extensions": "./scripts/sync-extensions.ts",
     "sync-root-deps": "./scripts/sync-root-deps.ts",

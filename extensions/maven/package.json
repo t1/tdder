@@ -5,6 +5,9 @@
   "keywords": ["pi-package"],
   "license": "Apache-2.0",
   "type": "module",
+  "bin": {
+    "tdder-maven": "./cli.ts"
+  },
   "scripts": {
     "sync": "mkdir -p vendor && cp ../shared/context-filter.ts vendor/",
     "pretest": "npm run sync",

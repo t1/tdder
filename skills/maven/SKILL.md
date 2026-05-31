@@ -26,12 +26,40 @@ mvn test
 mvn test -Dtest=VersionTest
 ```
 
-### Running Tests with `maven_run`
+### Structured Maven execution
 
-When the `maven_run` tool is available, always use it instead of raw `bash`.
-For `action=test`, `testScope` is **required**:
+Prefer structured tools over raw `mvn` commands — they enforce correct flags,
+parse Surefire/Failsafe XML reports, extract compilation errors, and return
+a single JSON result.
 
-| `testScope`  | What runs                        | Maven command                                        |
+**When the `maven_run` tool is available** (pi extension), use it.
+
+**Otherwise, use the `tdder-maven` CLI** via `bash`:
+
+```bash
+# Unit tests
+tdder-maven run test --scope surefire
+
+# Unit test with selector
+tdder-maven run test --scope surefire --selector 'MyTest#myMethod'
+
+# Integration tests only
+tdder-maven run test --scope failsafe
+
+# All tests
+tdder-maven run test --scope all
+
+# Package without tests
+tdder-maven run package
+
+# Project info (module tree, runner, coordinates)
+tdder-maven info
+
+# Look up latest version on Maven Central
+tdder-maven lookup-version org.assertj assertj-core
+```
+
+| `--scope`    | What runs                        | Maven command                                        |
 |--------------|----------------------------------|------------------------------------------------------|
 | `surefire`   | Unit tests only                  | `mvn test`                                           |
 | `failsafe`   | Integration tests only           | `mvn verify -Dskip.surefire.tests=true -DskipITs=false` |
@@ -39,8 +67,8 @@ For `action=test`, `testScope` is **required**:
 
 #### `SUREFIRE_SKIP_NOT_CONFIGURED` error
 
-If you call `maven_run` with `testScope=failsafe` and the tool returns
-`SUREFIRE_SKIP_NOT_CONFIGURED`, it means the project POM does not define a
+If `tdder-maven run test --scope failsafe` (or `maven_run` with `testScope=failsafe`)
+returns `SUREFIRE_SKIP_NOT_CONFIGURED`, the project POM does not define a
 `skip.surefire.tests` property wired to Surefire's `<skip>` configuration.
 Tell the user and ask them to add the following to the POM before retrying:
 
@@ -59,7 +87,7 @@ Tell the user and ask them to add the following to the POM before retrying:
 </plugin>
 ```
 
-Do NOT fall back to `testScope=all` on your own — ask the user what they want to do.
+Do NOT fall back to `--scope all` on your own — ask the user what they want to do.
 
 ### Integration Tests That Execute the Built JAR
 
@@ -92,20 +120,20 @@ All dependency versions — including frameworks like Quarkus — are published 
 Always fetch from the actual Maven Central to verify the latest version. Never trust version
 numbers from web search snippets or other secondary sources.
 
-Look up the latest version from repo1.maven.org's `maven-metadata.xml`. The
-`<release>` element contains the latest published version (which may be a
-milestone or RC — filter accordingly).
+**When `maven_lookup_version` tool is available** (pi extension), use it.
+
+**Otherwise, use the CLI:**
+
+```bash
+tdder-maven lookup-version org.assertj assertj-core
+tdder-maven lookup-version io.quarkus quarkus-bom --include-prereleases
+```
+
+**If `tdder-maven` is not available**, fall back to curl:
 
 ```bash
 curl -s -A "Mozilla/5.0" \
   "https://repo1.maven.org/maven2/{groupId with . replaced by /}/{artifactId}/maven-metadata.xml"
-```
-
-For example, to find the latest version of `org.assertj:assertj-core`:
-
-```bash
-curl -s -A "Mozilla/5.0" \
-  "https://repo1.maven.org/maven2/org/assertj/assertj-core/maven-metadata.xml"
 ```
 
 A browser-like User-Agent (`-A "Mozilla/5.0"`) is required — repo1.maven.org

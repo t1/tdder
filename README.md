@@ -86,6 +86,28 @@ notification. On failure, the error output is automatically forwarded to the LLM
 *"what went wrong and how should I fix it?"*. `update`, `test-affected`, and `test-all` always route through the LLM
 because their output is analytical rather than a simple pass/fail signal.
 
+### maven
+
+Structured Maven execution with test report parsing, compilation error extraction, and
+Maven Central version lookup.
+
+**pi extension:** registers `maven_run`, `maven_project_info`, and `maven_lookup_version` tools
+plus a `/maven` slash command with live progress widget.
+
+**CLI (`tdder-maven`):** the same functionality as a standalone command, usable from any agent
+that has shell access (Claude Code, OpenCode, Cursor, terminal, …). Requires
+[`tsx`](https://github.com/privatenumber/tsx) on your `PATH`.
+
+```bash
+tdder-maven info                                          # project structure
+tdder-maven run test --scope surefire --selector MyTest    # unit tests
+tdder-maven run test --scope failsafe                      # integration tests
+tdder-maven run package                                    # package without tests
+tdder-maven lookup-version org.assertj assertj-core        # Maven Central lookup
+```
+
+All commands output structured JSON to stdout. Non-zero exit code on failure.
+
 ### idea (pi only)
 
 Integrates the official JetBrains [MCP Server](https://plugins.jetbrains.com/plugin/26071-mcp-server)
