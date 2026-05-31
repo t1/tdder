@@ -10,7 +10,8 @@
     "tdder-maven": "./extensions/maven/cli.ts"
   },
   "scripts": {
-    "sync-extensions": "./scripts/sync-extensions.ts",
+    "sync-extensions": "./scripts/sync-extensions.sh",
+    "prepare": "./scripts/sync-extensions.sh",
     "sync-root-deps": "./scripts/sync-root-deps.ts",
     "test": "npm --prefix extensions/maven test"
   },
