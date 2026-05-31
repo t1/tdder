@@ -47,6 +47,28 @@ export function buildMavenArgs(opts: MavenCommandOptions): string[] {
 }
 
 /**
+ * Build a sandbox-safe environment for the Maven child process.
+ *
+ * Inside sandboxed runtimes (e.g. Claude Code), the Kotlin compiler daemon
+ * tries to create session files in the system temp dir which the sandbox
+ * blocks.  Redirecting TMPDIR and java.io.tmpdir to <projectRoot>/target
+ * avoids the issue — Maven creates that directory on its own.
+ *
+ * @param projectRoot  Absolute path to the Maven project root.
+ * @param baseEnv      Environment to inherit (defaults to process.env).
+ */
+export function buildMavenEnv(
+  projectRoot: string,
+  baseEnv: Record<string, string | undefined> = process.env,
+): Record<string, string | undefined> {
+  const tmpdir = `${projectRoot}/target`;
+  const existingOpts = baseEnv.MAVEN_OPTS ?? "";
+  const tmpProp = `-Djava.io.tmpdir=${tmpdir}`;
+  const mavenOpts = existingOpts ? `${existingOpts} ${tmpProp}` : tmpProp;
+  return { ...baseEnv, TMPDIR: tmpdir, MAVEN_OPTS: mavenOpts };
+}
+
+/**
  * Build a human-readable command string for display and result payloads.
  * Selectors containing '#' are quoted for readability.
  */

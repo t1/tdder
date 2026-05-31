@@ -18,7 +18,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { findProjectRoot, detectRunner, buildProjectTree, stripInternalFields, resolveCurrentProject } from "./project-info.ts";
-import { buildMavenArgs, buildMavenCommand, type MavenAction, type TestScope } from "./maven-run.ts";
+import { buildMavenArgs, buildMavenCommand, buildMavenEnv, type MavenAction, type TestScope } from "./maven-run.ts";
 import { collectReportPaths, parseReports } from "./report-collector.ts";
 import { extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
 import { saveRawLog } from "./log-store.ts";
@@ -80,6 +80,7 @@ async function runMaven(
     const [cmd, ...spawnArgs] = args;
     const child = spawn(cmd, spawnArgs, {
       cwd: projectRoot,
+      env: buildMavenEnv(projectRoot),
       stdio: ["ignore", "pipe", "pipe"],
     });
 

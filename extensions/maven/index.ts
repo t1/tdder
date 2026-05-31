@@ -22,7 +22,7 @@ import { renderMavenMessage, renderMavenRunResult } from "./renderer.ts";
 import { buildSummary as buildCollapsedSummary } from "./run-result-renderer.ts";
 import { formatProjectInfo } from "./formatter.ts";
 import type { ProjectInfoJson } from "./formatter.ts";
-import { buildMavenArgs, buildMavenCommand, type MavenAction, type TestScope } from "./maven-run.ts";
+import { buildMavenArgs, buildMavenCommand, buildMavenEnv, type MavenAction, type TestScope } from "./maven-run.ts";
 import { loadJarSkills } from "./jar-skills.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
@@ -117,6 +117,7 @@ async function runMaven(
     const [cmd, ...spawnArgs] = args;
     const child = spawn(cmd, spawnArgs, {
       cwd: projectRoot,
+      env: buildMavenEnv(projectRoot),
       stdio: ["ignore", "pipe", "pipe"],
     });
 

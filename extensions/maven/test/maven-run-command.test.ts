@@ -1,6 +1,6 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { buildMavenArgs, buildMavenCommand } from "../maven-run.ts";
+import { buildMavenArgs, buildMavenCommand, buildMavenEnv } from "../maven-run.ts";
 
 describe("buildMavenCommand", () => {
   it("builds a surefire (unit test) command", () => {
@@ -56,6 +56,29 @@ describe("buildMavenCommand", () => {
       project: "services/service-a",
     });
     assert.equal(cmd, "./mvnw -pl services/service-a test");
+  });
+});
+
+describe("buildMavenEnv", () => {
+  it("sets TMPDIR to <projectRoot>/target", () => {
+    const env = buildMavenEnv("/my/project", {});
+    assert.equal(env.TMPDIR, "/my/project/target");
+  });
+
+  it("sets MAVEN_OPTS with java.io.tmpdir when no prior MAVEN_OPTS", () => {
+    const env = buildMavenEnv("/my/project", {});
+    assert.equal(env.MAVEN_OPTS, "-Djava.io.tmpdir=/my/project/target");
+  });
+
+  it("appends java.io.tmpdir to existing MAVEN_OPTS", () => {
+    const env = buildMavenEnv("/my/project", { MAVEN_OPTS: "-Xmx512m" });
+    assert.equal(env.MAVEN_OPTS, "-Xmx512m -Djava.io.tmpdir=/my/project/target");
+  });
+
+  it("preserves other env vars", () => {
+    const env = buildMavenEnv("/my/project", { HOME: "/home/user", PATH: "/usr/bin" });
+    assert.equal(env.HOME, "/home/user");
+    assert.equal(env.PATH, "/usr/bin");
   });
 });
 
