@@ -25,6 +25,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { McpClient, type McpTool } from "./mcp-client.js";
 import { extractText, filterLogSince } from "./utils.js";
+import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -944,13 +945,9 @@ export default async function (pi: ExtensionAPI) {
 
   // Keep display-only custom messages out of the LLM context.
   // QUARKUS_TEST_MSG_TYPE is intentionally excluded: its content IS the LLM prompt.
-  pi.on("context", async (event) => {
-    const DISPLAY_ONLY = new Set([QUARKUS_INFO_MSG_TYPE, QUARKUS_STARTUP_LOG_MSG_TYPE]);
-    const filtered = event.messages.filter(
-      (m) => !(m.role === "custom" && DISPLAY_ONLY.has(m.customType ?? "")),
-    );
-    return filtered.length === event.messages.length ? undefined : { messages: filtered };
-  });
+  pi.on("context", async (event) =>
+    filterDisplayOnlyMessages(event, QUARKUS_INFO_MSG_TYPE, QUARKUS_STARTUP_LOG_MSG_TYPE),
+  );
 
   // -------------------------------------------------------------------------
   // /quarkus command — direct MCP dispatch, LLM on failure

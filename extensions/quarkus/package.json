@@ -5,6 +5,9 @@
   "keywords": ["pi-package"],
   "license": "Apache-2.0",
   "type": "module",
+  "scripts": {
+    "sync": "mkdir -p vendor && cp ../shared/mcp-client.ts ../shared/context-filter.ts vendor/"
+  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",

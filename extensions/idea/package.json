@@ -6,9 +6,12 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
+    "sync": "mkdir -p vendor && cp ../shared/mcp-client.ts ../shared/context-filter.ts ../shared/tool-activation.ts vendor/",
+    "pretest": "npm run sync",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "vitest run --config vitest.e2e.config.ts"
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "prepack": "npm run sync"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

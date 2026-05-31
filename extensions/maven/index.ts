@@ -29,6 +29,7 @@ import { extractCompilationErrors, extractBuildErrors } from "./report-parser.ts
 import { saveRawLog } from "./log-store.ts";
 import { buildMetadataUrl, fetchMetadata, selectVersion } from "./version-lookup.ts";
 import type { MavenProjectInfo, MavenRunResult, VersionLookupResult } from "./types.ts";
+import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -178,12 +179,9 @@ export default function (pi: ExtensionAPI) {
   }
 
   // Keep display-only /maven messages out of the LLM context.
-  pi.on("context", async (event) => {
-    const filtered = event.messages.filter(
-      (m) => !(m.role === "custom" && m.customType === MAVEN_MSG_TYPE),
-    );
-    return filtered.length === event.messages.length ? undefined : { messages: filtered };
-  });
+  pi.on("context", async (event) =>
+    filterDisplayOnlyMessages(event, MAVEN_MSG_TYPE),
+  );
 
   // ── maven_project_info ────────────────────────────────────────────────────
 

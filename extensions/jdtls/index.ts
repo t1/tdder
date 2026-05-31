@@ -11,6 +11,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { setToolsActive } from "./vendor/tool-activation.ts";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -90,6 +91,31 @@ export default function (pi: ExtensionAPI): void {
   }
 
   // -------------------------------------------------------------------------
+  // Shared helpers
+  // -------------------------------------------------------------------------
+
+  function requireReady(): JdtlsServer {
+    if (!server || server.status !== "ready") {
+      throw new Error("jdtls is not ready — wait for 'jdtls ●' in the footer");
+    }
+    return server;
+  }
+
+  interface ResolvedFile {
+    absPath: string;
+    text: string;
+    uri: string;
+  }
+
+  function resolveFile(rawPath: string): ResolvedFile {
+    const absPath = isAbsolute(rawPath) ? rawPath : resolve(cwd, rawPath);
+    if (!existsSync(absPath)) throw new Error(`File not found: ${absPath}`);
+    const text = readFileSync(absPath, "utf-8");
+    const uri = pathToFileURL(absPath).toString();
+    return { absPath, text, uri };
+  }
+
+  // -------------------------------------------------------------------------
   // get_file_problems tool
   // -------------------------------------------------------------------------
 
@@ -116,23 +142,13 @@ export default function (pi: ExtensionAPI): void {
     },
 
     async execute(_id, params) {
-      if (!server || server.status !== "ready") {
-        throw new Error("jdtls is not ready — wait for 'jdtls ●' in the footer");
-      }
-
+      const srv = requireReady();
       const { path: rawPath } = params as { path: string };
-      const absPath = isAbsolute(rawPath) ? rawPath : resolve(cwd, rawPath);
-
-      if (!existsSync(absPath)) {
-        throw new Error(`File not found: ${absPath}`);
-      }
-
-      const text = readFileSync(absPath, "utf-8");
-      const uri = pathToFileURL(absPath).toString();
+      const { absPath, text, uri } = resolveFile(rawPath);
 
       // Collect publishDiagnostics notifications using a quiet-period strategy.
       const collector = new DiagnosticsCollector(DIAGNOSTICS_QUIET_MS);
-      const unsub = server.addNotificationListener((method, notifParams) => {
+      const unsub = srv.addNotificationListener((method, notifParams) => {
         if (method !== "textDocument/publishDiagnostics") return;
         const { uri: notifUri, diagnostics } = notifParams as {
           uri: string;
@@ -145,9 +161,9 @@ export default function (pi: ExtensionAPI): void {
       });
 
       try {
-        server.didOpen(uri, text);
+        srv.didOpen(uri, text);
         const collected = await collector.promise;
-        server.didClose(uri);
+        srv.didClose(uri);
         const output = formatDiagnostics(uri, rawPath, collected);
         return {
           content: [{ type: "text" as const, text: output }],
@@ -184,13 +200,10 @@ export default function (pi: ExtensionAPI): void {
     },
 
     async execute(_id, params) {
-      if (!server || server.status !== "ready") {
-        throw new Error("jdtls is not ready — wait for 'jdtls ●' in the footer");
-      }
-
+      const srv = requireReady();
       const { query } = params as { query: string };
 
-      if (!server.serviceReady) {
+      if (!srv.serviceReady) {
         return {
           content: [{
             type: "text" as const,
@@ -201,7 +214,7 @@ export default function (pi: ExtensionAPI): void {
         };
       }
 
-      const raw = await server.request("workspace/symbol", { query });
+      const raw = await srv.request("workspace/symbol", { query });
       const symbols = (raw ?? []) as LspSymbolInformation[];
       return {
         content: [{ type: "text" as const, text: formatSymbols(symbols, cwd, query) }],
@@ -241,28 +254,20 @@ export default function (pi: ExtensionAPI): void {
     },
 
     async execute(_id, params) {
-      if (!server || server.status !== "ready") {
-        throw new Error("jdtls is not ready — wait for 'jdtls ●' in the footer");
-      }
-
+      const srv = requireReady();
       const { path: rawPath, line, character } = params as {
         path: string;
         line: number;
         character: number;
       };
-
-      const absPath = isAbsolute(rawPath) ? rawPath : resolve(cwd, rawPath);
-      if (!existsSync(absPath)) throw new Error(`File not found: ${absPath}`);
-
-      const text = readFileSync(absPath, "utf-8");
-      const uri = pathToFileURL(absPath).toString();
+      const { text, uri } = resolveFile(rawPath);
 
       // Convert from 1-based (user-facing) to 0-based (LSP)
       const lspLine = line - 1;
       const lspChar = character - 1;
 
-      const result = await withOpenDoc(server, uri, text, () =>
-        server!.request("textDocument/hover", {
+      const result = await withOpenDoc(srv, uri, text, () =>
+        srv.request("textDocument/hover", {
           textDocument: { uri },
           position: { line: lspLine, character: lspChar },
         }),
@@ -304,25 +309,17 @@ export default function (pi: ExtensionAPI): void {
     },
 
     async execute(_id, params) {
-      if (!server || server.status !== "ready") {
-        throw new Error("jdtls is not ready — wait for 'jdtls ●' in the footer");
-      }
-
+      const srv = requireReady();
       const { path: rawPath, line, character, newName } = params as {
         path: string; line: number; character: number; newName: string;
       };
-
-      const absPath = isAbsolute(rawPath) ? rawPath : resolve(cwd, rawPath);
-      if (!existsSync(absPath)) throw new Error(`File not found: ${absPath}`);
-
-      const text = readFileSync(absPath, "utf-8");
-      const uri = pathToFileURL(absPath).toString();
+      const { text, uri } = resolveFile(rawPath);
       const position = { line: line - 1, character: character - 1 };
 
-      const results = await withOpenDoc(server, uri, text, async () => {
+      const results = await withOpenDoc(srv, uri, text, async () => {
         // Validate with prepareRename first for a better error on library symbols.
         try {
-          await server!.request("textDocument/prepareRename", {
+          await srv.request("textDocument/prepareRename", {
             textDocument: { uri },
             position,
           });
@@ -336,7 +333,7 @@ export default function (pi: ExtensionAPI): void {
           throw err;
         }
 
-        const workspaceEdit = await server!.request("textDocument/rename", {
+        const workspaceEdit = await srv.request("textDocument/rename", {
           textDocument: { uri },
           position,
           newName,
@@ -378,19 +375,12 @@ export default function (pi: ExtensionAPI): void {
     },
 
     async execute(_id, params) {
-      if (!server || server.status !== "ready") {
-        throw new Error("jdtls is not ready — wait for 'jdtls ●' in the footer");
-      }
-
+      const srv = requireReady();
       const { path: rawPath } = params as { path: string };
-      const absPath = isAbsolute(rawPath) ? rawPath : resolve(cwd, rawPath);
-      if (!existsSync(absPath)) throw new Error(`File not found: ${absPath}`);
+      const { absPath, text, uri } = resolveFile(rawPath);
 
-      const text = readFileSync(absPath, "utf-8");
-      const uri = pathToFileURL(absPath).toString();
-
-      const edits = await withOpenDoc(server, uri, text, () =>
-        server!.request("textDocument/formatting", {
+      const edits = await withOpenDoc(srv, uri, text, () =>
+        srv.request("textDocument/formatting", {
           textDocument: { uri },
           options: { tabSize: 4, insertSpaces: true },
         }),
@@ -444,12 +434,9 @@ export default function (pi: ExtensionAPI): void {
     },
 
     async execute(_id, params) {
-      if (!server || server.status !== "ready") {
-        throw new Error("jdtls is not ready — wait for 'jdtls ●' in the footer");
-      }
-
+      const srv = requireReady();
       const { uri } = params as { uri: string };
-      const content = await server.request("java/classFileContents", { uri }) as string | null;
+      const content = await srv.request("java/classFileContents", { uri }) as string | null;
 
       if (!content) {
         return {
@@ -495,23 +482,15 @@ export default function (pi: ExtensionAPI): void {
     },
 
     async execute(_id, params) {
-      if (!server || server.status !== "ready") {
-        throw new Error("jdtls is not ready — wait for 'jdtls ●' in the footer");
-      }
-
+      const srv = requireReady();
       const { path: rawPath, line, character = 1, applyTitle } = params as {
         path: string; line: number; character?: number; applyTitle?: string;
       };
-
-      const absPath = isAbsolute(rawPath) ? rawPath : resolve(cwd, rawPath);
-      if (!existsSync(absPath)) throw new Error(`File not found: ${absPath}`);
-
-      const text = readFileSync(absPath, "utf-8");
-      const uri = pathToFileURL(absPath).toString();
+      const { text, uri } = resolveFile(rawPath);
       const position = { line: line - 1, character: character - 1 };
 
-      const rawActions = await withOpenDoc(server, uri, text, () =>
-        server!.request("textDocument/codeAction", {
+      const rawActions = await withOpenDoc(srv, uri, text, () =>
+        srv.request("textDocument/codeAction", {
           textDocument: { uri },
           range: { start: position, end: position },
           context: { diagnostics: [], triggerKind: 1 },
@@ -554,7 +533,7 @@ export default function (pi: ExtensionAPI): void {
         );
       }
 
-      const cmdResult = await server.request("workspace/executeCommand", {
+      const cmdResult = await srv.request("workspace/executeCommand", {
         command: cmd.command,
         arguments: cmd.arguments ?? [],
       });
@@ -598,13 +577,11 @@ export default function (pi: ExtensionAPI): void {
     },
 
     async execute(_id, _params) {
-      if (!server || server.status !== "ready") {
-        throw new Error("jdtls is not ready — wait for 'jdtls ●' in the footer");
-      }
+      const srv = requireReady();
 
       let raw: unknown;
       try {
-        raw = await server.request("workspace/executeCommand", {
+        raw = await srv.request("workspace/executeCommand", {
           command: "java.project.listSourcePaths",
           arguments: [],
         });
@@ -629,14 +606,7 @@ export default function (pi: ExtensionAPI): void {
   // -------------------------------------------------------------------------
 
   function applyToolActivation(status: ServerStatus): void {
-    const allTools = pi.getAllTools().map((t) => t.name);
-    const others = pi.getActiveTools().filter((n) => !JDTLS_TOOL_NAMES.includes(n));
-    if (status === "ready") {
-      const present = JDTLS_TOOL_NAMES.filter((n) => allTools.includes(n));
-      pi.setActiveTools([...others, ...present]);
-    } else {
-      pi.setActiveTools(others);
-    }
+    setToolsActive(pi, JDTLS_TOOL_NAMES, status === "ready");
   }
 
   pi.on("session_start", (_event, ctx) => {

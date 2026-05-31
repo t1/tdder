@@ -1,14 +1,22 @@
 #!/usr/bin/env tsx
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
+import {
+  type ExtensionPackage,
+  type PackageJson,
+  extensionsDir,
+  findExtensionPackages,
+  lockfilePath,
+  readJson,
+  rootPackagePath,
+  writeJson,
+} from "./shared.ts";
 
 type DependencyMap = Record<string, string>;
 const dependencyFields = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"] as const;
 type DependencyField = (typeof dependencyFields)[number];
 
-type PackageJson = {
+type FullPackageJson = PackageJson & {
   license?: string;
   dependencies?: DependencyMap;
   devDependencies?: DependencyMap;
@@ -18,7 +26,6 @@ type PackageJson = {
     generatedRootDependencies?: boolean;
     generatedRootDependenciesNote?: string;
   };
-  [key: string]: unknown;
 };
 
 type Lockfile = {
@@ -32,18 +39,6 @@ type Lockfile = {
   };
 };
 
-type ExtensionPackage = {
-  dirName: string;
-  packagePath: string;
-  packageJson: PackageJson;
-};
-
-const scriptDir = dirname(fileURLToPath(import.meta.url));
-const rootDir = dirname(scriptDir);
-const rootPackagePath = join(rootDir, "package.json");
-const lockfilePath = join(rootDir, "package-lock.json");
-const extensionsDir = join(rootDir, "extensions");
-
 const GENERATED_NOTE =
   "Root dependency sections (dependencies, devDependencies, peerDependencies, optionalDependencies) are generated from extensions/*/package.json by npm run sync-root-deps. Do not edit those sections in the root package.json manually.";
 
@@ -55,7 +50,7 @@ try {
 }
 
 function main(): void {
-  const rootPackage = readJson<PackageJson>(rootPackagePath);
+  const rootPackage = readJson<FullPackageJson>(rootPackagePath);
   assertGeneratedMetadata(rootPackage);
 
   const extensionPackages = findExtensionPackages();
@@ -104,26 +99,6 @@ function main(): void {
   console.log(`Root dependency sections are in sync across ${extensionPackages.length} extension package(s).`);
 }
 
-function findExtensionPackages(): ExtensionPackage[] {
-  if (!existsSync(extensionsDir)) {
-    fail(`Missing extensions directory: ${extensionsDir}`);
-  }
-
-  return readdirSync(extensionsDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => ({
-      dirName: entry.name,
-      packagePath: join(extensionsDir, entry.name, "package.json"),
-    }))
-    .filter(({ packagePath }) => existsSync(packagePath))
-    .map(({ dirName, packagePath }) => ({
-      dirName,
-      packagePath,
-      packageJson: readJson<PackageJson>(packagePath),
-    }))
-    .sort((a, b) => a.dirName.localeCompare(b.dirName));
-}
-
 function collectExtensionDependencies(
   extensionPackages: ExtensionPackage[],
   fieldName: DependencyField,
@@ -133,7 +108,7 @@ function collectExtensionDependencies(
 
   for (const extensionPackage of extensionPackages) {
     const dependencies = readDependencyBlock(
-      extensionPackage.packageJson,
+      extensionPackage.packageJson as FullPackageJson,
       extensionPackage.packagePath,
       fieldName,
     );
@@ -155,7 +130,7 @@ function collectExtensionDependencies(
   return Object.fromEntries([...versionByDependency.entries()].sort(([a], [b]) => a.localeCompare(b)));
 }
 
-function assertGeneratedMetadata(rootPackage: PackageJson): void {
+function assertGeneratedMetadata(rootPackage: FullPackageJson): void {
   if (rootPackage.tdder?.generatedRootDependencies !== true) {
     fail("package.json must declare tdder.generatedRootDependencies=true");
   }
@@ -166,10 +141,13 @@ function assertGeneratedMetadata(rootPackage: PackageJson): void {
   }
 }
 
-function assertLicenseConsistency(rootPackage: PackageJson, extensionPackages: ExtensionPackage[]): void {
+function assertLicenseConsistency(rootPackage: FullPackageJson, extensionPackages: ExtensionPackage[]): void {
   const rootLicense = normalizeLicense(rootPackage.license, rootPackagePath);
   for (const extensionPackage of extensionPackages) {
-    const extensionLicense = normalizeLicense(extensionPackage.packageJson.license, extensionPackage.packagePath);
+    const extensionLicense = normalizeLicense(
+      (extensionPackage.packageJson as FullPackageJson).license,
+      extensionPackage.packagePath,
+    );
     if (extensionLicense !== rootLicense) {
       fail(
         `${extensionPackage.packagePath}: license '${extensionLicense}' does not match root package license '${rootLicense}'`,
@@ -186,11 +164,11 @@ function normalizeLicense(license: unknown, sourcePath: string): string {
 }
 
 function readDependencyBlock(
-  packageJson: PackageJson,
+  packageJson: FullPackageJson,
   packagePath: string,
   fieldName: DependencyField,
 ): DependencyMap {
-  const block: PackageJson[DependencyField] = packageJson[fieldName];
+  const block = packageJson[fieldName];
   if (block === undefined) return {};
   if (!isDependencyMap(block)) {
     fail(`${packagePath}: '${fieldName}' must be an object with non-empty string values when present`);
@@ -226,18 +204,6 @@ function isDependencyMap(value: unknown): value is DependencyMap {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function readJson<T>(path: string): T {
-  try {
-    return JSON.parse(readFileSync(path, "utf8")) as T;
-  } catch (error) {
-    fail(`Failed to parse JSON from ${path}: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-function writeJson(path: string, value: unknown): void {
-  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function fail(message: string): never {

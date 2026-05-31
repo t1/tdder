@@ -6,8 +6,11 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
+    "sync": "mkdir -p vendor && cp ../shared/tool-activation.ts vendor/",
+    "pretest": "npm run sync",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepack": "npm run sync"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

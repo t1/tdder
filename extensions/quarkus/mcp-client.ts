@@ -1,55 +1,61 @@
 /**
- * MCP stdio client - JSON-RPC 2.0 over a child process stdin/stdout.
+ * Quarkus MCP client — wraps the shared McpClient with stdio transport.
  *
- * Handles the MCP initialize handshake, tool discovery, and tool calls.
- * All communication is newline-delimited JSON (one message per line).
+ * The child process lifecycle (spawn, kill, close listeners) lives here
+ * because it's specific to how quarkus-agent-mcp is launched.
  */
 
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
+import {
+  McpClient as McpClientBase,
+  type McpTransport,
+  type McpTool,
+  type McpToolResult,
+} from "./vendor/mcp-client.ts";
 
-export interface McpTool {
-  name: string;
-  description?: string;
-  inputSchema: Record<string, unknown>;
+export type { McpTool, McpToolResult };
+
+// ---------------------------------------------------------------------------
+// StdioTransport
+// ---------------------------------------------------------------------------
+
+/**
+ * MCP transport over a child process's stdin/stdout.
+ * Messages are newline-delimited JSON (one message per line).
+ */
+class StdioTransport implements McpTransport {
+  onMessage: (data: string) => void = () => {};
+
+  constructor(
+    private readonly readable: NodeJS.ReadableStream,
+    private readonly writable: NodeJS.WritableStream,
+  ) {}
+
+  async connect(): Promise<void> {
+    const rl = createInterface({ input: this.readable });
+    rl.on("line", (line) => {
+      if (line.trim()) this.onMessage(line);
+    });
+  }
+
+  async send(message: string): Promise<void> {
+    (this.writable as NodeJS.WritableStream & { write(s: string): void }).write(message + "\n");
+  }
+
+  async close(): Promise<void> {
+    (this.writable as NodeJS.WritableStream & { end(): void }).end();
+  }
 }
 
-export interface McpToolResult {
-  content: Array<{ type: string; text?: string; [k: string]: unknown }>;
-  isError?: boolean;
-}
-
-interface JsonRpcRequest {
-  jsonrpc: "2.0";
-  id: number;
-  method: string;
-  params?: unknown;
-}
-
-interface JsonRpcNotification {
-  jsonrpc: "2.0";
-  method: string;
-  params?: unknown;
-}
-
-interface JsonRpcResponse {
-  jsonrpc: "2.0";
-  id: number;
-  result?: unknown;
-  error?: { code: number; message: string; data?: unknown };
-}
-
-type Pending = {
-  resolve: (value: unknown) => void;
-  reject: (reason: unknown) => void;
-};
+// ---------------------------------------------------------------------------
+// McpClient
+// ---------------------------------------------------------------------------
 
 export class McpClient {
   private proc: ChildProcessWithoutNullStreams;
-  private nextId = 1;
-  private pending = new Map<number, Pending>();
+  private client: McpClientBase;
   private ready: Promise<void>;
-  private discoveredTools: McpTool[] = [];
   private closed = false;
   private closeListeners: Array<() => void> = [];
 
@@ -60,41 +66,20 @@ export class McpClient {
       stdio: ["pipe", "pipe", "pipe"],
     });
 
-    const rl = createInterface({ input: this.proc.stdout });
-
-    rl.on("line", (line) => {
-      if (!line.trim()) return;
-      let msg: JsonRpcResponse;
-      try {
-        msg = JSON.parse(line);
-      } catch {
-        return;
-      }
-      if (msg.id !== undefined) {
-        const p = this.pending.get(msg.id);
-        if (p) {
-          this.pending.delete(msg.id);
-          if (msg.error) {
-            p.reject(new Error(`MCP error ${msg.error.code}: ${msg.error.message}`));
-          } else {
-            p.resolve(msg.result);
-          }
-        }
-      }
-      // Notifications (no id) are ignored for now
+    const transport = new StdioTransport(this.proc.stdout, this.proc.stdin);
+    this.client = new McpClientBase(transport, {
+      clientInfo: { name: "pi-quarkus-mcp", version: "1.0.0" },
+      protocolVersion: "2025-03-26",
+      capabilities: { roots: { listChanged: false } },
     });
 
     this.proc.on("close", () => {
       this.closed = true;
-      // Reject any pending requests
-      for (const [, p] of this.pending) {
-        p.reject(new Error("MCP server process closed"));
-      }
-      this.pending.clear();
+      this.client.close().catch(() => {});
       for (const cb of this.closeListeners) cb();
     });
 
-    this.ready = this._initialize();
+    this.ready = this.client.connect();
   }
 
   addCloseListener(cb: () => void): void {
@@ -102,43 +87,7 @@ export class McpClient {
   }
 
   get tools(): McpTool[] {
-    return this.discoveredTools;
-  }
-
-  private send(msg: JsonRpcRequest | JsonRpcNotification): void {
-    if (this.closed) return;
-    this.proc.stdin.write(JSON.stringify(msg) + "\n");
-  }
-
-  private request<T>(method: string, params?: unknown): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      if (this.closed) {
-        reject(new Error("MCP client is closed"));
-        return;
-      }
-      const id = this.nextId++;
-      this.pending.set(id, {
-        resolve: resolve as (v: unknown) => void,
-        reject,
-      });
-      this.send({ jsonrpc: "2.0", id, method, params });
-    });
-  }
-
-  private async _initialize(): Promise<void> {
-    // Send initialize request
-    await this.request("initialize", {
-      protocolVersion: "2025-03-26",
-      capabilities: { roots: { listChanged: false } },
-      clientInfo: { name: "pi-quarkus-mcp", version: "1.0.0" },
-    });
-
-    // Send initialized notification (no id, no response expected)
-    this.send({ jsonrpc: "2.0", method: "notifications/initialized" });
-
-    // Discover tools
-    const result = await this.request<{ tools: McpTool[] }>("tools/list", {});
-    this.discoveredTools = result?.tools ?? [];
+    return this.client.tools;
   }
 
   /** Wait for the MCP handshake and tool discovery to complete. */
@@ -149,28 +98,18 @@ export class McpClient {
   /** Call a tool by name with the given arguments. */
   async callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<McpToolResult> {
     await this.ready;
-
-    if (signal?.aborted) {
-      throw new Error("Cancelled");
-    }
-
-    const result = await this.request<McpToolResult>("tools/call", {
-      name,
-      arguments: args,
-    });
-
-    return result ?? { content: [] };
+    return this.client.callTool(name, args, undefined, signal);
   }
 
   /** Gracefully shut down the MCP client. */
   async close(): Promise<void> {
     if (this.closed) return;
     try {
-      await this.request("shutdown", {}).catch(() => {});
+      await this.client.request("shutdown", {}).catch(() => {});
     } catch {
       // ignore
     }
-    this.proc.stdin.end();
+    await this.client.close();
     this.proc.kill();
     this.closed = true;
   }

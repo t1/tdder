@@ -4,7 +4,10 @@ import { Box, Text } from "@earendil-works/pi-tui";
 import { spawn } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { Type, type TSchema } from "typebox";
-import { McpClient } from "./mcp-client.ts";
+import { McpClient } from "./vendor/mcp-client.ts";
+import { SseTransport } from "./sse-transport.ts";
+import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
+import { setToolsActive } from "./vendor/tool-activation.ts";
 import { parseSafe, prettyPrintContent } from "./render-helpers.ts";
 import { ALL_TOOLS } from "./tool-specs.ts";
 
@@ -54,6 +57,59 @@ function log(msg: string, err?: unknown): void {
   }
 }
 
+type ToolCallResult =
+  | { kind: "ok"; content: unknown }
+  | { kind: "project-not-open"; openProjects: string[] };
+
+function callIdeaTool(
+  client: McpClient,
+  name: string,
+  args: object,
+  projectPath: string,
+  timeoutMs = 5000,
+): Promise<ToolCallResult> {
+  return client.callTool(name, { ...args, projectPath }, timeoutMs).then((result) => {
+    if (result.isError) {
+      const notOpen = classifyProjectNotOpen(result.content);
+      if (notOpen) return notOpen;
+    }
+    return { kind: "ok" as const, content: result.content };
+  });
+}
+
+function classifyProjectNotOpen(
+  content: unknown,
+): { kind: "project-not-open"; openProjects: string[] } | null {
+  if (!Array.isArray(content)) return null;
+  for (const item of content) {
+    const text = (item as { text?: string }).text;
+    if (typeof text !== "string") continue;
+    const marker = '{"projects":';
+    const idx = text.indexOf(marker);
+    if (idx < 0) continue;
+    try {
+      const parsed = JSON.parse(text.slice(idx)) as {
+        projects: Array<{ path: string }>;
+      };
+      return {
+        kind: "project-not-open",
+        openProjects: parsed.projects.map((p) => p.path),
+      };
+    } catch {
+      // fall through to next item
+    }
+  }
+  return null;
+}
+
+function createIdeaClient(baseUrl: string): McpClient {
+  return new McpClient(new SseTransport(baseUrl), {
+    clientInfo: { name: "pi-idea", version: "0.1.0" },
+    protocolVersion: "2024-11-05",
+    defaultTimeoutMs: 5000,
+  });
+}
+
 type ProbeState =
   | { kind: "disconnected" }
   | { kind: "project-not-open"; openProjects: string[] }
@@ -69,8 +125,8 @@ function scheduleConfirmWidget(
   ctxRef: ExtensionContext | undefined,
 ): ReturnType<typeof setTimeout> {
   return setTimeout(() => {
-    client.callTool("xdebug_get_debugger_status", {}).then((status) => {
-      const text = (status as { content?: Array<{ text: string }> }).content?.[0]?.text ?? "{}";
+    client.callTool("xdebug_get_debugger_status", {}).then((result) => {
+      const text = result.content?.find((c) => c.type === "text")?.text ?? "{}";
       const sessions = (JSON.parse(text) as { sessions?: unknown[] }).sessions ?? [];
       if (sessions.length === 0) {
         spawn("open", ["-na", "IntelliJ IDEA", "--args", ctxRef?.cwd ?? ""], {
@@ -127,16 +183,7 @@ export default function (pi: ExtensionAPI) {
 
   function applyToolActivation(): void {
     if (!toolsRegistered) return;
-    const allTools = pi.getAllTools().map((t) => t.name);
-    const otherActive = pi
-      .getActiveTools()
-      .filter((n) => !IDEA_TOOL_NAMES.includes(n));
-    if (state.kind === "ok") {
-      const present = IDEA_TOOL_NAMES.filter((n) => allTools.includes(n));
-      pi.setActiveTools([...otherActive, ...present]);
-    } else {
-      pi.setActiveTools(otherActive);
-    }
+    setToolsActive(pi, IDEA_TOOL_NAMES, state.kind === "ok");
   }
 
   /** Build a tool parameter schema from IntelliJ's inputSchema, stripping injected keys so the LLM never sees them. */
@@ -217,7 +264,7 @@ export default function (pi: ExtensionAPI) {
           : undefined;
 
         try {
-          let result = await client.callTool(tool.name, mergedParams, timeoutMs);
+          let result = await callIdeaTool(client, tool.name, mergedParams, ctxRef!.cwd, timeoutMs);
           while (
             result.kind === "ok" &&
             (result.content as Array<{ text?: string }> | null)
@@ -226,7 +273,7 @@ export default function (pi: ExtensionAPI) {
           ) {
             log(`tool '${tool.name}' rejected during indexing — retrying in ${INDEXING_RETRY_DELAY_MS}ms`);
             await new Promise((r) => setTimeout(r, INDEXING_RETRY_DELAY_MS));
-            result = await client.callTool(tool.name, mergedParams, timeoutMs);
+            result = await callIdeaTool(client, tool.name, mergedParams, ctxRef!.cwd, timeoutMs);
           }
           if (result.kind === "project-not-open") {
             throw new Error(
@@ -291,7 +338,7 @@ export default function (pi: ExtensionAPI) {
     const prevLabel = stateLabel(state);
     try {
       if (!client) {
-        client = new McpClient(IDEA_BASE_URL, ctxRef.cwd);
+        client = createIdeaClient(IDEA_BASE_URL);
         const tConnect = isFirst ? performance.now() : 0;
         try {
           await client.connect();
@@ -305,7 +352,7 @@ export default function (pi: ExtensionAPI) {
       let probe;
       const tProbe = isFirst ? performance.now() : 0;
       try {
-        probe = await client.callTool("get_project_modules", {});
+        probe = await callIdeaTool(client, "get_project_modules", {}, ctxRef.cwd);
         if (isFirst) log(`tick #1 probe ok (${(performance.now() - tProbe).toFixed(1)}ms)`);
       } catch (err) {
         await transitionToDisconnected(prevLabel, err);
@@ -362,12 +409,9 @@ export default function (pi: ExtensionAPI) {
   });
 
   // Keep our own custom messages out of the LLM context. They're for the human only.
-  pi.on("context", async (event) => {
-    const filtered = event.messages.filter(
-      (m) => !(m.role === "custom" && m.customType === TOOLS_LIST_CUSTOM_TYPE),
-    );
-    return filtered.length === event.messages.length ? undefined : { messages: filtered };
-  });
+  pi.on("context", async (event) =>
+    filterDisplayOnlyMessages(event, TOOLS_LIST_CUSTOM_TYPE),
+  );
 
   // Styled in-chat renderer for the tools listing.
   pi.registerMessageRenderer<ToolsListDetails>(TOOLS_LIST_CUSTOM_TYPE, (message, _options, theme) => {
