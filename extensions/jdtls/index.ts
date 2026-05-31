@@ -115,6 +115,13 @@ export default function (pi: ExtensionAPI): void {
     return { absPath, text, uri };
   }
 
+  function simpleRenderCall(label: string, formatArgs?: (args: unknown) => string) {
+    return (args: unknown) => ({
+      render() { return [formatArgs ? `${label}: ${formatArgs(args)}` : label]; },
+      invalidate() {},
+    });
+  }
+
   // -------------------------------------------------------------------------
   // get_file_problems tool
   // -------------------------------------------------------------------------
@@ -133,13 +140,7 @@ export default function (pi: ExtensionAPI): void {
       }),
     }),
 
-    renderCall(args) {
-      const filePath = (args as { path: string }).path;
-      return {
-        render() { return [`get_file_problems: ${filePath}`]; },
-        invalidate() {},
-      };
-    },
+    renderCall: simpleRenderCall("get_file_problems", (a) => (a as { path: string }).path),
 
     async execute(_id, params) {
       const srv = requireReady();
@@ -191,13 +192,7 @@ export default function (pi: ExtensionAPI): void {
       }),
     }),
 
-    renderCall(args) {
-      const { query } = args as { query: string };
-      return {
-        render() { return [`search_symbol: ${query}`]; },
-        invalidate() {},
-      };
-    },
+    renderCall: simpleRenderCall("search_symbol", (a) => (a as { query: string }).query),
 
     async execute(_id, params) {
       const srv = requireReady();
@@ -245,13 +240,10 @@ export default function (pi: ExtensionAPI): void {
       }),
     }),
 
-    renderCall(args) {
-      const { path: p, line, character } = args as { path: string; line: number; character: number };
-      return {
-        render() { return [`get_symbol_info: ${p}:${line}:${character}`]; },
-        invalidate() {},
-      };
-    },
+    renderCall: simpleRenderCall("get_symbol_info", (a) => {
+      const { path: p, line, character } = a as { path: string; line: number; character: number };
+      return `${p}:${line}:${character}`;
+    }),
 
     async execute(_id, params) {
       const srv = requireReady();
@@ -298,15 +290,10 @@ export default function (pi: ExtensionAPI): void {
       newName: Type.String({ description: "The new name for the symbol." }),
     }),
 
-    renderCall(args) {
-      const { path: p, line, character, newName } = args as {
-        path: string; line: number; character: number; newName: string;
-      };
-      return {
-        render() { return [`rename_refactoring: ${p}:${line}:${character} → ${newName}`]; },
-        invalidate() {},
-      };
-    },
+    renderCall: simpleRenderCall("rename_refactoring", (a) => {
+      const { path: p, line, character, newName } = a as { path: string; line: number; character: number; newName: string };
+      return `${p}:${line}:${character} → ${newName}`;
+    }),
 
     async execute(_id, params) {
       const srv = requireReady();
@@ -366,13 +353,7 @@ export default function (pi: ExtensionAPI): void {
       path: Type.String({ description: "Absolute or project-relative path to the Java source file." }),
     }),
 
-    renderCall(args) {
-      const { path: p } = args as { path: string };
-      return {
-        render() { return [`reformat_file: ${p}`]; },
-        invalidate() {},
-      };
-    },
+    renderCall: simpleRenderCall("reformat_file", (a) => (a as { path: string }).path),
 
     async execute(_id, params) {
       const srv = requireReady();
@@ -425,13 +406,7 @@ export default function (pi: ExtensionAPI): void {
       }),
     }),
 
-    renderCall(args) {
-      const { uri } = args as { uri: string };
-      return {
-        render() { return [`read_file: ${uri}`]; },
-        invalidate() {},
-      };
-    },
+    renderCall: simpleRenderCall("read_file", (a) => (a as { uri: string }).uri),
 
     async execute(_id, params) {
       const srv = requireReady();
@@ -470,16 +445,11 @@ export default function (pi: ExtensionAPI): void {
       applyTitle: Type.Optional(Type.String({ description: "Exact title of the action to apply (from a prior list call)." })),
     }),
 
-    renderCall(args) {
-      const { path: p, line, character, applyTitle } = args as {
-        path: string; line: number; character?: number; applyTitle?: string;
-      };
+    renderCall: simpleRenderCall("code_action", (a) => {
+      const { path: p, line, character, applyTitle } = a as { path: string; line: number; character?: number; applyTitle?: string };
       const suffix = applyTitle ? ` → apply "${applyTitle}"` : " (list)";
-      return {
-        render() { return [`code_action: ${p}:${line}:${character ?? 1}${suffix}`]; },
-        invalidate() {},
-      };
-    },
+      return `${p}:${line}:${character ?? 1}${suffix}`;
+    }),
 
     async execute(_id, params) {
       const srv = requireReady();
@@ -569,12 +539,7 @@ export default function (pi: ExtensionAPI): void {
       "Useful for understanding multi-module project layout.",
     parameters: Type.Object({}),
 
-    renderCall(_args) {
-      return {
-        render() { return ["get_project_modules"]; },
-        invalidate() {},
-      };
-    },
+    renderCall: simpleRenderCall("get_project_modules"),
 
     async execute(_id, _params) {
       const srv = requireReady();
