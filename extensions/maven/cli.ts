@@ -185,7 +185,10 @@ async function cmdRun(args: Record<string, string | boolean>): Promise<void> {
   const command = buildMavenCommand(opts);
   const mavenArgs = buildMavenArgs(opts);
 
-  const { rawOutput, exitCode } = await runMaven(mavenArgs, info.projectRoot);
+  let { rawOutput, exitCode } = await runMaven(mavenArgs, info.projectRoot);
+  if (exitCode !== 0 && /resolver-status\.properties.*Operation not permitted/.test(rawOutput)) {
+    ({ rawOutput, exitCode } = await runMaven([...mavenArgs, "-o"], info.projectRoot));
+  }
   const rawMavenOut = saveRawLog(info.projectRoot, action, rawOutput);
   const success = exitCode === 0;
 
