@@ -13,6 +13,7 @@
  */
 
 import type { Readable, Writable } from "node:stream";
+import { JsonRpcSession } from "./vendor/jsonrpc-session.ts";
 
 // ---------------------------------------------------------------------------
 // Wire format helpers
@@ -78,11 +79,6 @@ export class FramedReader {
 // LspTransport
 // ---------------------------------------------------------------------------
 
-interface Pending {
-  resolve: (value: unknown) => void;
-  reject: (reason: unknown) => void;
-}
-
 /**
  * Full LSP transport over a pair of Node.js streams (typically a child process's
  * stdio).
@@ -94,68 +90,35 @@ interface Pending {
  */
 export class LspTransport {
   private readonly reader = new FramedReader();
-  private readonly pending = new Map<number, Pending>();
-  private nextId = 1;
+  private readonly session: JsonRpcSession;
 
   constructor(
     readable: Readable,
     private readonly writable: Writable,
-    private readonly onNotification: (method: string, params: unknown) => void,
+    onNotification: (method: string, params: unknown) => void,
   ) {
+    this.session = new JsonRpcSession(
+      (body) => this.writable.write(frameMessage(body)),
+      { onNotification },
+    );
+
     readable.on("data", (chunk: Buffer) => {
       for (const body of this.reader.feed(chunk)) {
-        this.dispatch(body);
+        this.session.handleMessage(body);
       }
     });
 
-    const abortPending = (err: Error) => {
-      for (const p of this.pending.values()) p.reject(err);
-      this.pending.clear();
-    };
-
-    readable.on("error", abortPending);
-    readable.on("close", () => abortPending(new Error("LSP transport closed")));
+    readable.on("error", (err: Error) => this.session.rejectAll(err));
+    readable.on("close", () => this.session.rejectAll(new Error("LSP transport closed")));
   }
 
   /** Send a request and await the server's response. */
   request(method: string, params: unknown): Promise<unknown> {
-    const id = this.nextId++;
-    const body = JSON.stringify({ jsonrpc: "2.0", id, method, params });
-    this.writable.write(frameMessage(body));
-    return new Promise<unknown>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-    });
+    return this.session.request(method, params);
   }
 
   /** Send a notification (no id, no response expected). */
   notify(method: string, params: unknown): void {
-    const body = JSON.stringify({ jsonrpc: "2.0", method, params });
-    this.writable.write(frameMessage(body));
-  }
-
-  private dispatch(body: string): void {
-    const msg = JSON.parse(body) as {
-      id?: number;
-      method?: string;
-      params?: unknown;
-      result?: unknown;
-      error?: { code: number; message: string };
-    };
-
-    if (msg.id !== undefined && msg.method === undefined) {
-      // Server → client response
-      const p = this.pending.get(msg.id);
-      if (!p) return; // unsolicited or duplicate — ignore
-      this.pending.delete(msg.id);
-      if (msg.error !== undefined) {
-        const err = Object.assign(new Error(msg.error.message), { code: msg.error.code });
-        p.reject(err);
-      } else {
-        p.resolve(msg.result ?? null);
-      }
-    } else if (msg.method !== undefined) {
-      // Server → client notification (or server-initiated request, treated same way)
-      this.onNotification(msg.method, msg.params ?? null);
-    }
+    this.session.notify(method, params);
   }
 }

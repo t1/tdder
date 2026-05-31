@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "sync": "mkdir -p vendor && cp ../shared/tool-activation.ts vendor/",
+    "sync": "mkdir -p vendor && cp ../shared/jsonrpc-session.ts ../shared/tool-activation.ts vendor/",
     "pretest": "npm run sync",
     "test": "vitest run",
     "test:watch": "vitest",
