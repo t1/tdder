@@ -1,6 +1,6 @@
 import { afterAll as after, beforeAll as before, describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { buildProjectTree } from "../project-info.ts";
 import { collectReportPaths, parseReports } from "../report-collector.ts";
@@ -222,5 +222,40 @@ describe("parseReports — non-existent report dir", () => {
     const summary = parseReports(["target/does-not-exist-at-all"], singleRoot);
     assert.equal(summary.testsRun, 0);
     assert.deepEqual(summary.failedTests, []);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseReports — since (timestamp filtering)
+// ---------------------------------------------------------------------------
+
+describe("parseReports — since filters out stale reports", () => {
+  const tmpDir = join(singleRoot, "target/surefire-reports-since");
+  const staleTime = new Date("2025-01-01T00:00:00Z");
+  const freshTime = new Date("2026-06-01T00:00:00Z");
+  const sinceMs = new Date("2026-05-01T00:00:00Z").getTime();
+
+  before(() => {
+    mkdirSync(tmpDir, { recursive: true });
+    // Stale report — modified before `since`
+    const stalePath = join(tmpDir, "TEST-StaleTest.xml");
+    writeFileSync(stalePath, readFileSync(join(reportsFixtures, "TEST-passing.xml"), "utf8"));
+    utimesSync(stalePath, staleTime, staleTime);
+    // Fresh report — modified after `since`
+    const freshPath = join(tmpDir, "TEST-FreshTest.xml");
+    writeFileSync(freshPath, readFileSync(join(reportsFixtures, "TEST-failing.xml"), "utf8"));
+    utimesSync(freshPath, freshTime, freshTime);
+  });
+  after(() => rmSync(tmpDir, { recursive: true, force: true }));
+
+  it("includes only reports modified at or after since", () => {
+    const summary = parseReports(["target/surefire-reports-since"], singleRoot, sinceMs);
+    assert.equal(summary.testsRun, 2, "should only count the fresh report (2 tests)");
+    assert.equal(summary.failures, 1);
+  });
+
+  it("includes all reports when since is omitted", () => {
+    const summary = parseReports(["target/surefire-reports-since"], singleRoot);
+    assert.equal(summary.testsRun, 5, "should count both reports (3 + 2 tests)");
   });
 });

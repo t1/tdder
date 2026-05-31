@@ -186,6 +186,7 @@ async function cmdRun(args: Record<string, string | boolean>): Promise<void> {
   const command = buildMavenCommand(opts);
   const mavenArgs = buildMavenArgs(opts);
 
+  const runStartTime = Date.now();
   let { rawOutput, exitCode } = await runMaven(mavenArgs, info.projectRoot);
   if (exitCode !== 0 && /resolver-status\.properties.*Operation not permitted/.test(rawOutput)) {
     ({ rawOutput, exitCode } = await runMaven([...mavenArgs, "-o"], info.projectRoot));
@@ -194,7 +195,8 @@ async function cmdRun(args: Record<string, string | boolean>): Promise<void> {
   const success = exitCode === 0;
 
   const reportPaths = collectReportPaths(info.projectRoot, info.projectTree, testScope);
-  const testSummary = parseReports(reportPaths, info.projectRoot);
+  const testSummary = parseReports(reportPaths, info.projectRoot, runStartTime);
+  const totalOnDisk = parseReports(reportPaths, info.projectRoot);
   const compilationErrors = extractCompilationErrors(rawOutput);
   const buildErrors = extractBuildErrors(rawOutput);
 
@@ -207,7 +209,7 @@ async function cmdRun(args: Record<string, string | boolean>): Promise<void> {
     failedTests: testSummary.failedTests,
     compilationErrors,
     buildErrors,
-    reportPaths,
+    totalOnDisk: { testsRun: totalOnDisk.testsRun, reportPaths },
     rawMavenOut,
   };
 

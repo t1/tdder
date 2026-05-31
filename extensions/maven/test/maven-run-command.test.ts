@@ -55,7 +55,7 @@ describe("buildMavenCommand", () => {
       testScope: "surefire",
       project: "services/service-a",
     });
-    assert.equal(cmd, "./mvnw -pl services/service-a test");
+    assert.equal(cmd, "./mvnw -pl services/service-a -am test");
   });
 });
 
@@ -125,6 +125,6 @@ describe("buildMavenArgs", () => {
 
   it("adds -pl when project is specified", () => {
     const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire", project: "services/service-a" });
-    assert.deepEqual(args, ["./mvnw", "-pl", "services/service-a", "test"]);
+    assert.deepEqual(args, ["./mvnw", "-pl", "services/service-a", "-am", "test"]);
   });
 });

@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { ProjectNode } from "./project-info.ts";
 import { parseSurefireReport, type FailedTest, type TestSummary } from "./report-parser.ts";
@@ -38,8 +38,14 @@ export function collectReportPaths(projectRoot: string, tree?: ProjectNode, test
   return dirs;
 }
 
-/** Parses all surefire/failsafe XML reports at the given paths and aggregates results. */
-export function parseReports(reportPaths: string[], projectRoot: string): TestSummary {
+/**
+ * Parses surefire/failsafe XML reports at the given paths and aggregates results.
+ *
+ * @param since  If provided, only report files modified at or after this timestamp
+ *               (epoch ms) are included.  Files older than `since` are skipped,
+ *               which filters out stale results from previous runs.
+ */
+export function parseReports(reportPaths: string[], projectRoot: string, since?: number): TestSummary {
   const summary: TestSummary = { testsRun: 0, failures: 0, errors: 0, skipped: 0, failedTests: [] };
 
   for (const rel of reportPaths) {
@@ -49,7 +55,14 @@ export function parseReports(reportPaths: string[], projectRoot: string): TestSu
     catch { continue; }
 
     for (const file of xmlFiles) {
-      const xml = readFileSync(join(dir, file), "utf8");
+      const filePath = join(dir, file);
+      if (since !== undefined) {
+        try {
+          const mtime = statSync(filePath).mtimeMs;
+          if (mtime < since) continue;
+        } catch { continue; }
+      }
+      const xml = readFileSync(filePath, "utf8");
       const parsed = parseSurefireReport(xml);
       summary.testsRun += parsed.testsRun;
       summary.failures += parsed.failures;

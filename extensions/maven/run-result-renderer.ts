@@ -45,7 +45,9 @@ export function buildSummary(result: MavenRunResult, theme: Theme): string {
     const { testsRun, failures, errors } = result.testSummary;
     const bad = failures + errors;
     const color = bad > 0 ? "error" : "success";
-    return theme.fg(color, `${testsRun} test${testsRun === 1 ? "" : "s"}, ${bad} failed`);
+    const total = result.totalOnDisk?.testsRun;
+    const ofTotal = total !== undefined && total !== testsRun ? ` (of ${total} on disk)` : "";
+    return theme.fg(color, `${testsRun} test${testsRun === 1 ? "" : "s"}, ${bad} failed${ofTotal}`);
   }
 
   return "";

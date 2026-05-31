@@ -274,13 +274,15 @@ export default function (pi: ExtensionAPI) {
 
       onUpdate?.({ content: [{ type: "text" as const, text: `Running: ${command}` }] });
 
+      const runStartTime = Date.now();
       const { rawOutput, exitCode } = await runMaven(command, args, info.projectRoot, ctx, onUpdate);
 
       const rawMavenOut = saveRawLog(info.projectRoot, action, rawOutput);
       const success = exitCode === 0;
 
       const reportPaths = collectReportPaths(info.projectRoot, info.projectTree, testScope as TestScope | undefined);
-      const testSummary = parseReports(reportPaths, info.projectRoot);
+      const testSummary = parseReports(reportPaths, info.projectRoot, runStartTime);
+      const totalOnDisk = parseReports(reportPaths, info.projectRoot);
       const compilationErrors = extractCompilationErrors(rawOutput);
       const buildErrors = extractBuildErrors(rawOutput);
 
@@ -293,7 +295,7 @@ export default function (pi: ExtensionAPI) {
         failedTests: testSummary.failedTests,
         compilationErrors,
         buildErrors,
-        reportPaths,
+        totalOnDisk: { testsRun: totalOnDisk.testsRun, reportPaths },
         rawMavenOut,
       };
 

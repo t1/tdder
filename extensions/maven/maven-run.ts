@@ -40,7 +40,7 @@ export function buildMavenArgs(opts: MavenCommandOptions): string[] {
   const { runner, selector, project } = opts;
   const { goals, flags, selectorFlag } = phaseOptions(opts.action, opts.testScope);
   const args = [runner];
-  if (project) args.push("-pl", project);
+  if (project) args.push("-pl", project, "-am");
   args.push(...goals, ...flags);
   if (selector && selectorFlag) args.push(`${selectorFlag}${selector}`);
   return args;
@@ -76,7 +76,7 @@ export function buildMavenCommand(opts: MavenCommandOptions): string {
   const { runner, selector, project } = opts;
   const { goals, flags, selectorFlag } = phaseOptions(opts.action, opts.testScope);
   const parts = [runner];
-  if (project) parts.push(`-pl ${project}`);
+  if (project) parts.push(`-pl ${project}`, "-am");
   parts.push(...goals, ...flags);
   if (selector && selectorFlag) parts.push(`${selectorFlag}${quoteSelector(selector)}`);
   return parts.join(" ");
