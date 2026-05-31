@@ -1,0 +1,9 @@
+#!/bin/sh
+# Wrapper that runs cli.ts via node --import tsx/esm instead of the tsx CLI.
+# The tsx CLI (v4+) creates a Unix socket for IPC even for one-shot runs,
+# which fails in sandboxed environments that block listen() on /tmp pipes.
+self="$(realpath "$0")"
+script="$(dirname "$self")/cli.ts"
+tsx_pkg="$(dirname "$(dirname "$(realpath "$(command -v tsx)")")")"
+tsx_esm="${tsx_pkg}/dist/esm/index.mjs"
+exec node --import "$tsx_esm" "$script" "$@"

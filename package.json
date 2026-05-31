@@ -7,7 +7,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
-    "tdder-maven": "./extensions/maven/cli.ts"
+    "tdder-maven": "./extensions/maven/cli"
   },
   "scripts": {
     "sync-extensions": "./scripts/sync-extensions.sh",
