@@ -50,9 +50,15 @@ export function buildMavenArgs(opts: MavenCommandOptions): string[] {
  * Build a sandbox-safe environment for the Maven child process.
  *
  * Inside sandboxed runtimes (e.g. Claude Code), the Kotlin compiler daemon
- * tries to create session files in the system temp dir which the sandbox
- * blocks.  Redirecting TMPDIR and java.io.tmpdir to <projectRoot>/target
- * avoids the issue — Maven creates that directory on its own.
+ * writes discovery files (`.run`, `.tab`) to
+ * `$(user.home)/Library/Application Support/kotlin/daemon` on macOS, which
+ * the sandbox blocks for subprocesses. Redirecting `user.home` (and
+ * `java.io.tmpdir` / `TMPDIR` for other temp writes) to
+ * `<projectRoot>/target` keeps all daemon file I/O inside the project tree,
+ * which Maven creates on its own.
+ *
+ * `user.home` in `MAVEN_OPTS` is propagated to the daemon JVM because Kotlin
+ * copies parent JVM options when starting the daemon with `inheritMemoryLimits`.
  *
  * @param projectRoot  Absolute path to the Maven project root.
  * @param baseEnv      Environment to inherit (defaults to process.env).
@@ -63,8 +69,8 @@ export function buildMavenEnv(
 ): Record<string, string | undefined> {
   const tmpdir = `${projectRoot}/target`;
   const existingOpts = baseEnv.MAVEN_OPTS ?? "";
-  const tmpProp = `-Djava.io.tmpdir=${tmpdir}`;
-  const mavenOpts = existingOpts ? `${existingOpts} ${tmpProp}` : tmpProp;
+  const tmpProps = `-Djava.io.tmpdir=${tmpdir} -Duser.home=${tmpdir}`;
+  const mavenOpts = existingOpts ? `${existingOpts} ${tmpProps}` : tmpProps;
   return { ...baseEnv, TMPDIR: tmpdir, MAVEN_OPTS: mavenOpts };
 }
 
