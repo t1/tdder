@@ -88,6 +88,9 @@ tdder-maven info
 tdder-maven lookup-version org.assertj assertj-core
 ```
 
+`tdder-maven` outputs structured JSON to stdout and exits non-zero on failure.
+Read stdout directly — do **not** tail log files or grep the output.
+
 | `--scope`  | What runs                      | Maven command                                           |
 |------------|--------------------------------|---------------------------------------------------------|
 | `surefire` | Unit tests only                | `mvn test`                                              |
