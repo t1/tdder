@@ -12,16 +12,18 @@
  * Placement: extensions/quarkus/index.ts  (part of the t1/tdder pi package)
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync, rmSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
+  DynamicBorder,
   truncateTail,
   keyHint,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import { Container, Key, type SelectItem, SelectList, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { McpClient, type McpTool } from "./mcp-client.js";
 import { extractText, filterLogSince } from "./utils.js";
@@ -182,9 +184,7 @@ const TOOL_GUIDELINES: Record<string, string[]> = {
   quarkus_skills: [
     "ALWAYS call quarkus_skills for each extension BEFORE writing code or tests — this is mandatory, not optional.",
     "quarkus_skills does not require the app to be running.",
-  ],
-  quarkus_update: [
-    "For existing Quarkus projects, ALWAYS call quarkus_update (via a subagent if supported) BEFORE starting any development work to ensure the project is on the latest version.",
+    "To check if the project is up-to-date, call quarkus_skills with query='quarkus-update'. If the quarkus-update skill is not yet installed, call quarkus_installSkills with skillName='quarkus-update' first.",
   ],
   quarkus_logs: [
     "For structured exception details (class, message, stack trace, user code location), prefer quarkus_callTool with toolName 'devui-exceptions_getLastException' over quarkus_logs.",
@@ -695,7 +695,7 @@ export default async function (pi: ExtensionAPI) {
 
       if ((newState === "starting" || newState === "running") && !state.appLogEnabled) {
         state.appLogEnabled = true;
-        callMcpTool("quarkus_app_log_enable", { projectDir: cwd }, cwd).catch(() => {});
+        callMcpTool("quarkus_app_log", { projectDir: cwd, action: "enable" }, cwd).catch(() => {});
       }
       if (newState === "starting" && state.lastAppState !== "starting") {
         onEnteringStarting(cwd, ctx);
@@ -720,8 +720,29 @@ export default async function (pi: ExtensionAPI) {
   const DIRECT_SUBCOMMANDS = ["status", "start", "stop", "logs", "restart", "open", "devui"] as const;
   const LLM_SUBCOMMANDS    = ["update", "search-tools"] as const;
   const TEST_SUBCOMMANDS   = ["test-affected", "test-all"] as const;
-  const ALL_SUBCOMMANDS    = [...DIRECT_SUBCOMMANDS, ...LLM_SUBCOMMANDS, ...TEST_SUBCOMMANDS, "info", "mcp-restart", "mcp-tools"] as const;
+  const ALL_SUBCOMMANDS    = [...DIRECT_SUBCOMMANDS, ...LLM_SUBCOMMANDS, ...TEST_SUBCOMMANDS, "info", "skills", "mcp-restart", "mcp-tools"] as const;
   type Subcommand = (typeof ALL_SUBCOMMANDS)[number];
+
+  /**
+   * Every MCP tool name this extension calls directly.
+   * If any are absent from the server's tool list at startup, the user is warned.
+   * Keep in sync with TOOL_NAME values and any direct callMcpTool() calls.
+   */
+  const REQUIRED_TOOLS: readonly string[] = [
+    // subcommand-mapped tools (all distinct values from TOOL_NAME)
+    "quarkus_status",
+    "quarkus_start",
+    "quarkus_stop",
+    "quarkus_logs",
+    "quarkus_browser",
+    "quarkus_restart",
+    "quarkus_skills",
+    "quarkus_searchTools",
+    "quarkus_callTool",
+    // called directly (not via TOOL_NAME)
+    "quarkus_app_log",
+    "quarkus_installSkills",
+  ];
 
   /** Map user-facing subcommand → MCP tool name. */
   const TOOL_NAME: Record<string, string> = {
@@ -729,10 +750,10 @@ export default async function (pi: ExtensionAPI) {
     start:   "quarkus_start",
     stop:    "quarkus_stop",
     logs:    "quarkus_logs",
-    open:    "quarkus_open",
-    devui:   "quarkus_devui",
+    open:    "quarkus_browser",
+    devui:   "quarkus_browser",
     restart: "quarkus_restart",
-    update:          "quarkus_update",
+    update:  "quarkus_skills",
     "search-tools":  "quarkus_searchTools",
     "test-affected": "quarkus_callTool",
     "test-all":      "quarkus_callTool",
@@ -746,8 +767,20 @@ export default async function (pi: ExtensionAPI) {
     if (sub === "test-all") {
       return { projectDir: cwd, toolName: "devui-testing_runTests" };
     }
+    if (sub === "open") {
+      return { projectDir: cwd, target: "app" };
+    }
+    if (sub === "devui") {
+      return { projectDir: cwd, target: "devui" };
+    }
+    if (sub === "update") {
+      return { projectDir: cwd, query: "quarkus-update" };
+    }
     if (sub === "search-tools" && extra) {
       return { projectDir: cwd, query: extra };
+    }
+    if (sub === "start" && extra) {
+      return { projectDir: cwd, mavenProfiles: extra };
     }
     return { projectDir: cwd };
   }
@@ -790,6 +823,143 @@ export default async function (pi: ExtensionAPI) {
     handOffSuccess("mcp-tools", lines.join("\n\n"));
   }
 
+/** Absolute path to the directory where community skills are installed. */
+  const SKILLS_DIR = join(homedir(), ".quarkus", "skills");
+
+  async function handleSkills(cwd: string, ctx: { ui: CommandUi }): Promise<void> {
+    ctx.ui.setStatus("quarkus", "quarkus: loading skills…");
+
+    // Fetch installed and available skills in parallel
+    const [installedResult, availableResult] = await Promise.allSettled([
+      callMcpTool("quarkus_skills", { projectDir: cwd }, cwd),
+      callMcpTool("quarkus_installSkills", { projectDir: cwd, list: "true" }, cwd),
+    ]);
+    ctx.ui.setStatus("quarkus", undefined);
+
+    // Parse installed skill names from quarkus_skills output
+    const installedRaw = installedResult.status === "fulfilled" ? installedResult.value : "";
+    const installedNames: string[] = installedRaw
+      .split("\n")
+      .map((l) => l.match(/^[-*]\s+\*{0,2}([\w-]+)\*{0,2}/)?.[1] ?? "")
+      .filter((n) => n.length > 0);
+
+    // Parse available skill names from quarkus_installSkills list output
+    const availableRaw = availableResult.status === "fulfilled" ? availableResult.value : "";
+    const availableNames: string[] = availableRaw
+      .split("\n")
+      .map((l) => l.match(/^[-*]\s+\*{0,2}([\w-]+)\*{0,2}/)?.[1] ?? "")
+      .filter((n) => n.length > 0 && !installedNames.includes(n));
+
+    // --- Screen 1: installed skills (with delete option) ---
+    if (installedNames.length > 0) {
+      const deleteItems = [
+        ...installedNames.map((n) => ({ value: n, label: n, description: "[d] delete" })),
+        { value: "__browse__", label: "Browse available skills…", description: "install from community" },
+      ];
+
+      const chosen = await ctx.ui.custom<string | null>(
+        (tui, theme, _kb, done) => {
+          const TuiText = Text;
+          const container = new Container();
+          container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+          container.addChild(new TuiText(theme.fg("accent", theme.bold("Installed Skills")), 1, 0));
+          const list = new SelectList(deleteItems, Math.min(deleteItems.length + 2, 15), {
+            selectedPrefix: (t: string) => theme.fg("accent", t),
+            selectedText:   (t: string) => theme.fg("accent", t),
+            description:    (t: string) => theme.fg("muted",  t),
+            scrollInfo:     (t: string) => theme.fg("dim",    t),
+            noMatch:        (t: string) => theme.fg("warning", t),
+          });
+          list.onSelect = (item: { value: string }) => done(item.value);
+          list.onCancel = () => done(null);
+          container.addChild(list);
+          container.addChild(new TuiText(
+            theme.fg("dim", "↑↓ navigate • enter select / browse • esc cancel"),
+            1, 0,
+          ));
+          container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+          return {
+            render:      (w: number) => container.render(w),
+            invalidate:  ()          => container.invalidate(),
+            handleInput: (data: string) => { list.handleInput(data); tui.requestRender(); },
+          };
+        },
+        { overlay: true },
+      );
+
+      if (chosen === null) return;
+
+      if (chosen !== "__browse__") {
+        // Delete the chosen skill
+        const skillPath = join(SKILLS_DIR, chosen);
+        try {
+          rmSync(skillPath, { recursive: true, force: true });
+        } catch (err) {
+          ctx.ui.notify(`Failed to delete skill "${chosen}": ${(err as Error).message}`, "error");
+          return;
+        }
+        ctx.ui.notify(`Skill "${chosen}" deleted.`, "info");
+        pi.sendUserMessage(
+          `The community skill "${chosen}" has been deleted from ${skillPath}. It is no longer available via quarkus_skills.`,
+          { deliverAs: "followUp" },
+        );
+        return;
+      }
+    }
+
+    // --- Screen 2: available skills to install ---
+    if (availableNames.length === 0) {
+      ctx.ui.notify("No additional community skills available.", "info");
+      return;
+    }
+
+    const installItems = availableNames.map((n) => ({ value: n, label: n }));
+    const chosen = await ctx.ui.custom<string | null>(
+      (tui, theme, _kb, done) => {
+        const TuiText = Text;
+        const container = new Container();
+        container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+        container.addChild(new TuiText(theme.fg("accent", theme.bold("Available Skills")), 1, 0));
+        const list = new SelectList(installItems, Math.min(installItems.length + 2, 15), {
+          selectedPrefix: (t: string) => theme.fg("accent", t),
+          selectedText:   (t: string) => theme.fg("accent", t),
+          scrollInfo:     (t: string) => theme.fg("dim",    t),
+          noMatch:        (t: string) => theme.fg("warning", t),
+        });
+        list.onSelect = (item: { value: string }) => done(item.value);
+        list.onCancel = () => done(null);
+        container.addChild(list);
+        container.addChild(new TuiText(
+          theme.fg("dim", "↑↓ navigate • type to filter • enter install • esc cancel"),
+          1, 0,
+        ));
+        container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+        return {
+          render:      (w: number) => container.render(w),
+          invalidate:  ()          => container.invalidate(),
+          handleInput: (data: string) => { list.handleInput(data); tui.requestRender(); },
+        };
+      },
+      { overlay: true },
+    );
+
+    if (!chosen) return;
+
+    ctx.ui.setStatus("quarkus", `quarkus: installing ${chosen}…`);
+    try {
+      await callMcpTool("quarkus_installSkills", { projectDir: cwd, skillName: chosen }, cwd);
+      ctx.ui.setStatus("quarkus", undefined);
+      ctx.ui.notify(`Skill "${chosen}" installed.`, "info");
+      pi.sendUserMessage(
+        `The community skill "${chosen}" has been installed to ${SKILLS_DIR}. It is now available via quarkus_skills.`,
+        { deliverAs: "followUp" },
+      );
+    } catch (err) {
+      ctx.ui.setStatus("quarkus", undefined);
+      ctx.ui.notify(`Failed to install "${chosen}": ${(err as Error).message}`, "error");
+    }
+  }
+
   async function handleMcpRestart(cwd: string, ctx: { ui: CommandUi }): Promise<void> {
     if (state.client) {
       await state.client.close().catch(() => {});
@@ -821,6 +991,7 @@ export default async function (pi: ExtensionAPI) {
       "test-all":      "test-all         - Run full test suite (LLM)",
       restart:         "restart       - Restart the app (hot reload)",
       info:            "info          - Show app status, endpoints, and dev services",
+      skills:          "skills        - Manage installed community skills",
       "mcp-restart":   "mcp-restart   - Restart the quarkus-agent-mcp server",
       "mcp-tools":     "mcp-tools     - List all tools advertised by the MCP server",
     };
@@ -918,6 +1089,14 @@ export default async function (pi: ExtensionAPI) {
     ensureClient(cwd)
       .then((c) => {
         ctx.ui.setStatus("quarkus", undefined);
+        const availableNames = new Set(c.tools.map((t) => t.name));
+        const missingTools = REQUIRED_TOOLS.filter((t) => !availableNames.has(t));
+        if (missingTools.length > 0) {
+          ctx.ui.notify(
+            `quarkus: MCP server is missing expected tools: ${missingTools.join(", ")}. Some /quarkus subcommands may not work. Consider running /quarkus mcp-restart.`,
+            "warning",
+          );
+        }
         ctx.ui.notify(
           `quarkus: ${c.tools.length} tools loaded`,
           "info",
@@ -975,6 +1154,7 @@ export default async function (pi: ExtensionAPI) {
               "test-all":      "Run the full test suite (results analysed by LLM)",
               restart:         "Restart the app (hot reload)",
               info:            "Show app status, endpoints, and dev services",
+              skills:          "Manage installed community skills",
               "mcp-restart":   "Restart the quarkus-agent-mcp server",
               "mcp-tools":     "List all tools advertised by the MCP server",
             }[s],
@@ -988,6 +1168,7 @@ export default async function (pi: ExtensionAPI) {
       const extra = extraParts.join(" ") || undefined;
 
       if (sub === "info")        return handleInfo(cwd, ctx);
+      if (sub === "skills")      return handleSkills(cwd, ctx);
       if (sub === "mcp-tools")   return handleMcpTools(ctx);
       if (sub === "mcp-restart") return handleMcpRestart(cwd, ctx);
       if (!sub)                  return handleSelector(ctx);

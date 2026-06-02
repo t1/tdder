@@ -74,6 +74,7 @@ Tab-completion lists all subcommands.
 | `open`          | Open the app in the browser                                                    |
 | `devui`         | Open the Quarkus Dev UI in the browser                                         |
 | `info`          | Show app status, endpoints, and dev services (requires dev mode)               |
+| `skills`        | Manage community skills: list installed, delete, browse and install new ones   |
 | `update`        | Check for Quarkus updates — output always sent to LLM for analysis             |
 | `search-tools`  | Discover Dev MCP tools on the running app — output sent to LLM for analysis    |
 | `test-affected` | Run tests affected by recent changes — results always sent to LLM for analysis |
