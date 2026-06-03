@@ -158,7 +158,7 @@ When stopping for human review, include:
 
 TDD practices will feel counterintuitive and uncomfortable. This discomfort indicates the discipline
 is being followed correctly. For detailed analysis of psychological resistance, common failure modes,
-and recovery strategies, see `references/failure-modes.md`.
+and recovery strategies, see `failure-modes.md`.
 
 ## Best Practices
 
@@ -174,4 +174,4 @@ and recovery strategies, see `references/failure-modes.md`.
 
 For detailed guidance on specific aspects:
 
-- **`references/failure-modes.md`** - Detailed failure mode analysis and recovery strategies
+- **`failure-modes.md`** - Detailed failure mode analysis and recovery strategies

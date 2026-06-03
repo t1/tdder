@@ -175,5 +175,5 @@ Example: `if (timer.hasExpired() && !timer.isRecurrent())` becomes `if (shouldBe
 
 For a complete refactoring checklist, consult:
 
-- **`references/checklist.md`** - Read this checklist to verify all clean code principles have been applied during
+- **`checklist.md`** - Read this checklist to verify all clean code principles have been applied during
   refactoring

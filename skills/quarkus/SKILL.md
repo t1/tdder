@@ -17,4 +17,4 @@ Load the referenced file when the situation matches.
 
 | Situation                                                                                               | File                     |
 |---------------------------------------------------------------------------------------------------------|--------------------------|
-| Adding dev-only code (seeders, fake services, dev helpers): `src/dev/java` pattern or `@IfBuildProfile` | `references/dev-mode.md` |
+| Adding dev-only code (seeders, fake services, dev helpers): `src/dev/java` pattern or `@IfBuildProfile` | `dev-mode.md` |

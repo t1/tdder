@@ -86,7 +86,7 @@ probe edge cases and force the user to be precise about the boundaries between c
 ### Update the bounded-context file inline
 
 When a term is resolved, update the bounded-context file right there. Don't batch these up — capture them as they
-happen. Use the format in [references/bounded-context-format.md](references/bounded-context-format.md).
+happen. Use the format in [bounded-context-format.md](bounded-context-format.md).
 
 The bounded-context file must be totally devoid of implementation details. Do not treat it as a spec, a scratch
 pad, or a repository for implementation decisions. It is a **glossary and nothing else**.
@@ -111,4 +111,4 @@ Only offer to create a DMD when all three are true:
 3. **The result of a real trade-off** — there were genuine alternatives and you picked one for specific reasons
 
 If any of the three is missing, skip the DMD. Use the format in
-[references/dmd-format.md](references/dmd-format.md).
+[dmd-format.md](dmd-format.md).

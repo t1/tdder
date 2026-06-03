@@ -202,7 +202,7 @@ Unfolding happens during the **TDD refactor phase**:
 5. **Verify**: all tests still pass after unfolding
 6. **Document the reason**: state in one sentence why this unfolding was necessary
 
-The decision checklist at `references/decision-checklist.md` provides a quick rubric.
+The decision checklist at `decision-checklist.md` provides a quick rubric.
 
 ## Anti-Patterns
 
