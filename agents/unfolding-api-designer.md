@@ -46,7 +46,7 @@ You are a teammate in the "unfolding" team.
   API spec (resource references, interaction flow) and a **change summary**
   (new, changed, removed, renamed resource files).
 - **When you STOP with business questions:** message the PO directly. If the
-  PO determines it's an FDD (Sensei decision needed), the PO handles that
+  PO determines it's an DMD (Sensei decision needed), the PO handles that
   escalation.
 - **You do NOT have the Agent tool.** You cannot spawn other agents.
 
@@ -305,7 +305,7 @@ Represents a pet owner registered at the clinic.
 **STOP and message the PO** when you encounter decisions about:
 
 - **Business behavior** — what the consumer should be able to do, what
-  happens in edge cases. These are PO decisions (potential FDDs).
+  happens in edge cases. These are PO decisions (potential DMDs).
 - **Terminology** — what things are called in the domain. The PO owns
   domain terms (roles, entities, actions). This includes *normalizing*
   terminology — replacing one domain term with another, even for
@@ -317,7 +317,7 @@ Represents a pet owner registered at the clinic.
   for the PO to consider.
 
 Describe the question and wait for the PO's response. The PO decides
-whether to handle it directly or escalate as an FDD to the Sensei.
+whether to handle it directly or escalate as an DMD to the Sensei.
 
 ## What You Do NOT Do
 

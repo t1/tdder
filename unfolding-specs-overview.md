@@ -9,7 +9,7 @@ iterating baby steps instead of heavy, supposedly "complete" specs).
 
 Specs live in two tiers:
 - **Business tier** — *what* the product does: Acceptance Tests and Business Rules
-  are the primary spec; Feature Design Decisions (FDDs) capture decisions and
+  are the primary spec; Domain Model Decisions (DMDs) capture decisions and
   trade-offs that tests alone can't express, including alternatives considered
   and why they were rejected.
 - **Technical tier** — *how* it is built: System Tests and code are the primary
@@ -43,7 +43,7 @@ shared task list.
 | Role             | Agent Definition                | Responsibility                                                                             |
 |------------------|---------------------------------|--------------------------------------------------------------------------------------------|
 | **Orchestrator** | skill: `unfolding-orchestrator` | Spawns agents, relays Sensei questions, proxies Playwright actions, owns `docs/state.yaml` |
-| **PO**           | `unfolding-po.md`               | Decomposes Features, writes Acceptance Tests and Business Rules, proposes FDDs             |
+| **PO**           | `unfolding-po.md`               | Decomposes Features, writes Acceptance Tests and Business Rules, proposes DMDs             |
 | **Architect**    | `unfolding-architect.md`        | Decomposes Features into Tasks, writes System Tests, proposes ADRs                         |
 | **Coder**        | `unfolding-coder.md`            | Implements Tasks using TDD (Red-Green-Refactor)                                            |
 | **UX Designer**  | `unfolding-ux-designer.md`      | User's advocate; challenges Feature specs, designs tech-agnostic UX                        |
@@ -62,7 +62,7 @@ Agents create tasks with prefixed subjects to route work:
 
 ```
 [PO] Define Feature ──> PO works
-  ├── [FDD] Decision ──> Orchestrator relays to Sensei
+  ├── [DMD] Decision ──> Orchestrator relays to Sensei
   ├── [UX] Design ──> UX Designer works <──messages──> PO
   ├── [API] Design ──> API Designer works <──messages──> PO
   └── [ARCH] Implement Feature ──> Architect works
@@ -95,7 +95,7 @@ The Orchestrator does NOT relay routine communication.
 | Artifact                      | Location              | Owned by     |
 |-------------------------------|-----------------------|--------------|
 | Product brief                 | `docs/product.md`     | PO           |
-| Feature Design Decisions      | `docs/fdd/`           | PO           |
+| Domain Model Decisions      | `docs/dmd/`           | PO           |
 | Architecture Decision Records | `docs/adr/`           | Architect    |
 | Acceptance Tests              | `docs/ats/`           | PO (private) |
 | AT index (incl. Roles)        | `docs/ats/INDEX.md`   | PO (shared)  |

@@ -61,7 +61,7 @@ the current state itself.
 Three nested loops, each driven by an agent:
 
 1. **PO** — decomposes Features into smaller Features, creates Acceptance Tests (ATs),
-   identifies business assumptions and proposes Feature Design Decisions (FDDs).
+   identifies business assumptions and proposes Domain Model Decisions (DMDs).
    Creates `[UX]` or `[API]` tasks when designers are needed.
    Then creates `[ARCH]` tasks to start the implementation.
 2. **Architect** — decomposes Features into Tasks, creates System Tests (STs),
@@ -75,7 +75,7 @@ Humans are **Senseis** — they answer questions and give guidance, not drive ex
 their input should trigger thinking and discussion, not blind compliance.
 
 All foundational decisions (delivery channels, tech stack, etc.) surface naturally
-as FDDs and ADRs when Features need them — do not try to settle them upfront.
+as DMDs and ADRs when Features need them — do not try to settle them upfront.
 
 **Do NOT** ask the human for feature ideas — the human gave you the domain,
 pass it to the PO and let the process drive discovery.
@@ -103,7 +103,7 @@ Spawn prompts should contain only:
   agents frequently violate despite being in their definition.
   Current reinforcements for the **PO**:
     - "If you are confident a concern should be deferred to a later
-      Feature, it is a conscious deferral, NOT an FDD. Just note it
+      Feature, it is a conscious deferral, NOT an DMD. Just note it
       and move on — do not ask the Sensei to confirm."
     - "Never write or fix Java code. If test steps are undefined or
       scenarios are skipped, create an [ARCH] task for the Architect
@@ -131,9 +131,9 @@ when the Coder confirms the review is complete.
 
 ### 2. Relay Sensei Questions
 
-Watch the task list for `[FDD]` and `[ADR]` tasks. When you see one:
+Watch the task list for `[DMD]` and `[ADR]` tasks. When you see one:
 
-1. Read the draft FDD/ADR file referenced in the task description
+1. Read the draft DMD/ADR file referenced in the task description
 2. **Use the AskUserQuestion tool** to present the question to the human.
    Map the agent's options to question tool choices. The question tool
    always offers a free-text option, so the human can override or combine.
@@ -295,7 +295,7 @@ checklist:
 
 ```
 [PO] Define Feature ──> PO works
-  ├── [FDD] Decision ──> Orchestrator relays to Sensei
+  ├── [DMD] Decision ──> Orchestrator relays to Sensei
   ├── [UX] Design ──> UX Designer works <──messages──> PO
   ├── [API] Design ──> API Designer works <──messages──> PO
   └── [ARCH] Implement Feature ──> Architect works
@@ -311,7 +311,7 @@ checklist:
 | Artifact                      | Location              | Owned by     |
 |-------------------------------|-----------------------|--------------|
 | Product brief                 | `docs/product.md`     | PO           |
-| Feature Design Decisions      | `docs/fdd/`           | PO           |
+| Domain Model Decisions      | `docs/dmd/`           | PO           |
 | Architecture Decision Records | `docs/adr/`           | Architect    |
 | Process state                 | `docs/state.yaml`     | Orchestrator |
 | Acceptance Tests (ATs)        | `docs/ats/`           | PO           |
@@ -337,7 +337,7 @@ checklist:
 ## Sensei Guidance
 
 The Sensei can provide guidance at any time — not only in response to
-FDD/ADR questions. Guidance may come as `/unfold` arguments, or the
+DMD/ADR questions. Guidance may come as `/unfold` arguments, or the
 Sensei may interrupt with direction while the process is running.
 
 When guidance arrives, send it to the **PO**. The PO incorporates
@@ -349,7 +349,7 @@ Include the guidance verbatim in the message, labeled clearly:
 > **Sensei guidance:** <the text>
 
 The agent should treat this as context and direction, not as a
-specification. The agent's own process (assumptions, FDDs, ADRs, etc.)
+specification. The agent's own process (assumptions, DMDs, ADRs, etc.)
 still applies — guidance does not bypass it.
 
 When guidance references specific files or directories, do NOT explore
