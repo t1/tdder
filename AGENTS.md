@@ -13,8 +13,8 @@ code or artifacts to a remote. All that's the user's privilege!
 
 ## File locations
 
-`~/.pi/agent/git/github.com/t1/tdder/` is a read-only checkout of **this** project.
-Never edit files there — edit the files in this repo instead.
+**`~/.pi/agent/git/github.com/t1/tdder/` is a read-only checkout of this project — NEVER edit or commit there.**
+The current working directory is the real repo. Always resolve skill file paths relative to CWD, not to the read-only checkout.
 
 ## Claude Code vs pi
 
