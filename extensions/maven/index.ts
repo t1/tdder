@@ -7,7 +7,6 @@
  *   maven_lookup_version – Maven Central version lookup
  */
 
-import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { Container, Text } from "@earendil-works/pi-tui";
@@ -16,13 +15,12 @@ import type { AgentToolUpdateCallback, ExtensionAPI, ExtensionContext } from "@e
 import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai";
 
-import { findProjectRoot, detectRunner, buildProjectTree, stripInternalFields, resolveCurrentProject } from "./project-info.ts";
-import { collectReportPaths, parseReports } from "./report-collector.ts";
 import { renderMavenMessage, renderMavenRunResult } from "./renderer.ts";
 import { buildSummary as buildCollapsedSummary } from "./run-result-renderer.ts";
 import { formatProjectInfo } from "./formatter.ts";
 import type { ProjectInfoJson } from "./formatter.ts";
 import { buildMavenArgs, buildMavenCommand, buildMavenEnv, type MavenAction, type TestScope } from "./maven-run.ts";
+import { getMavenProjectInfo, buildProjectInfoJson, buildRunResult, checkSurefireSkipConfigured } from "./maven-project.ts";
 import { loadJarSkills } from "./jar-skills.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
@@ -32,45 +30,6 @@ import type { MavenProjectInfo, MavenRunResult, VersionLookupResult } from "./ty
 import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function buildProjectInfoJson(info: MavenProjectInfo): ProjectInfoJson {
-  const { pomPath: _, projectTree, projectRoot, currentProject, ...infoRest } = info;
-  const { modules, ...rootFields } = stripInternalFields(projectTree);
-  return {
-    ...infoRest,
-    rootPath: projectRoot,
-    currentPath: currentProject?.relativePath ?? ".",
-    ...rootFields,
-    ...(modules ? { modules } : {}),
-  };
-}
-
-function getMavenProjectInfo(cwd: string): MavenProjectInfo | null {
-  const projectRoot = findProjectRoot(cwd);
-  if (!projectRoot) return null;
-
-  const runner = detectRunner(projectRoot);
-  const projectTree = buildProjectTree(projectRoot);
-  const currentProject = resolveCurrentProject(projectTree, projectRoot, cwd);
-
-  // Omit children from currentProject — it's a flat coordinate record in the output,
-  // not a subtree. The full tree is already in projectTree.
-  const currentProjectFlat = currentProject
-    ? (({ modules: _, ...rest }) => rest)(currentProject)
-    : null;
-
-  return {
-    isMavenProject: true,
-    projectRoot,
-    pomPath: join(projectRoot, "pom.xml"),
-    runner,
-    currentProject: currentProjectFlat,
-    projectTree,
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Shared Maven runner with live widget
 // ---------------------------------------------------------------------------
@@ -256,8 +215,7 @@ export default function (pi: ExtensionAPI) {
       const project = params.project ?? (info.currentProject?.relativePath !== "." ? info.currentProject?.relativePath : undefined);
 
       if (action === "test" && testScope === "failsafe") {
-        const pomContent = existsSync(info.pomPath) ? readFileSync(info.pomPath, "utf8") : "";
-        if (!pomContent.includes("skip.surefire.tests")) {
+        if (!checkSurefireSkipConfigured(info.pomPath)) {
           return {
             content: [{ type: "text" as const, text: JSON.stringify({
               error: "SUREFIRE_SKIP_NOT_CONFIGURED",
@@ -277,33 +235,21 @@ export default function (pi: ExtensionAPI) {
       const runStartTime = Date.now();
       const { rawOutput, exitCode } = await runMaven(command, args, info.projectRoot, ctx, onUpdate);
 
-      const rawMavenOut = saveRawLog(info.projectRoot, action, rawOutput);
-      const success = exitCode === 0;
-
-      const reportPaths = collectReportPaths(info.projectRoot, info.projectTree, testScope as TestScope | undefined);
-      const testSummary = parseReports(reportPaths, info.projectRoot, runStartTime);
-      const totalOnDisk = parseReports(reportPaths, info.projectRoot);
-      const compilationErrors = extractCompilationErrors(rawOutput);
-      const buildErrors = extractBuildErrors(rawOutput);
-
-      const result: MavenRunResult = {
-        success,
-        cwd,
+      const result = buildRunResult(
+        { rawOutput, exitCode },
+        info,
         command,
         action,
-        testSummary,
-        failedTests: testSummary.failedTests,
-        compilationErrors,
-        buildErrors,
-        totalOnDisk: { testsRun: totalOnDisk.testsRun, reportPaths },
-        rawMavenOut,
-      };
+        cwd,
+        testScope as TestScope | undefined,
+        runStartTime,
+      );
 
       // Keep raw output OUT of LLM-facing content — only the structured summary goes in.
       // details carries only the minimum needed for rendering: the compact result and the absolute log path.
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        details: { result, rawLogPathAbsolute: join(info.projectRoot, rawMavenOut) },
+        details: { result, rawLogPathAbsolute: join(info.projectRoot, result.rawMavenOut) },
       };
     },
 

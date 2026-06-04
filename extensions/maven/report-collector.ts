@@ -45,8 +45,9 @@ export function collectReportPaths(projectRoot: string, tree?: ProjectNode, test
  *               (epoch ms) are included.  Files older than `since` are skipped,
  *               which filters out stale results from previous runs.
  */
-export function parseReports(reportPaths: string[], projectRoot: string, since?: number): TestSummary {
-  const summary: TestSummary = { testsRun: 0, failures: 0, errors: 0, skipped: 0, failedTests: [] };
+export function parseReports(reportPaths: string[], projectRoot: string, since?: number): { summary: TestSummary; failedTests: FailedTest[] } {
+  const summary: TestSummary = { testsRun: 0, failures: 0, errors: 0, skipped: 0 };
+  const failedTests: FailedTest[] = [];
 
   for (const rel of reportPaths) {
     const dir = join(projectRoot, rel);
@@ -64,12 +65,12 @@ export function parseReports(reportPaths: string[], projectRoot: string, since?:
       }
       const xml = readFileSync(filePath, "utf8");
       const parsed = parseSurefireReport(xml);
-      summary.testsRun += parsed.testsRun;
-      summary.failures += parsed.failures;
-      summary.errors += parsed.errors;
-      summary.skipped += parsed.skipped;
-      summary.failedTests.push(...parsed.failedTests.map((t) => ({ ...t, reportFile: join(rel, file) })));
+      summary.testsRun += parsed.summary.testsRun;
+      summary.failures += parsed.summary.failures;
+      summary.errors += parsed.summary.errors;
+      summary.skipped += parsed.summary.skipped;
+      failedTests.push(...parsed.failedTests.map((t) => ({ ...t, reportFile: join(rel, file) })));
     }
   }
-  return summary;
+  return { summary, failedTests };
 }

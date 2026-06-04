@@ -14,57 +14,11 @@
 
 import { resolve } from "node:path";
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 
-import { findProjectRoot, detectRunner, buildProjectTree, stripInternalFields, resolveCurrentProject } from "./project-info.ts";
 import { buildMavenArgs, buildMavenCommand, buildMavenEnv, type MavenAction, type TestScope } from "./maven-run.ts";
-import { collectReportPaths, parseReports } from "./report-collector.ts";
-import { extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
-import { saveRawLog } from "./log-store.ts";
+import { buildProjectInfoResult, buildRunResult, checkSurefireSkipConfigured, getMavenProjectInfo } from "./maven-project.ts";
 import { buildMetadataUrl, fetchMetadata, selectVersion } from "./version-lookup.ts";
-import { formatProjectInfo } from "./formatter.ts";
-import type { ProjectInfoJson } from "./formatter.ts";
-import type { ProjectNode } from "./project-info.ts";
-import type { MavenProjectInfo, MavenRunResult, VersionLookupResult } from "./types.ts";
-
-// ---------------------------------------------------------------------------
-// Project info helpers (shared with index.ts)
-// ---------------------------------------------------------------------------
-
-function buildProjectInfoJson(info: MavenProjectInfo): ProjectInfoJson {
-  const { pomPath: _, projectTree, projectRoot, currentProject, ...infoRest } = info;
-  const { modules, ...rootFields } = stripInternalFields(projectTree);
-  return {
-    ...infoRest,
-    rootPath: projectRoot,
-    currentPath: currentProject?.relativePath ?? ".",
-    ...rootFields,
-    ...(modules ? { modules } : {}),
-  };
-}
-
-function getMavenProjectInfo(cwd: string): MavenProjectInfo | null {
-  const projectRoot = findProjectRoot(cwd);
-  if (!projectRoot) return null;
-
-  const runner = detectRunner(projectRoot);
-  const projectTree = buildProjectTree(projectRoot);
-  const currentProject = resolveCurrentProject(projectTree, projectRoot, cwd);
-
-  const currentProjectFlat = currentProject
-    ? (({ modules: _, ...rest }) => rest)(currentProject)
-    : null;
-
-  return {
-    isMavenProject: true,
-    projectRoot,
-    pomPath: join(projectRoot, "pom.xml"),
-    runner,
-    currentProject: currentProjectFlat,
-    projectTree,
-  };
-}
+import type { VersionLookupResult } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Maven runner (simplified — no pi widget, just spawn and collect output)
@@ -130,17 +84,9 @@ function parseArgs(argv: string[]): { command: string; args: Record<string, stri
 
 async function cmdInfo(): Promise<void> {
   const cwd = resolve(process.cwd());
-  const info = getMavenProjectInfo(cwd);
-
-  if (!info) {
-    const result = { isMavenProject: false };
-    console.log(JSON.stringify(result, null, 2));
-    process.exitCode = 1;
-    return;
-  }
-
-  const json = buildProjectInfoJson(info);
+  const json = buildProjectInfoResult(cwd);
   console.log(JSON.stringify(json, null, 2));
+  if (!json.isMavenProject) process.exitCode = 1;
 }
 
 async function cmdRun(args: Record<string, string | boolean>): Promise<void> {
@@ -171,8 +117,7 @@ async function cmdRun(args: Record<string, string | boolean>): Promise<void> {
   }
 
   if (action === "test" && testScope === "failsafe") {
-    const pomContent = existsSync(info.pomPath) ? readFileSync(info.pomPath, "utf8") : "";
-    if (!pomContent.includes("skip.surefire.tests")) {
+    if (!checkSurefireSkipConfigured(info.pomPath)) {
       console.log(JSON.stringify({
         error: "SUREFIRE_SKIP_NOT_CONFIGURED",
         message: "The project POM does not define a 'skip.surefire.tests' property wired to Surefire's <skip> configuration. Add it to the POM before running with --scope failsafe, or use --scope all to run both Surefire and Failsafe.",
@@ -187,34 +132,15 @@ async function cmdRun(args: Record<string, string | boolean>): Promise<void> {
   const mavenArgs = buildMavenArgs(opts);
 
   const runStartTime = Date.now();
-  let { rawOutput, exitCode } = await runMaven(mavenArgs, info.projectRoot);
-  if (exitCode !== 0 && /resolver-status\.properties.*Operation not permitted/.test(rawOutput)) {
-    ({ rawOutput, exitCode } = await runMaven([...mavenArgs, "-o"], info.projectRoot));
+  let rawRun = await runMaven(mavenArgs, info.projectRoot);
+  if (rawRun.exitCode !== 0 && /resolver-status\.properties.*Operation not permitted/.test(rawRun.rawOutput)) {
+    rawRun = await runMaven([...mavenArgs, "-o"], info.projectRoot);
   }
-  const rawMavenOut = saveRawLog(info.projectRoot, action, rawOutput);
-  const success = exitCode === 0;
 
-  const reportPaths = collectReportPaths(info.projectRoot, info.projectTree, testScope);
-  const testSummary = parseReports(reportPaths, info.projectRoot, runStartTime);
-  const totalOnDisk = parseReports(reportPaths, info.projectRoot);
-  const compilationErrors = extractCompilationErrors(rawOutput);
-  const buildErrors = extractBuildErrors(rawOutput);
-
-  const result: MavenRunResult = {
-    success,
-    cwd,
-    command,
-    action,
-    testSummary,
-    failedTests: testSummary.failedTests,
-    compilationErrors,
-    buildErrors,
-    totalOnDisk: { testsRun: totalOnDisk.testsRun, reportPaths },
-    rawMavenOut,
-  };
+  const result = buildRunResult(rawRun, info, command, action, cwd, testScope, runStartTime);
 
   console.log(JSON.stringify(result, null, 2));
-  if (!success) process.exitCode = 1;
+  if (!result.success) process.exitCode = 1;
 }
 
 async function cmdLookupVersion(args: Record<string, string | boolean>): Promise<void> {

@@ -140,11 +140,11 @@ describe("parseReports — single report dir with passing tests", () => {
   after(() => rmSync(tmpDir, { recursive: true, force: true }));
 
   it("aggregates test counts across XML files in the directory", () => {
-    const summary = parseReports(["target/surefire-reports-parse-passing"], singleRoot);
+    const { summary, failedTests } = parseReports(["target/surefire-reports-parse-passing"], singleRoot);
     assert.equal(summary.testsRun, 3);
     assert.equal(summary.failures, 0);
     assert.equal(summary.errors, 0);
-    assert.deepEqual(summary.failedTests, []);
+    assert.deepEqual(failedTests, []);
   });
 });
 
@@ -161,17 +161,17 @@ describe("parseReports — single report dir with failing test", () => {
   after(() => rmSync(tmpDir, { recursive: true, force: true }));
 
   it("populates failedTests from the failing report", () => {
-    const summary = parseReports(["target/surefire-reports-parse-failing"], singleRoot);
+    const { summary, failedTests } = parseReports(["target/surefire-reports-parse-failing"], singleRoot);
     assert.equal(summary.failures, 1);
-    assert.equal(summary.failedTests.length, 1);
-    assert.equal(summary.failedTests[0].methodName, "shouldFail");
+    assert.equal(failedTests.length, 1);
+    assert.equal(failedTests[0].methodName, "shouldFail");
   });
 
   it("attaches the reportFile path to each failed test", () => {
-    const summary = parseReports(["target/surefire-reports-parse-failing"], singleRoot);
+    const { summary, failedTests } = parseReports(["target/surefire-reports-parse-failing"], singleRoot);
     assert.ok(
-      summary.failedTests[0].reportFile?.includes("TEST-BarTest.xml"),
-      `expected reportFile to reference TEST-BarTest.xml, got: ${summary.failedTests[0].reportFile}`
+      failedTests[0].reportFile?.includes("TEST-BarTest.xml"),
+      `expected reportFile to reference TEST-BarTest.xml, got: ${failedTests[0].reportFile}`
     );
   });
 });
@@ -192,7 +192,7 @@ describe("parseReports — multiple report dirs are aggregated", () => {
   });
 
   it("sums test counts across both dirs", () => {
-    const summary = parseReports(
+    const { summary } = parseReports(
       ["target/surefire-reports-parse-multi-1", "target/surefire-reports-parse-multi-2"],
       singleRoot
     );
@@ -211,17 +211,17 @@ describe("parseReports — directory with no TEST-*.xml files", () => {
   after(() => rmSync(tmpDir, { recursive: true, force: true }));
 
   it("returns zero counts when no XML report files are present", () => {
-    const summary = parseReports(["target/surefire-reports-parse-empty"], singleRoot);
+    const { summary, failedTests } = parseReports(["target/surefire-reports-parse-empty"], singleRoot);
     assert.equal(summary.testsRun, 0);
-    assert.deepEqual(summary.failedTests, []);
+    assert.deepEqual(failedTests, []);
   });
 });
 
 describe("parseReports — non-existent report dir", () => {
   it("returns zero counts without throwing when the directory does not exist", () => {
-    const summary = parseReports(["target/does-not-exist-at-all"], singleRoot);
+    const { summary, failedTests } = parseReports(["target/does-not-exist-at-all"], singleRoot);
     assert.equal(summary.testsRun, 0);
-    assert.deepEqual(summary.failedTests, []);
+    assert.deepEqual(failedTests, []);
   });
 });
 
@@ -249,13 +249,13 @@ describe("parseReports — since filters out stale reports", () => {
   after(() => rmSync(tmpDir, { recursive: true, force: true }));
 
   it("includes only reports modified at or after since", () => {
-    const summary = parseReports(["target/surefire-reports-since"], singleRoot, sinceMs);
+    const { summary, failedTests } = parseReports(["target/surefire-reports-since"], singleRoot, sinceMs);
     assert.equal(summary.testsRun, 2, "should only count the fresh report (2 tests)");
     assert.equal(summary.failures, 1);
   });
 
   it("includes all reports when since is omitted", () => {
-    const summary = parseReports(["target/surefire-reports-since"], singleRoot);
+    const { summary, failedTests } = parseReports(["target/surefire-reports-since"], singleRoot);
     assert.equal(summary.testsRun, 5, "should count both reports (3 + 2 tests)");
   });
 });

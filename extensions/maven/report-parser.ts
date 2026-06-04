@@ -13,7 +13,6 @@ export interface TestSummary {
   failures: number;
   errors: number;
   skipped: number;
-  failedTests: FailedTest[];
 }
 
 // ---------------------------------------------------------------------------
@@ -41,7 +40,7 @@ function decodeXmlEntities(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
-export function parseSurefireReport(xml: string): TestSummary {
+export function parseSurefireReport(xml: string): { summary: TestSummary; failedTests: FailedTest[] } {
   const suiteMatch = xml.match(/<testsuite([^>]*)>/);
   const suiteAttrs = suiteMatch ? suiteMatch[0] : "";
   const suiteClass = attrStr(suiteAttrs, "name");
@@ -84,7 +83,7 @@ export function parseSurefireReport(xml: string): TestSummary {
     failedTests.push({ className, methodName, displayName, message, rerunSelector, rerunScope });
   }
 
-  return { testsRun, failures, errors, skipped, failedTests };
+  return { summary: { testsRun, failures, errors, skipped }, failedTests };
 }
 
 // ---------------------------------------------------------------------------
