@@ -210,3 +210,20 @@ describe("extractBuildErrors", () => {
     assert.deepEqual(errors, []);
   });
 });
+
+describe("parseSurefireReport — per-test timings", () => {
+  it("returns timings for each testcase when requested", () => {
+    const xml = readFileSync(join(reportsDir, "TEST-passing.xml"), "utf8");
+    const { testTimings } = parseSurefireReport(xml, { includeTimings: true });
+    assert.equal(testTimings?.length, 3);
+    assert.equal(testTimings?.[0].className, "com.example.FooTest");
+    assert.equal(testTimings?.[0].methodName, "shouldDoA");
+    assert.equal(testTimings?.[0].durationSeconds, 0.04);
+  });
+
+  it("returns no timings by default", () => {
+    const xml = readFileSync(join(reportsDir, "TEST-passing.xml"), "utf8");
+    const { testTimings } = parseSurefireReport(xml);
+    assert.equal(testTimings, undefined);
+  });
+});

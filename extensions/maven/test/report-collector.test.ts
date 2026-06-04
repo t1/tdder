@@ -259,3 +259,26 @@ describe("parseReports — since filters out stale reports", () => {
     assert.equal(summary.testsRun, 5, "should count both reports (3 + 2 tests)");
   });
 });
+
+describe("parseReports — per-test timings", () => {
+  const tmpDir = join(singleRoot, "target/surefire-reports-timings");
+  before(() => {
+    mkdirSync(tmpDir, { recursive: true });
+    writeFileSync(join(tmpDir, "TEST-passing.xml"), readFileSync(join(reportsFixtures, "TEST-passing.xml"), "utf8"));
+  });
+  after(() => rmSync(tmpDir, { recursive: true, force: true }));
+
+  it("returns aggregated timings across reports when requested", () => {
+    const { testTimings } = parseReports(["target/surefire-reports-timings"], singleRoot, undefined, { includeTimings: true });
+    assert.ok(testTimings !== undefined, "expected testTimings to be present");
+    assert.ok(testTimings!.length > 0, "expected at least one timing entry");
+    assert.ok(testTimings![0].className, "expected className on timing");
+    assert.ok(testTimings![0].methodName, "expected methodName on timing");
+    assert.ok(typeof testTimings![0].durationSeconds === "number", "expected durationSeconds on timing");
+  });
+
+  it("returns no timings by default", () => {
+    const { testTimings } = parseReports(["target/surefire-reports-timings"], singleRoot);
+    assert.equal(testTimings, undefined);
+  });
+});

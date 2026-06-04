@@ -1,7 +1,7 @@
 import type { ProjectNode } from "./project-info.ts";
-import type { FailedTest, TestSummary } from "./report-parser.ts";
+import type { FailedTest, TestSummary, TestTiming } from "./report-parser.ts";
 
-export type { ProjectNode, FailedTest, TestSummary };
+export type { ProjectNode, FailedTest, TestSummary, TestTiming };
 
 export interface MavenProjectInfo {
   isMavenProject: boolean;
@@ -24,6 +24,7 @@ export interface MavenRunResult {
   action: string;
   testSummary: TestSummary;
   failedTests: FailedTest[];
+  testTimings?: TestTiming[];
   compilationErrors: string[];
   buildErrors: string[];
   totalOnDisk: TotalOnDisk;

@@ -1,5 +1,10 @@
-export interface FailedTest {
+export interface TestTiming {
   className: string;
+  methodName: string;
+  durationSeconds: number;
+}
+
+export interface FailedTest {
   methodName?: string;
   displayName?: string;
   message: string;
@@ -41,7 +46,10 @@ function decodeXmlEntities(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
-export function parseSurefireReport(xml: string): { summary: TestSummary; failedTests: FailedTest[] } {
+export function parseSurefireReport(
+  xml: string,
+  options?: { includeTimings?: boolean },
+): { summary: TestSummary; failedTests: FailedTest[]; testTimings?: TestTiming[] } {
   const suiteMatch = xml.match(/<testsuite([^>]*)>/);
   const suiteAttrs = suiteMatch ? suiteMatch[0] : "";
   const suiteClass = attrStr(suiteAttrs, "name");
@@ -85,7 +93,20 @@ export function parseSurefireReport(xml: string): { summary: TestSummary; failed
     failedTests.push({ className, methodName, displayName, message, rerunSelector, rerunScope });
   }
 
-  return { summary: { testsRun, failures, errors, skipped, durationSeconds }, failedTests };
+  let testTimings: TestTiming[] | undefined;
+  if (options?.includeTimings) {
+    testTimings = [];
+    const allPattern = /<testcase([^>]*)\/?>|<testcase([^>]*)>/g;
+    for (const m of xml.matchAll(allPattern)) {
+      const attrs = m[1] ?? m[2];
+      const methodName = attrStr(attrs, "name");
+      const className = attrStr(attrs, "classname");
+      const durationSeconds = parseFloat(attrStr(attrs, "time") || "0") || 0;
+      if (methodName && className) testTimings.push({ className, methodName, durationSeconds });
+    }
+  }
+
+  return { summary: { testsRun, failures, errors, skipped, durationSeconds }, failedTests, testTimings };
 }
 
 // ---------------------------------------------------------------------------

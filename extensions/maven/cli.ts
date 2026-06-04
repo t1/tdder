@@ -107,6 +107,7 @@ async function cmdRun(args: Record<string, string | boolean>): Promise<void> {
 
   const testScope = (args.scope as TestScope | undefined);
   const selector = args.selector as string | undefined;
+  const includeTimings = args["include-timings"] === true;
   const project = (args.project as string | undefined)
     ?? (info.currentProject?.relativePath !== "." ? info.currentProject?.relativePath : undefined);
 
@@ -137,7 +138,7 @@ async function cmdRun(args: Record<string, string | boolean>): Promise<void> {
     rawRun = await runMaven([...mavenArgs, "-o"], info.projectRoot);
   }
 
-  const result = buildRunResult(rawRun, info, command, action, cwd, testScope, runStartTime);
+  const result = buildRunResult(rawRun, info, command, action, cwd, testScope, runStartTime, { includeTimings });
 
   console.log(JSON.stringify(result, null, 2));
   if (!result.success) process.exitCode = 1;
@@ -183,6 +184,7 @@ Commands:
   run test --scope <surefire|failsafe|all>     Run tests with structured output
            [--selector <class or class#method>]
            [--project <module-path>]
+           [--include-timings]
   run package [--project <module-path>]        Package without tests
   lookup-version <groupId> <artifactId>        Look up latest version on Maven Central
            [--include-prereleases]`;

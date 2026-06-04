@@ -2,6 +2,10 @@
 /.envrc
 /.links/
 
+.classpath
+.project
+.settings/
+
 /TODO.md
 
 **/node_modules/

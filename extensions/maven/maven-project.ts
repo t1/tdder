@@ -75,12 +75,13 @@ export function buildRunResult(
   cwd: string,
   testScope: TestScope | undefined,
   runStartTime: number,
+  options?: { includeTimings?: boolean },
 ): MavenRunResult {
   const rawMavenOut = saveRawLog(info.projectRoot, action, rawOutput);
   const success = exitCode === 0;
 
   const reportPaths = collectReportPaths(info.projectRoot, info.projectTree, testScope);
-  const { summary: testSummary, failedTests } = parseReports(reportPaths, info.projectRoot, runStartTime);
+  const { summary: testSummary, failedTests, testTimings } = parseReports(reportPaths, info.projectRoot, runStartTime, options);
   const { summary: totalOnDiskSummary } = parseReports(reportPaths, info.projectRoot);
   const compilationErrors = extractCompilationErrors(rawOutput);
   const buildErrors = extractBuildErrors(rawOutput);
@@ -92,6 +93,7 @@ export function buildRunResult(
     action,
     testSummary,
     failedTests,
+    ...(testTimings ? { testTimings } : {}),
     compilationErrors,
     buildErrors,
     totalOnDisk: { testsRun: totalOnDiskSummary.testsRun, reportPaths },

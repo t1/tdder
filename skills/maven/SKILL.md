@@ -55,6 +55,9 @@ maven_run(action="package")
 
 # Package a specific module
 maven_run(action="package", project="module-a")
+
+# Include per-test timings (use when investigating slow tests)
+maven_run(action="test", testScope="surefire", includeTestTimings=True)
 ```
 
 **Only if `maven_run` is not available**, fall back to the `tdder-maven` CLI via `bash`,
@@ -77,6 +80,9 @@ tdder-maven run test --scope all
 
 # Tests in a specific module (multi-module project)
 tdder-maven run test --scope all --project module-a
+
+# Include per-test timings (use when investigating slow tests)
+tdder-maven run test --scope surefire --include-timings
 
 # Package without tests
 tdder-maven run package

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { ProjectNode } from "./project-info.ts";
-import { parseSurefireReport, type FailedTest, type TestSummary } from "./report-parser.ts";
+import { parseSurefireReport, type FailedTest, type TestSummary, type TestTiming } from "./report-parser.ts";
 import type { TestScope } from "./maven-run.ts";
 
 /**
@@ -45,9 +45,15 @@ export function collectReportPaths(projectRoot: string, tree?: ProjectNode, test
  *               (epoch ms) are included.  Files older than `since` are skipped,
  *               which filters out stale results from previous runs.
  */
-export function parseReports(reportPaths: string[], projectRoot: string, since?: number): { summary: TestSummary; failedTests: FailedTest[] } {
+export function parseReports(
+  reportPaths: string[],
+  projectRoot: string,
+  since?: number,
+  options?: { includeTimings?: boolean },
+): { summary: TestSummary; failedTests: FailedTest[]; testTimings?: TestTiming[] } {
   const summary: TestSummary = { testsRun: 0, failures: 0, errors: 0, skipped: 0, durationSeconds: 0 };
   const failedTests: FailedTest[] = [];
+  const testTimings: TestTiming[] | undefined = options?.includeTimings ? [] : undefined;
 
   for (const rel of reportPaths) {
     const dir = join(projectRoot, rel);
@@ -64,14 +70,15 @@ export function parseReports(reportPaths: string[], projectRoot: string, since?:
         } catch { continue; }
       }
       const xml = readFileSync(filePath, "utf8");
-      const parsed = parseSurefireReport(xml);
+      const parsed = parseSurefireReport(xml, options);
       summary.testsRun += parsed.summary.testsRun;
       summary.failures += parsed.summary.failures;
       summary.errors += parsed.summary.errors;
       summary.skipped += parsed.summary.skipped;
       summary.durationSeconds += parsed.summary.durationSeconds;
       failedTests.push(...parsed.failedTests.map((t) => ({ ...t, reportFile: join(rel, file) })));
+      if (testTimings && parsed.testTimings) testTimings.push(...parsed.testTimings);
     }
   }
-  return { summary, failedTests };
+  return { summary, failedTests, testTimings };
 }
