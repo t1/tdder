@@ -1,7 +1,10 @@
 export interface FailedTest {
   className: string;
-  methodName: string;
+  methodName?: string;
+  displayName?: string;
   message: string;
+  rerunSelector: string;
+  rerunScope: "method" | "class";
   reportFile?: string;
 }
 
@@ -24,12 +27,24 @@ function attrInt(xml: string, attr: string): number {
 
 function attrStr(xml: string, attr: string): string {
   const match = xml.match(new RegExp(`${attr}="([^"]*)"`));
-  return match ? match[1] : "";
+  return match ? decodeXmlEntities(match[1]) : "";
+}
+
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
 }
 
 export function parseSurefireReport(xml: string): TestSummary {
   const suiteMatch = xml.match(/<testsuite([^>]*)>/);
   const suiteAttrs = suiteMatch ? suiteMatch[0] : "";
+  const suiteClass = attrStr(suiteAttrs, "name");
 
   const testsRun = attrInt(suiteAttrs, "tests");
   const failures = attrInt(suiteAttrs, "failures");
@@ -47,11 +62,26 @@ export function parseSurefireReport(xml: string): TestSummary {
     const failureMatch = tcBody.match(/<failure\s+message="([^"]*)"[^>]*>/);
     if (!failureMatch) continue;
 
-    failedTests.push({
-      className: attrStr(tcAttrs, "classname"),
-      methodName: attrStr(tcAttrs, "name"),
-      message: failureMatch[1],
-    });
+    const rawClassName = attrStr(tcAttrs, "classname");
+    const rawName = attrStr(tcAttrs, "name");
+    const message = decodeXmlEntities(failureMatch[1]);
+
+    // suiteClass is the JUnit runner / top-level class. If classname is that class or a
+    // $-nested subclass, this is a JUnit test and the selector is classname#method
+    // (with ()[N] / (T)[N] suffixes stripped — they aren't valid in -Dtest=).
+    // If classname is unrelated (Cucumber: it's a feature title), only the runner
+    // class itself can be targeted, which reruns all its scenarios.
+    const isJavaClass = suiteClass === rawClassName || suiteClass.startsWith(rawClassName + "$");
+
+    const className = isJavaClass ? rawClassName : suiteClass;
+    const methodName = isJavaClass ? rawName : undefined;
+    const displayName = isJavaClass ? undefined : rawName;
+    const rerunScope: "method" | "class" = isJavaClass ? "method" : "class";
+    const rerunSelector = isJavaClass
+      ? `${className}#${methodName!.replace(/[([].*/u, "")}`
+      : suiteClass;
+
+    failedTests.push({ className, methodName, displayName, message, rerunSelector, rerunScope });
   }
 
   return { testsRun, failures, errors, skipped, failedTests };
