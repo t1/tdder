@@ -16,7 +16,7 @@
  * beforeAll errors, not expect() assertions.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { McpClient, type ToolCallResult } from "../../mcp-client.ts";
+import { createIdeaClient, type IdeaClient, type ToolCallResult } from "../../idea-client.ts";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,10 +25,10 @@ const IDEA_BASE_URL = "http://127.0.0.1:64342";
 // Two levels up from test/e2e/ → extensions/idea/ → extensions/ → repo root
 const TDDER_ROOT = resolve(fileURLToPath(import.meta.url), "../../../..");
 
-let client: McpClient;
+let client: IdeaClient;
 
 beforeAll(async () => {
-  const probe = new McpClient(IDEA_BASE_URL, TDDER_ROOT);
+  const probe = createIdeaClient(IDEA_BASE_URL, TDDER_ROOT);
 
   // ── Condition 1 / 3: Is IDEA reachable and is the MCP plugin responding? ──
   try {

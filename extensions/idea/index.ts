@@ -4,12 +4,11 @@ import { Box, Text } from "@earendil-works/pi-tui";
 import { spawn } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { Type, type TSchema } from "typebox";
-import { McpClient } from "./vendor/mcp-client.ts";
-import { SseTransport } from "./sse-transport.ts";
 import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
 import { setToolsActive } from "./vendor/tool-activation.ts";
 import { parseSafe, prettyPrintContent } from "./render-helpers.ts";
 import { ALL_TOOLS } from "./tool-specs.ts";
+import { callIdeaTool, createIdeaClient, IdeaClient, type ToolCallResult } from "./idea-client.ts";
 
 const IDEA_BASE_URL = "http://127.0.0.1:64342";
 const FOOTER_KEY = "idea";
@@ -57,59 +56,6 @@ function log(msg: string, err?: unknown): void {
   }
 }
 
-type ToolCallResult =
-  | { kind: "ok"; content: unknown }
-  | { kind: "project-not-open"; openProjects: string[] };
-
-function callIdeaTool(
-  client: McpClient,
-  name: string,
-  args: object,
-  projectPath: string,
-  timeoutMs = 5000,
-): Promise<ToolCallResult> {
-  return client.callTool(name, { ...args, projectPath }, timeoutMs).then((result) => {
-    if (result.isError) {
-      const notOpen = classifyProjectNotOpen(result.content);
-      if (notOpen) return notOpen;
-    }
-    return { kind: "ok" as const, content: result.content };
-  });
-}
-
-function classifyProjectNotOpen(
-  content: unknown,
-): { kind: "project-not-open"; openProjects: string[] } | null {
-  if (!Array.isArray(content)) return null;
-  for (const item of content) {
-    const text = (item as { text?: string }).text;
-    if (typeof text !== "string") continue;
-    const marker = '{"projects":';
-    const idx = text.indexOf(marker);
-    if (idx < 0) continue;
-    try {
-      const parsed = JSON.parse(text.slice(idx)) as {
-        projects: Array<{ path: string }>;
-      };
-      return {
-        kind: "project-not-open",
-        openProjects: parsed.projects.map((p) => p.path),
-      };
-    } catch {
-      // fall through to next item
-    }
-  }
-  return null;
-}
-
-function createIdeaClient(baseUrl: string): McpClient {
-  return new McpClient(new SseTransport(baseUrl), {
-    clientInfo: { name: "pi-idea", version: "0.1.0" },
-    protocolVersion: "2024-11-05",
-    defaultTimeoutMs: 5000,
-  });
-}
-
 type ProbeState =
   | { kind: "disconnected" }
   | { kind: "project-not-open"; openProjects: string[] }
@@ -121,11 +67,11 @@ type ProbeState =
  * Returns the timer handle so the caller can cancel it in `finally`.
  */
 function scheduleConfirmWidget(
-  client: McpClient,
+  client: IdeaClient,
   ctxRef: ExtensionContext | undefined,
 ): ReturnType<typeof setTimeout> {
   return setTimeout(() => {
-    client.callTool("xdebug_get_debugger_status", {}).then((result) => {
+    client.rawClient.callTool("xdebug_get_debugger_status", {}).then((result) => {
       const text = result.content?.find((c) => c.type === "text")?.text ?? "{}";
       const sessions = (JSON.parse(text) as { sessions?: unknown[] }).sessions ?? [];
       if (sessions.length === 0) {
@@ -156,7 +102,7 @@ function stateLabel(s: ProbeState): string {
 }
 
 export default function (pi: ExtensionAPI) {
-  let client: McpClient | undefined;
+  let client: IdeaClient | undefined;
   let state: ProbeState = { kind: "disconnected" };
   let toolsRegistered = false;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
@@ -264,7 +210,7 @@ export default function (pi: ExtensionAPI) {
           : undefined;
 
         try {
-          let result = await callIdeaTool(client, tool.name, mergedParams, ctxRef!.cwd, timeoutMs);
+          let result = await client.callTool(tool.name, mergedParams, timeoutMs);
           while (
             result.kind === "ok" &&
             (result.content as Array<{ text?: string }> | null)
@@ -273,7 +219,7 @@ export default function (pi: ExtensionAPI) {
           ) {
             log(`tool '${tool.name}' rejected during indexing — retrying in ${INDEXING_RETRY_DELAY_MS}ms`);
             await new Promise((r) => setTimeout(r, INDEXING_RETRY_DELAY_MS));
-            result = await callIdeaTool(client, tool.name, mergedParams, ctxRef!.cwd, timeoutMs);
+            result = await client.callTool(tool.name, mergedParams, timeoutMs);
           }
           if (result.kind === "project-not-open") {
             throw new Error(
@@ -294,9 +240,9 @@ export default function (pi: ExtensionAPI) {
     });
   }
 
-  async function ensureToolsRegistered(c: McpClient): Promise<void> {
+  async function ensureToolsRegistered(c: IdeaClient): Promise<void> {
     if (toolsRegistered) return;
-    const allTools = (await c.listTools()) as Array<{
+    const allTools = (await c.rawClient.listTools()) as Array<{
       name: string;
       description?: string;
       inputSchema?: Record<string, unknown>;
@@ -338,7 +284,7 @@ export default function (pi: ExtensionAPI) {
     const prevLabel = stateLabel(state);
     try {
       if (!client) {
-        client = createIdeaClient(IDEA_BASE_URL);
+        client = createIdeaClient(IDEA_BASE_URL, ctxRef.cwd);
         const tConnect = isFirst ? performance.now() : 0;
         try {
           await client.connect();
@@ -352,7 +298,7 @@ export default function (pi: ExtensionAPI) {
       let probe;
       const tProbe = isFirst ? performance.now() : 0;
       try {
-        probe = await callIdeaTool(client, "get_project_modules", {}, ctxRef.cwd);
+        probe = await client.callTool("get_project_modules", {});
         if (isFirst) log(`tick #1 probe ok (${(performance.now() - tProbe).toFixed(1)}ms)`);
       } catch (err) {
         await transitionToDisconnected(prevLabel, err);

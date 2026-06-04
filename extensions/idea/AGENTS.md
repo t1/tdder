@@ -73,6 +73,9 @@ Read `decisions/e2e-testing.md` when working on the E2E suite.
 Read `decisions/mcp-probing.md` before probing the MCP directly, adding a tool, or changing a
 tool spec (probe scripts, `collapseResult` design, live-IDE verification rule).
 
+**When investigating any tool's response shape or behaviour — including existing tools —
+probe the live IDE first. Do not reason from source code or assumptions alone.**
+
 ### Debugger design decisions
 
 Read `decisions/debugger.md` when touching any `xdebug_*` tool (security dialogue scope,
