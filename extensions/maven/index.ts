@@ -23,8 +23,6 @@ import { buildMavenArgs, buildMavenCommand, buildMavenEnv, type MavenAction, typ
 import { getMavenProjectInfo, buildProjectInfoJson, buildRunResult, checkSurefireSkipConfigured } from "./maven-project.ts";
 import { loadJarSkills } from "./jar-skills.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
-import { extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
-import { saveRawLog } from "./log-store.ts";
 import { buildMetadataUrl, fetchMetadata, selectVersion } from "./version-lookup.ts";
 import type { MavenProjectInfo, MavenRunResult, VersionLookupResult } from "./types.ts";
 import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
@@ -204,6 +202,7 @@ export default function (pi: ExtensionAPI) {
       })),
       project: Type.Optional(Type.String({ description: "Project path or module (e.g. services/service-a)" })),
       selector: Type.Optional(Type.String({ description: "Test selector: class name or Class#method" })),
+      includeTestTimings: Type.Optional(Type.Boolean({ description: "Include per-test timing data in the result. Use when investigating slow tests." })),
     }),
 
     async execute(_toolCallId, params, _signal, onUpdate, ctx) {
@@ -211,7 +210,7 @@ export default function (pi: ExtensionAPI) {
       const info = getMavenProjectInfo(cwd);
       if (!info) throw new Error("Not a Maven project");
 
-      const { action, selector, testScope } = params;
+      const { action, selector, testScope, includeTestTimings } = params;
       const project = params.project ?? (info.currentProject?.relativePath !== "." ? info.currentProject?.relativePath : undefined);
 
       if (action === "test" && testScope === "failsafe") {
@@ -243,6 +242,7 @@ export default function (pi: ExtensionAPI) {
         cwd,
         testScope as TestScope | undefined,
         runStartTime,
+        { includeTimings: includeTestTimings ?? false },
       );
 
       // Keep raw output OUT of LLM-facing content — only the structured summary goes in.
@@ -413,19 +413,18 @@ export default function (pi: ExtensionAPI) {
       const command = buildMavenCommand(opts);
       const mavenArgs = buildMavenArgs(opts);
 
+      const runStartTime = Date.now();
       const { rawOutput, exitCode } = await runMaven(command, mavenArgs, info.projectRoot, ctx);
-      const rawMavenOut = saveRawLog(info.projectRoot, action, rawOutput);
-      const success = exitCode === 0;
-
-      if (success) {
-        mavenMessage({ kind: "run", success: true, command, rawMavenOut });
-      } else {
-        const compilationErrors = extractCompilationErrors(rawOutput);
-        const summary = compilationErrors.length > 0
-          ? `Compilation errors:\n${compilationErrors.slice(0, 5).join("\n")}`
-          : `Build failed. See ${rawMavenOut}`;
-        mavenMessage({ kind: "run", success: false, command, rawMavenOut, summary });
-      }
+      const result = buildRunResult(
+        { rawOutput, exitCode },
+        info,
+        command,
+        action,
+        info.projectRoot,
+        testScope,
+        runStartTime,
+      );
+      mavenMessage({ kind: "run", result });
     },
   });
 }

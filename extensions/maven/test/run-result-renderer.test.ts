@@ -22,7 +22,7 @@ function makeResult(overrides: Partial<MavenRunResult> = {}): MavenRunResult {
     cwd: "/repo",
     command: "mvn package -DskipTests",
     action: "package",
-    testSummary: { testsRun: 0, failures: 0, errors: 0, skipped: 0, failedTests: [] },
+    testSummary: { testsRun: 0, failures: 0, errors: 0, skipped: 0, durationSeconds: 0 },
     failedTests: [],
     compilationErrors: [],
     buildErrors: [],
@@ -56,11 +56,39 @@ describe("renderRunResult — collapsed", () => {
     const result = makeResult({
       action: "test",
       command: "mvn test",
-      testSummary: { testsRun: 5, failures: 1, errors: 0, skipped: 0, failedTests: [] },
+      testSummary: { testsRun: 5, failures: 1, errors: 0, skipped: 0, durationSeconds: 0 },
     });
     const text = renderRunResult(result, false, theme);
     assert.ok(text.includes("5"), `expected test count in: ${text}`);
     assert.ok(text.includes("1"), `expected failure count in: ${text}`);
+  });
+
+  it("shows duration when tests ran", () => {
+    const result = makeResult({
+      action: "test",
+      command: "mvn test",
+      testSummary: { testsRun: 3, failures: 0, errors: 0, skipped: 0, durationSeconds: 1.23 },
+    });
+    const text = renderRunResult(result, false, theme);
+    assert.ok(text.includes("1.23s"), `expected duration in: ${text}`);
+  });
+
+  it("lists failed tests with location and message", () => {
+    const result = makeResult({
+      action: "test",
+      command: "mvn test",
+      testSummary: { testsRun: 2, failures: 1, errors: 0, skipped: 0, durationSeconds: 0 },
+      failedTests: [{
+        className: "com.example.FooTest",
+        methodName: "shouldFail",
+        message: "expected 200 but was 503",
+        rerunSelector: "com.example.FooTest#shouldFail",
+        rerunScope: "method",
+      }],
+    });
+    const text = renderRunResult(result, false, theme);
+    assert.ok(text.includes("com.example.FooTest#shouldFail"), `expected location in: ${text}`);
+    assert.ok(text.includes("expected 200 but was 503"), `expected message in: ${text}`);
   });
 
   it("shows compilation error count when compilation errors are present", () => {
@@ -90,7 +118,7 @@ describe("renderRunResult — showCommand=false", () => {
 
   it("still shows the outcome summary when showCommand is false", () => {
     const result = makeResult({
-      testSummary: { testsRun: 3, failures: 0, errors: 0, skipped: 0, failedTests: [] },
+      testSummary: { testsRun: 3, failures: 0, errors: 0, skipped: 0, durationSeconds: 0 },
     });
     const text = renderRunResult(result, false, theme, false);
     assert.ok(text.includes("3"), `expected test count in: ${text}`);
@@ -102,7 +130,7 @@ describe("buildSummary — compilation errors take priority over test counts", (
     const result = makeResult({
       success: false,
       compilationErrors: ["App.java:[10,5] ';' expected"],
-      testSummary: { testsRun: 2, failures: 1, errors: 0, skipped: 0, failedTests: [] },
+      testSummary: { testsRun: 2, failures: 1, errors: 0, skipped: 0, durationSeconds: 0 },
     });
     const text = renderRunResult(result, false, theme);
     assert.ok(text.includes("compilation error"), `expected compilation error label in: ${text}`);
@@ -115,7 +143,7 @@ describe("buildSummary — shows total on disk when it differs from tests run", 
     const result = makeResult({
       action: "test",
       command: "mvn test",
-      testSummary: { testsRun: 12, failures: 0, errors: 0, skipped: 0, failedTests: [] },
+      testSummary: { testsRun: 12, failures: 0, errors: 0, skipped: 0, durationSeconds: 0 },
       totalOnDisk: { testsRun: 65, reportPaths: [] },
     });
     const text = renderRunResult(result, false, theme);
@@ -126,7 +154,7 @@ describe("buildSummary — shows total on disk when it differs from tests run", 
     const result = makeResult({
       action: "test",
       command: "mvn test",
-      testSummary: { testsRun: 65, failures: 0, errors: 0, skipped: 0, failedTests: [] },
+      testSummary: { testsRun: 65, failures: 0, errors: 0, skipped: 0, durationSeconds: 0 },
       totalOnDisk: { testsRun: 65, reportPaths: [] },
     });
     const text = renderRunResult(result, false, theme);
@@ -139,7 +167,7 @@ describe("buildSummary — errors count as failures", () => {
   it("counts errors in the 'bad' total and marks the result as failed", () => {
     const result = makeResult({
       success: false,
-      testSummary: { testsRun: 3, failures: 0, errors: 2, skipped: 0, failedTests: [] },
+      testSummary: { testsRun: 3, failures: 0, errors: 2, skipped: 0, durationSeconds: 0 },
     });
     const text = renderRunResult(result, false, theme);
     assert.ok(text.includes("2 failed"), `expected '2 failed' in: ${text}`);

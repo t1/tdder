@@ -28,6 +28,13 @@ export function renderRunResult(
   const summary = buildSummary(result, theme);
   if (summary) lines.push(summary);
 
+  // Failed test details
+  for (const t of result.failedTests) {
+    const location = t.methodName ? `${t.className}#${t.methodName}` : t.className;
+    lines.push(theme.fg("error", `  ✗ ${location}`));
+    lines.push(`    ${t.message}`);
+  }
+
   if (expanded) {
     lines.push("", JSON.stringify(result, null, 2));
   }
@@ -42,12 +49,13 @@ export function buildSummary(result: MavenRunResult, theme: Theme): string {
   }
 
   if (result.testSummary.testsRun > 0) {
-    const { testsRun, failures, errors } = result.testSummary;
+    const { testsRun, failures, errors, durationSeconds } = result.testSummary;
     const bad = failures + errors;
     const color = bad > 0 ? "error" : "success";
     const total = result.totalOnDisk?.testsRun;
     const ofTotal = total !== undefined && total !== testsRun ? ` (of ${total} on disk)` : "";
-    return theme.fg(color, `${testsRun} test${testsRun === 1 ? "" : "s"}, ${bad} failed${ofTotal}`);
+    const duration = durationSeconds > 0 ? ` · ${durationSeconds}s` : "";
+    return theme.fg(color, `${testsRun} test${testsRun === 1 ? "" : "s"}, ${bad} failed${ofTotal}${duration}`);
   }
 
   return "";
