@@ -46,7 +46,7 @@ export function collectReportPaths(projectRoot: string, tree?: ProjectNode, test
  *               which filters out stale results from previous runs.
  */
 export function parseReports(reportPaths: string[], projectRoot: string, since?: number): { summary: TestSummary; failedTests: FailedTest[] } {
-  const summary: TestSummary = { testsRun: 0, failures: 0, errors: 0, skipped: 0 };
+  const summary: TestSummary = { testsRun: 0, failures: 0, errors: 0, skipped: 0, durationSeconds: 0 };
   const failedTests: FailedTest[] = [];
 
   for (const rel of reportPaths) {
@@ -69,6 +69,7 @@ export function parseReports(reportPaths: string[], projectRoot: string, since?:
       summary.failures += parsed.summary.failures;
       summary.errors += parsed.summary.errors;
       summary.skipped += parsed.summary.skipped;
+      summary.durationSeconds += parsed.summary.durationSeconds;
       failedTests.push(...parsed.failedTests.map((t) => ({ ...t, reportFile: join(rel, file) })));
     }
   }

@@ -13,6 +13,7 @@ export interface TestSummary {
   failures: number;
   errors: number;
   skipped: number;
+  durationSeconds: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -49,6 +50,7 @@ export function parseSurefireReport(xml: string): { summary: TestSummary; failed
   const failures = attrInt(suiteAttrs, "failures");
   const errors = attrInt(suiteAttrs, "errors");
   const skipped = attrInt(suiteAttrs, "skipped");
+  const durationSeconds = parseFloat(attrStr(suiteAttrs, "time") || "0") || 0;
 
   const failedTests: FailedTest[] = [];
 
@@ -83,7 +85,7 @@ export function parseSurefireReport(xml: string): { summary: TestSummary; failed
     failedTests.push({ className, methodName, displayName, message, rerunSelector, rerunScope });
   }
 
-  return { summary: { testsRun, failures, errors, skipped }, failedTests };
+  return { summary: { testsRun, failures, errors, skipped, durationSeconds }, failedTests };
 }
 
 // ---------------------------------------------------------------------------
@@ -100,10 +102,23 @@ export function extractCompilationErrors(output: string): string[] {
     .map((line) => line.replace(/^\[ERROR\]\s+/, "").trim());
 }
 
+// Test-failure noise: lines Surefire/Failsafe prints when tests fail — already covered
+// by failedTests and testSummary, so they add no signal in buildErrors.
+const TEST_FAILURE_NOISE_RE = /^(Tests run:.*<<<|.*-- Time elapsed:.*<<<|Failures:\s*$|Errors:\s*$|Tests run:.*Failures:|Failed to execute goal.*There are test failures|(See|Please refer to) .*(surefire|failsafe)-reports|See dump files|-> \[Help|To see the full stack trace|Re-run Maven|For more information about the errors|\[Help \d+\])/;
+
 export function extractBuildErrors(output: string): string[] {
-  return output
-    .split("\n")
-    .filter((line) => /^\[ERROR\]/.test(line) && !COMPILATION_ERROR_RE.test(line))
-    .map((line) => line.replace(/^\[ERROR\]\s+/, "").trim())
-    .filter(Boolean);
+  const result: string[] = [];
+  let inFailureBody = false;
+  for (const raw of output.split("\n")) {
+    if (!/^\[ERROR\]/.test(raw) || COMPILATION_ERROR_RE.test(raw)) continue;
+    const content = raw.replace(/^\[ERROR\]/, "");
+    // `[ERROR] Failures: ` / `[ERROR] Errors: ` open a failure-body block;
+    // any non-indented line closes it.
+    if (/^ (Failures|Errors):\s*$/.test(content)) { inFailureBody = true; continue; }
+    if (/^ /.test(content)) { if (inFailureBody) continue; }
+    else { inFailureBody = false; }
+    const line = content.trim();
+    if (line.length > 0 && !TEST_FAILURE_NOISE_RE.test(line)) result.push(line);
+  }
+  return result;
 }

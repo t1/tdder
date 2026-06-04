@@ -20,6 +20,7 @@ describe("parseSurefireReport", () => {
     assert.equal(result.failures, 0);
     assert.equal(result.errors, 0);
     assert.equal(result.skipped, 0);
+    assert.equal(result.durationSeconds, 0.123);
     assert.deepEqual(failedTests, []);
   });
 
@@ -60,6 +61,7 @@ describe("parseSurefireReport", () => {
     assert.equal(result.failures, 0);
     assert.equal(result.errors, 0);
     assert.equal(result.skipped, 0);
+    assert.equal(result.durationSeconds, 0.001);
     assert.deepEqual(failedTests, []);
   });
 
@@ -177,13 +179,34 @@ describe("extractBuildErrors", () => {
   it("extracts the forked-VM error from a test-failure-incomplete-report log", () => {
     const output = readFileSync(join(consoleDir, "test-failure-incomplete-report.txt"), "utf8");
     const errors = extractBuildErrors(output);
-    assert.ok(errors.length > 0);
     assert.ok(errors.some((e) => e.includes("forked VM terminated")));
+    assert.ok(!errors.some((e) => e.includes("surefire-reports")), "should drop 'Please refer to surefire-reports'");
   });
 
   it("does not include blank [ERROR] lines", () => {
     const output = "[ERROR] something went wrong\n[ERROR]\n[ERROR] another error\n";
     const errors = extractBuildErrors(output);
     assert.ok(errors.every((e) => e.length > 0));
+  });
+
+  it("excludes test failure summary lines from buildErrors", () => {
+    const output = [
+      "[ERROR] Tests run: 2, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.037 s <<< FAILURE! -- in com.example.RunCucumberTest",
+      "[ERROR] Sample feature.Sample feature - failing scenario -- Time elapsed: 0.003 s <<< FAILURE!",
+      "[ERROR] Failures: ",
+      "[ERROR]   scenario fails",
+      "[ERROR] Tests run: 2, Failures: 1, Errors: 0, Skipped: 0",
+      "[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.2:test (default-test) on project cucumber: There are test failures.",
+      "[ERROR] See /path/to/target/surefire-reports for the individual test results.",
+      "[ERROR] Please refer to target/surefire-reports for the individual test results.",
+      "[ERROR] See dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.",
+      "[ERROR] -> [Help 1]",
+      "[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.",
+      "[ERROR] Re-run Maven using the -X switch to enable full debug logging.",
+      "[ERROR] For more information about the errors and possible solutions, please read the following articles:",
+      "[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException",
+    ].join("\n");
+    const errors = extractBuildErrors(output);
+    assert.deepEqual(errors, []);
   });
 });
