@@ -177,22 +177,61 @@ async function cmdLookupVersion(args: Record<string, string | boolean>): Promise
 // Main
 // ---------------------------------------------------------------------------
 
-const USAGE = `Usage: tdder-maven <command>
+const USAGE = `tdder-maven — structured Maven execution for coding agents
+Outputs JSON to stdout. Exits non-zero on failure.
+Never cd to a subdirectory — use --project instead.
 
-Commands:
-  info                                         Project structure and module tree
-  run test --scope <surefire|failsafe|all>     Run tests with structured output
-           [--selector <class or class#method>]
-           [--project <module-path>]
-           [--include-timings]
-  run package [--project <module-path>]        Package without tests
-  lookup-version <groupId> <artifactId>        Look up latest version on Maven Central
-           [--include-prereleases]`;
+Examples:
+
+  # Project structure and module tree
+  tdder-maven info
+
+  # Unit tests (Surefire)
+  tdder-maven run test --scope surefire
+
+  # Unit tests with selector
+  tdder-maven run test --scope surefire --selector 'MyTest#myMethod'
+
+  # Integration tests only (Failsafe, skips Surefire)
+  tdder-maven run test --scope failsafe
+
+  # All tests (Surefire + Failsafe)
+  tdder-maven run test --scope all
+
+  # Tests in a specific module
+  tdder-maven run test --scope surefire --project module-a
+
+  # Include per-test timings (use when investigating slow tests)
+  tdder-maven run test --scope surefire --include-timings
+
+  # Package without tests
+  tdder-maven run package
+
+  # Package a specific module
+  tdder-maven run package --project module-a
+
+  # Look up latest stable version on Maven Central
+  tdder-maven lookup-version org.assertj assertj-core
+
+  # Include pre-releases (RC, milestone, alpha, beta)
+  tdder-maven lookup-version io.quarkus quarkus-bom --include-prereleases
+
+Scope values for 'run test':
+  surefire   Unit tests only          (mvn test)
+  failsafe   Integration tests only   (mvn verify -Dskip.surefire.tests=true -DskipITs=false)
+  all        Unit + integration tests (mvn verify -DskipITs=false)
+
+If --scope failsafe returns SUREFIRE_SKIP_NOT_CONFIGURED, the POM does not wire
+skip.surefire.tests to Surefire's <skip>. Tell the user to add it before retrying.
+Do NOT silently fall back to --scope all.`;
 
 async function main(): Promise<void> {
   const { command, args } = parseArgs(process.argv.slice(2));
 
   switch (command) {
+    case "help":
+      console.log(USAGE);
+      break;
     case "info":
       return cmdInfo();
     case "run":

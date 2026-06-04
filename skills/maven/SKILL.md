@@ -28,88 +28,16 @@ mvn test -Dtest=VersionTest
 
 ### Structured Maven execution
 
-Prefer structured tools over raw `mvn` commands — they enforce correct flags,
-parse Surefire/Failsafe XML reports, extract compilation errors, and return
-a single JSON result.
+Prefer `maven_run` over raw `mvn` — it enforces correct flags, parses Surefire/Failsafe
+XML reports, and returns a compact structured result. Its usage examples are in the tool's
+guidelines and are available when the pi extension is loaded.
 
-**When the `maven_run` tool is available** (pi extension), use it:
-
-```
-# Unit tests
-maven_run(action="test", testScope="surefire")
-
-# Unit test with selector
-maven_run(action="test", testScope="surefire", selector="MyTest#myMethod")
-
-# Integration tests only
-maven_run(action="test", testScope="failsafe")
-
-# All tests
-maven_run(action="test", testScope="all")
-
-# Tests in a specific module (multi-module project)
-maven_run(action="test", testScope="all", project="module-a")
-
-# Package without tests
-maven_run(action="package")
-
-# Package a specific module
-maven_run(action="package", project="module-a")
-
-# Include per-test timings (use when investigating slow tests)
-maven_run(action="test", testScope="surefire", includeTestTimings=True)
-```
-
-**Only if `maven_run` is not available**, fall back to the `tdder-maven` CLI via `bash`,
-if `tdder-maven` is available on the PATH.
-Never `cd` to a subdirectory — use `--project` instead to avoid security prompts.
-The module name is the subdirectory name, matching the `<module>` element in the parent POM:
-
-```bash
-# Unit tests
-tdder-maven run test --scope surefire
-
-# Unit test with selector
-tdder-maven run test --scope surefire --selector 'MyTest#myMethod'
-
-# Integration tests only
-tdder-maven run test --scope failsafe
-
-# All tests
-tdder-maven run test --scope all
-
-# Tests in a specific module (multi-module project)
-tdder-maven run test --scope all --project module-a
-
-# Include per-test timings (use when investigating slow tests)
-tdder-maven run test --scope surefire --include-timings
-
-# Package without tests
-tdder-maven run package
-
-# Project info (module tree, runner, coordinates)
-tdder-maven info
-
-# Look up latest version on Maven Central
-tdder-maven lookup-version org.assertj assertj-core
-```
-
-`tdder-maven` outputs structured JSON to stdout and exits non-zero on failure.
-Read stdout directly — do **not** tail log files or grep the output.
-
-| `--scope`  | What runs                      | Maven command                                           |
-|------------|--------------------------------|---------------------------------------------------------|
-| `surefire` | Unit tests only                | `mvn test`                                              |
-| `failsafe` | Integration tests only         | `mvn verify -Dskip.surefire.tests=true -DskipITs=false` |
-| `all`      | Unit tests + integration tests | `mvn verify -DskipITs=false`                            |
-
-Only if neither the pi extension's `maven_run` tool nor the `tdder-maven` cli command is available, fall back
-to raw `mvn`.
+If `maven_run` is not available, run `tdder-maven help` to learn the syntax and examples,
+then use it. If that also fails (command not found), fall back to raw `mvn`.
 
 #### `SUREFIRE_SKIP_NOT_CONFIGURED` error
 
-If `tdder-maven run test --scope failsafe` (or `maven_run` with `testScope=failsafe`)
-returns `SUREFIRE_SKIP_NOT_CONFIGURED`, the project POM does not define a
+If running with `testScope=failsafe` returns `SUREFIRE_SKIP_NOT_CONFIGURED`, the project POM does not define a
 `skip.surefire.tests` property wired to Surefire's `<skip>` configuration.
 Tell the user and ask them to add the following to the POM before retrying:
 

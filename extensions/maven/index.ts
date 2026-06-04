@@ -190,6 +190,7 @@ export default function (pi: ExtensionAPI) {
     promptGuidelines: [
       "Use maven_run instead of bash when running Maven goals. It enforces correct flags, saves raw output to a log file, and returns a compact structured result.",
       "For action=test, testScope is required: 'surefire' (unit tests only), 'failsafe' (ITs only), or 'all' (both).",
+      "maven_run examples: unit tests: maven_run(action='test', testScope='surefire'); with selector: maven_run(action='test', testScope='surefire', selector='MyTest#myMethod'); ITs only: maven_run(action='test', testScope='failsafe'); all tests: maven_run(action='test', testScope='all'); specific module: maven_run(action='test', testScope='all', project='module-a'); package: maven_run(action='package'); package module: maven_run(action='package', project='module-a'); slow test investigation: maven_run(action='test', testScope='surefire', includeTestTimings=true).",
       "If testScope='failsafe' and the project POM does not define skip.surefire.tests, the tool returns SUREFIRE_SKIP_NOT_CONFIGURED. Ask the user to add the property wiring to the POM, then retry.",
       "When suggesting next steps that involve running Maven, tell the user to use the /maven command (e.g. '/maven test', '/maven package') rather than raw mvn commands.",
     ],
