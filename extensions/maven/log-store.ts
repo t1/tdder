@@ -9,6 +9,5 @@ export function saveRawLog(projectRoot: string, action: string, output: string):
   mkdirSync(dir, { recursive: true });
   const logPath = join(dir, filename);
   writeFileSync(logPath, output, "utf8");
-  // Return a project-relative path for the result payload
-  return join("target", "pi", "maven-logs", filename);
+  return logPath;
 }

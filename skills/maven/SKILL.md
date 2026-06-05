@@ -135,7 +135,7 @@ This is typically configured in the Maven compiler plugin:
 
 # Running Tests
 
-Use `maven_run` with `action="test"`. If not available, use `tdder-maven run test --scope`.
+Use `maven_run` with `action="test"`. If not available, use `tdder-maven test --scope`.
 If neither is available, use raw `mvn` (see below).
 
 ## Integration/System/Acceptance/E2E Tests
@@ -170,31 +170,6 @@ and execute them on the `verify` lifecycle.
     </executions>
 </plugin>
 ```
-
-## `SUREFIRE_SKIP_NOT_CONFIGURED` error
-
-If the `maven_run` tool or `tdder-maven run test` command returns `SUREFIRE_SKIP_NOT_CONFIGURED`,
-the project POM does not define a `skip.surefire.tests` property wired to Surefire's `<skip>` configuration.
-Tell the user and ask them about adding the following to the POM before retrying:
-
-```xml
-
-<properties>
-    <skip.surefire.tests>false</skip.surefire.tests>
-</properties>
-```
-
-```xml
-
-<plugin>
-    <artifactId>maven-surefire-plugin</artifactId>
-    <configuration>
-        <skip>${skip.surefire.tests}</skip>
-    </configuration>
-</plugin>
-```
-
-Do NOT fall back to `--scope all` on your own — ask the user what they want to do.
 
 ## Raw `mvn` Fallback
 
@@ -248,7 +223,7 @@ If Docker images are not cached locally, also add `"registry-1.docker.io"` to `a
 
 # Building
 
-Use `maven_run` with `action="package"`. If not available, use `tdder-maven run package`.
+Use `maven_run` with `action="package"`. If not available, use `tdder-maven package`.
 If neither is available:
 
 ```bash

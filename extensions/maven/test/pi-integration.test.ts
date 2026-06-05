@@ -244,8 +244,6 @@ describe("maven_run tool", () => {
   let runJson: Record<string, unknown>;
   let contentText: string;
 
-  let resultDetails: Record<string, unknown>;
-
   before(async () => {
     const tool = mavenExtension.tools.get("maven_run")!;
     const ctx = makeCtx(singleModuleRoot);
@@ -258,7 +256,6 @@ describe("maven_run tool", () => {
     );
     contentText = (result.content[0] as { type: string; text: string }).text;
     runJson = JSON.parse(contentText);
-    resultDetails = result.details as Record<string, unknown>;
   });
 
   it("returns a result containing rawMavenOut", () => {
@@ -266,20 +263,20 @@ describe("maven_run tool", () => {
       "rawMavenOut should be a non-empty string");
   });
 
-  it("details contains rawLogPathAbsolute for the renderer", () => {
-    const abs = resultDetails.rawLogPathAbsolute as string;
+  it("details contains rawMavenOut as an absolute path", () => {
+    const abs = runJson.rawMavenOut as string;
     assert.ok(typeof abs === "string" && abs.startsWith("/"),
-      `rawLogPathAbsolute should be an absolute path, got: ${abs}`);
-    assert.ok(existsSync(abs), `rawLogPathAbsolute file should exist at ${abs}`);
+      `rawMavenOut should be an absolute path, got: ${abs}`);
+    assert.ok(existsSync(abs), `rawMavenOut file should exist at ${abs}`);
   });
 
   it("persists the raw log file to disk", () => {
-    const absLogPath = join(singleModuleRoot, runJson.rawMavenOut as string);
+    const absLogPath = runJson.rawMavenOut as string;
     assert.ok(existsSync(absLogPath), `log file should exist at ${absLogPath}`);
   });
 
   it("writes Maven output into the raw log file", () => {
-    const absLogPath = join(singleModuleRoot, runJson.rawMavenOut as string);
+    const absLogPath = runJson.rawMavenOut as string;
     const logContent = readFileSync(absLogPath, "utf8");
     assert.ok(logContent.length > 0, "log file should be non-empty");
     assert.ok(logContent.includes("[INFO]"), "log file should contain Maven [INFO] lines");
@@ -296,8 +293,9 @@ describe("maven_run tool", () => {
     assert.equal(runJson.success, true);
   });
 
-  it("echoes back the action in the result", () => {
-    assert.equal(runJson.action, "package");
+  it("echoes back the command in the result", () => {
+    assert.ok(typeof runJson.command === "string" && (runJson.command as string).length > 0,
+      "command should be a non-empty string");
   });
 
   it("includes the runner and goal in the command field", () => {

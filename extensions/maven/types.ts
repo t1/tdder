@@ -21,12 +21,11 @@ export interface MavenRunResult {
   success: boolean;
   cwd: string;
   command: string;
-  action: string;
   testSummary: TestSummary;
   failedTests: FailedTest[];
   testTimings?: TestTiming[];
-  compilationErrors: string[];
-  buildErrors: string[];
+  compilationErrors?: string[];
+  buildErrors?: string[];
   totalOnDisk: TotalOnDisk;
   rawMavenOut: string;
 }

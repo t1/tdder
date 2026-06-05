@@ -25,6 +25,7 @@ function normalise(xml: string): string {
     .replace(/<system-out>[\s\S]*?<\/system-out>\n?/g, "")
     .replace(/\btime="[^"]*"/g, 'time="0"')
     .replace(/\((\w+\.(?:java|kt)):\d+\)/g, "($1:0)")
+    .replace(/lambda\$\w+\$(\d+)/g, "lambda\$\$1")
     .replace(/\n{3,}/g, "\n\n")
     .trim() + "\n";
 }

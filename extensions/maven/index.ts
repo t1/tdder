@@ -7,7 +7,7 @@
  *   maven_lookup_version – Maven Central version lookup
  */
 
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
@@ -26,6 +26,7 @@ import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { buildMetadataUrl, fetchMetadata, selectVersion } from "./version-lookup.ts";
 import type { MavenProjectInfo, MavenRunResult, VersionLookupResult } from "./types.ts";
 import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
+import { INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE } from "./guidance.ts";
 
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
@@ -146,7 +147,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "maven_project_info",
     label: "Maven Project Info",
-    description: "Returns structured information about the current Maven project: root, modules, runner, and current module.",
+    description: `Returns structured information about the current Maven project: root, modules, runner, and current module. ${INFO_LAYOUT}`,
     promptSnippet: "Detect Maven project structure, runner, and module tree. The user already sees rootPath, runner, currentPath, and the project tree — do not repeat them. Print the description (if present) and a brief summary of the project.",
     parameters: Type.Object({}),
 
@@ -191,7 +192,7 @@ export default function (pi: ExtensionAPI) {
       "Use maven_run instead of bash when running Maven goals. It enforces correct flags, saves raw output to a log file, and returns a compact structured result.",
       "For action=test, testScope is required: 'surefire' (unit tests only), 'failsafe' (ITs only), or 'all' (both).",
       "maven_run examples: unit tests: maven_run(action='test', testScope='surefire'); with selector: maven_run(action='test', testScope='surefire', selector='MyTest#myMethod'); ITs only: maven_run(action='test', testScope='failsafe'); all tests: maven_run(action='test', testScope='all'); specific module: maven_run(action='test', testScope='all', project='module-a'); package: maven_run(action='package'); package module: maven_run(action='package', project='module-a'); slow test investigation: maven_run(action='test', testScope='surefire', includeTestTimings=true).",
-      "If testScope='failsafe' and the project POM does not define skip.surefire.tests, the tool returns SUREFIRE_SKIP_NOT_CONFIGURED. Ask the user to add the property wiring to the POM, then retry.",
+      "If testScope='failsafe' and the tool returns SUREFIRE_SKIP_NOT_CONFIGURED, follow the instructions in the error response.",
       "When suggesting next steps that involve running Maven, tell the user to use the /maven command (e.g. '/maven test', '/maven package') rather than raw mvn commands.",
     ],
     parameters: Type.Object({
@@ -219,7 +220,7 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text" as const, text: JSON.stringify({
               error: "SUREFIRE_SKIP_NOT_CONFIGURED",
-              message: "The project POM does not define a 'skip.surefire.tests' property wired to Surefire's <skip> configuration. Add it to the POM before running with testScope='failsafe', or use testScope='all' to run both Surefire and Failsafe.",
+              message: SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE,
             }, null, 2) }],
             details: { error: "SUREFIRE_SKIP_NOT_CONFIGURED" },
           };
@@ -250,7 +251,7 @@ export default function (pi: ExtensionAPI) {
       // details carries only the minimum needed for rendering: the compact result and the absolute log path.
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        details: { result, rawLogPathAbsolute: join(info.projectRoot, result.rawMavenOut) },
+        details: { result },
       };
     },
 
@@ -272,7 +273,7 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderResult(toolResult, { expanded }, theme, context) {
-      type RunDetails = { result: MavenRunResult; rawLogPathAbsolute: string };
+      type RunDetails = { result: MavenRunResult };
       const details = toolResult.details as RunDetails | undefined;
       // While executing there are no details yet — return nothing (the renderCall
       // line and the progress widget already convey what is happening).
@@ -280,9 +281,7 @@ export default function (pi: ExtensionAPI) {
       // Share the result with renderCall so it can update its icon.
       (context.state as { result?: MavenRunResult }).result = details.result;
       if (expanded) {
-        // Use rawLogPathAbsolute as rawMavenOut so the renderer can show the correct path.
-        const result = { ...details.result, rawMavenOut: details.rawLogPathAbsolute };
-        return renderMavenRunResult(result, true, theme, false);
+        return renderMavenRunResult(details.result, true, theme, false);
       }
       // Collapsed: show only the outcome summary (command already in renderCall).
       const summary = buildCollapsedSummary(details.result, theme);

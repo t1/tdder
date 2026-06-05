@@ -21,13 +21,12 @@ function makeResult(overrides: Partial<MavenRunResult> = {}): MavenRunResult {
     success: true,
     cwd: "/repo",
     command: "mvn package -DskipTests",
-    action: "package",
     testSummary: { testsRun: 0, failures: 0, errors: 0, skipped: 0, durationSeconds: 0 },
     failedTests: [],
     compilationErrors: [],
     buildErrors: [],
     totalOnDisk: { testsRun: 0, reportPaths: [] },
-    rawMavenOut: "target/pi/maven-logs/2026-05-13T12-00-00-package.log",
+    rawMavenOut: "/repo/target/pi/maven-logs/2026-05-13T12-00-00-package.log",
     ...overrides,
   };
 }
@@ -188,7 +187,7 @@ describe("renderRunResult — expanded", () => {
   it("JSON contains the rawMavenOut", () => {
     const text = renderRunResult(makeResult(), true, theme);
     assert.ok(
-      text.includes("target/pi/maven-logs/2026-05-13T12-00-00-package.log"),
+      text.includes("/repo/target/pi/maven-logs/2026-05-13T12-00-00-package.log"),
       `expected rawMavenOut in expanded JSON: ${text}`,
     );
   });

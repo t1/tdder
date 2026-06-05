@@ -98,16 +98,7 @@ plus a `/maven` slash command with live progress widget.
 
 **CLI (`tdder-maven`):** the same functionality as a standalone command, usable from any agent
 that has shell access (Claude Code, OpenCode, Cursor, terminal, …). Requires
-[`tsx`](https://github.com/privatenumber/tsx) on your `PATH`.
-
-```bash
-tdder-maven info                                          # project structure
-tdder-maven run test --scope surefire --selector MyTest    # unit tests
-tdder-maven run test --scope failsafe                      # integration tests
-tdder-maven run test --scope all --project blog            # tests in a module
-tdder-maven run package                                    # package without tests
-tdder-maven lookup-version org.assertj assertj-core        # Maven Central lookup
-```
+[`tsx`](https://github.com/privatenumber/tsx) on your `PATH`. Run `tdder-maven help` for usage.
 
 All commands output structured JSON to stdout. Non-zero exit code on failure.
 

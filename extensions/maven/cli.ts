@@ -18,6 +18,7 @@ import { spawn } from "node:child_process";
 import { buildMavenArgs, buildMavenCommand, buildMavenEnv, type MavenAction, type TestScope } from "./maven-run.ts";
 import { buildProjectInfoResult, buildRunResult, checkSurefireSkipConfigured, getMavenProjectInfo } from "./maven-project.ts";
 import { buildMetadataUrl, fetchMetadata, selectVersion } from "./version-lookup.ts";
+import { INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE } from "./guidance.ts";
 import type { VersionLookupResult } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -89,7 +90,7 @@ async function cmdInfo(): Promise<void> {
   if (!json.isMavenProject) process.exitCode = 1;
 }
 
-async function cmdRun(args: Record<string, string | boolean>): Promise<void> {
+async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
   const cwd = resolve(process.cwd());
   const info = getMavenProjectInfo(cwd);
   if (!info) {
@@ -98,37 +99,30 @@ async function cmdRun(args: Record<string, string | boolean>): Promise<void> {
     return;
   }
 
-  const action = (args._positional as string) || "";
-  if (!["test", "package"].includes(action)) {
-    console.error(`Usage: tdder-maven run <test|package> [--scope surefire|failsafe|all] [--selector <sel>] [--project <p>]`);
+  const testScope = (args.scope as TestScope | undefined);
+  if (!testScope) {
+    console.error("--scope is required: surefire, failsafe, or all");
     process.exitCode = 1;
     return;
   }
 
-  const testScope = (args.scope as TestScope | undefined);
   const selector = args.selector as string | undefined;
   const includeTimings = args["include-timings"] === true;
   const project = (args.project as string | undefined)
     ?? (info.currentProject?.relativePath !== "." ? info.currentProject?.relativePath : undefined);
 
-  if (action === "test" && !testScope) {
-    console.error("--scope is required for 'test' action: surefire, failsafe, or all");
-    process.exitCode = 1;
-    return;
-  }
-
-  if (action === "test" && testScope === "failsafe") {
+  if (testScope === "failsafe") {
     if (!checkSurefireSkipConfigured(info.pomPath)) {
       console.log(JSON.stringify({
         error: "SUREFIRE_SKIP_NOT_CONFIGURED",
-        message: "The project POM does not define a 'skip.surefire.tests' property wired to Surefire's <skip> configuration. Add it to the POM before running with --scope failsafe, or use --scope all to run both Surefire and Failsafe.",
+        message: SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE,
       }, null, 2));
       process.exitCode = 1;
       return;
     }
   }
 
-  const opts = { action: action as MavenAction, runner: info.runner, selector, project, testScope };
+  const opts = { action: "test" as MavenAction, runner: info.runner, selector, project, testScope };
   const command = buildMavenCommand(opts);
   const mavenArgs = buildMavenArgs(opts);
 
@@ -138,7 +132,35 @@ async function cmdRun(args: Record<string, string | boolean>): Promise<void> {
     rawRun = await runMaven([...mavenArgs, "-o"], info.projectRoot);
   }
 
-  const result = buildRunResult(rawRun, info, command, action, cwd, testScope, runStartTime, { includeTimings });
+  const result = buildRunResult(rawRun, info, command, "test", cwd, testScope, runStartTime, { includeTimings });
+
+  console.log(JSON.stringify(result, null, 2));
+  if (!result.success) process.exitCode = 1;
+}
+
+async function cmdPackage(args: Record<string, string | boolean>): Promise<void> {
+  const cwd = resolve(process.cwd());
+  const info = getMavenProjectInfo(cwd);
+  if (!info) {
+    console.error("Not a Maven project");
+    process.exitCode = 1;
+    return;
+  }
+
+  const project = (args.project as string | undefined)
+    ?? (info.currentProject?.relativePath !== "." ? info.currentProject?.relativePath : undefined);
+
+  const opts = { action: "package" as MavenAction, runner: info.runner, project };
+  const command = buildMavenCommand(opts);
+  const mavenArgs = buildMavenArgs(opts);
+
+  const runStartTime = Date.now();
+  let rawRun = await runMaven(mavenArgs, info.projectRoot);
+  if (rawRun.exitCode !== 0 && /resolver-status\.properties.*Operation not permitted/.test(rawRun.rawOutput)) {
+    rawRun = await runMaven([...mavenArgs, "-o"], info.projectRoot);
+  }
+
+  const result = buildRunResult(rawRun, info, command, "package", cwd, undefined, runStartTime);
 
   console.log(JSON.stringify(result, null, 2));
   if (!result.success) process.exitCode = 1;
@@ -185,30 +207,31 @@ Examples:
 
   # Project structure and module tree
   tdder-maven info
+  # Note: ${INFO_LAYOUT}
 
   # Unit tests (Surefire)
-  tdder-maven run test --scope surefire
+  tdder-maven test --scope surefire
 
   # Unit tests with selector
-  tdder-maven run test --scope surefire --selector 'MyTest#myMethod'
+  tdder-maven test --scope surefire --selector 'MyTest#myMethod'
 
   # Integration tests only (Failsafe, skips Surefire)
-  tdder-maven run test --scope failsafe
+  tdder-maven test --scope failsafe
 
   # All tests (Surefire + Failsafe)
-  tdder-maven run test --scope all
+  tdder-maven test --scope all
 
   # Tests in a specific module
-  tdder-maven run test --scope surefire --project module-a
+  tdder-maven test --scope surefire --project module-a
 
   # Include per-test timings (use when investigating slow tests)
-  tdder-maven run test --scope surefire --include-timings
+  tdder-maven test --scope surefire --include-timings
 
   # Package without tests
-  tdder-maven run package
+  tdder-maven package
 
   # Package a specific module
-  tdder-maven run package --project module-a
+  tdder-maven package --project module-a
 
   # Look up latest stable version on Maven Central
   tdder-maven lookup-version org.assertj assertj-core
@@ -216,14 +239,12 @@ Examples:
   # Include pre-releases (RC, milestone, alpha, beta)
   tdder-maven lookup-version io.quarkus quarkus-bom --include-prereleases
 
-Scope values for 'run test':
+Scope values for 'test':
   surefire   Unit tests only          (mvn test)
   failsafe   Integration tests only   (mvn verify -Dskip.surefire.tests=true -DskipITs=false)
   all        Unit + integration tests (mvn verify -DskipITs=false)
 
-If --scope failsafe returns SUREFIRE_SKIP_NOT_CONFIGURED, the POM does not wire
-skip.surefire.tests to Surefire's <skip>. Tell the user to add it before retrying.
-Do NOT silently fall back to --scope all.`;
+If --scope failsafe returns SUREFIRE_SKIP_NOT_CONFIGURED, follow the instructions in the error response.`;
 
 async function main(): Promise<void> {
   const { command, args } = parseArgs(process.argv.slice(2));
@@ -234,8 +255,10 @@ async function main(): Promise<void> {
       break;
     case "info":
       return cmdInfo();
-    case "run":
-      return cmdRun(args);
+    case "test":
+      return cmdTest(args);
+    case "package":
+      return cmdPackage(args);
     case "lookup-version":
       return cmdLookupVersion(args);
     default:
