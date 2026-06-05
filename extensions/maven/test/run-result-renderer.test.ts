@@ -25,7 +25,6 @@ function makeResult(overrides: Partial<MavenRunResult> = {}): MavenRunResult {
     failedTests: [],
     compilationErrors: [],
     buildErrors: [],
-    totalOnDisk: { testsRun: 0, reportPaths: [] },
     rawMavenOut: "/repo/target/pi/maven-logs/2026-05-13T12-00-00-package.log",
     ...overrides,
   };
@@ -138,23 +137,19 @@ describe("buildSummary — compilation errors take priority over test counts", (
 });
 
 describe("buildSummary — shows total on disk when it differs from tests run", () => {
-  it("appends '(of N on disk)' when totalOnDisk.testsRun differs from testSummary.testsRun", () => {
+  it("appends '(of N on disk)' when testSummary.totalOnDisk is set", () => {
     const result = makeResult({
-      action: "test",
       command: "mvn test",
-      testSummary: { testsRun: 12, failures: 0, errors: 0, skipped: 0, durationSeconds: 0 },
-      totalOnDisk: { testsRun: 65, reportPaths: [] },
+      testSummary: { testsRun: 12, failures: 0, errors: 0, skipped: 0, durationSeconds: 0, totalOnDisk: 65 },
     });
     const text = renderRunResult(result, false, theme);
     assert.ok(text.includes("12 tests, 0 failed (of 65 on disk)"), `expected '(of 65 on disk)' in: ${text}`);
   });
 
-  it("omits the on-disk suffix when counts are equal", () => {
+  it("omits the on-disk suffix when totalOnDisk is absent", () => {
     const result = makeResult({
-      action: "test",
       command: "mvn test",
       testSummary: { testsRun: 65, failures: 0, errors: 0, skipped: 0, durationSeconds: 0 },
-      totalOnDisk: { testsRun: 65, reportPaths: [] },
     });
     const text = renderRunResult(result, false, theme);
     assert.ok(text.includes("65 tests, 0 failed"), `expected plain summary in: ${text}`);

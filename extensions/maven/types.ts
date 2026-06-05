@@ -12,11 +12,6 @@ export interface MavenProjectInfo {
   projectTree: ProjectNode;
 }
 
-export interface TotalOnDisk {
-  testsRun: number;
-  reportPaths: string[];
-}
-
 export interface MavenRunResult {
   success: boolean;
   cwd: string;
@@ -26,7 +21,6 @@ export interface MavenRunResult {
   testTimings?: TestTiming[];
   compilationErrors?: string[];
   buildErrors?: string[];
-  totalOnDisk: TotalOnDisk;
   rawMavenOut: string;
 }
 

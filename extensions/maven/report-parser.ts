@@ -19,6 +19,7 @@ export interface TestSummary {
   errors: number;
   skipped: number;
   durationSeconds: number;
+  totalOnDisk?: number;
 }
 
 // ---------------------------------------------------------------------------

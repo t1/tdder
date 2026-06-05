@@ -86,16 +86,19 @@ export function buildRunResult(
   const compilationErrors = extractCompilationErrors(rawOutput);
   const buildErrors = extractBuildErrors(rawOutput);
 
+  const totalOnDisk = totalOnDiskSummary.testsRun !== testSummary.testsRun
+    ? totalOnDiskSummary.testsRun
+    : undefined;
+
   return {
     success,
     cwd,
     command,
-    testSummary,
+    testSummary: { ...testSummary, ...(totalOnDisk !== undefined ? { totalOnDisk } : {}) },
     failedTests,
     ...(testTimings ? { testTimings } : {}),
     ...(compilationErrors.length > 0 ? { compilationErrors } : {}),
     ...(buildErrors.length > 0 ? { buildErrors } : {}),
-    totalOnDisk: { testsRun: totalOnDiskSummary.testsRun, reportPaths },
     rawMavenOut,
   };
 }
