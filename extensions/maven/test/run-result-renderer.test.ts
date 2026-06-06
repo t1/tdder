@@ -168,6 +168,16 @@ describe("buildSummary — errors count as failures", () => {
   });
 });
 
+describe("buildSummary — no tests ran", () => {
+  it("shows 'no tests ran' when testsRun is zero", () => {
+    const result = makeResult({
+      testSummary: { testsRun: 0, failures: 0, errors: 0, skipped: 0, durationSeconds: 0 },
+    });
+    const text = renderRunResult(result, false, theme);
+    assert.ok(text.includes("no tests ran"), `expected 'no tests ran' in: ${text}`);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Expanded view
 // ---------------------------------------------------------------------------

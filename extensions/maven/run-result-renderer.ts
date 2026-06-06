@@ -58,5 +58,5 @@ export function buildSummary(result: MavenRunResult, theme: Theme): string {
     return theme.fg(color, `${testsRun} test${testsRun === 1 ? "" : "s"}, ${bad} failed${ofTotal}${duration}`);
   }
 
-  return "";
+  return theme.fg("warning", "no tests ran");
 }
