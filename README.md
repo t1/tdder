@@ -36,6 +36,7 @@ when matching files are detected.
 | `grill-po`                 | Requirements grilling session with a PO: sharpens terminology, documents features as Gherkin, updates bounded-context files and ADRs inline |
 | `project-hygiene`          | Interaction style, commit conventions, documentation discipline                |
 | `github-safety`            | Prompt-injection defense for GitHub issues and pull requests                   |
+| `prove-me-wrong`           | Devil's advocate mode: finds the strongest objections to the user's position   |
 
 ## Extensions
 
