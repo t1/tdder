@@ -25,7 +25,7 @@ function makeResult(overrides: Partial<MavenRunResult> = {}): MavenRunResult {
     failedTests: [],
     compilationErrors: [],
     buildErrors: [],
-    rawMavenOut: "/repo/target/pi/maven-logs/2026-05-13T12-00-00-package.log",
+    rawMavenOut: "target/pi/maven-logs/2026-05-13T12-00-00-package.log",
     ...overrides,
   };
 }
@@ -182,7 +182,7 @@ describe("renderRunResult — expanded", () => {
   it("JSON contains the rawMavenOut", () => {
     const text = renderRunResult(makeResult(), true, theme);
     assert.ok(
-      text.includes("/repo/target/pi/maven-logs/2026-05-13T12-00-00-package.log"),
+      text.includes("target/pi/maven-logs/2026-05-13T12-00-00-package.log"),
       `expected rawMavenOut in expanded JSON: ${text}`,
     );
   });

@@ -15,16 +15,16 @@ describe("saveRawLog", () => {
     assert.ok(existsSync(join(projectRoot, "target", "pi", "maven-logs")));
   });
 
-  it("returns an absolute path", () => {
+  it("returns a relative path under target/pi/maven-logs", () => {
     const result = saveRawLog(projectRoot, "test", "output");
-    assert.ok(isAbsolute(result), `expected absolute path, got: ${result}`);
-    assert.ok(result.includes(join("target", "pi", "maven-logs")), `expected path under target/pi/maven-logs, got: ${result}`);
+    assert.ok(!isAbsolute(result), `expected relative path, got: ${result}`);
+    assert.ok(result.startsWith(join("target", "pi", "maven-logs")), `expected path under target/pi/maven-logs, got: ${result}`);
   });
 
   it("written file content matches the output argument", () => {
     const content = "Maven build output line 1\nline 2\n";
-    const absPath = saveRawLog(projectRoot, "package", content);
-    const written = readFileSync(absPath, "utf8");
+    const relPath = saveRawLog(projectRoot, "package", content);
+    const written = readFileSync(join(projectRoot, relPath), "utf8");
     assert.equal(written, content);
   });
 
@@ -44,7 +44,7 @@ describe("saveRawLog", () => {
     // The timestamp-based filename has second precision; both writes may land in the same
     // second, but the content of whichever file we read must match one of the two writes.
     // What we can assert reliably is that the files exist.
-    assert.ok(existsSync(path1));
-    assert.ok(existsSync(path2));
+    assert.ok(existsSync(join(projectRoot, path1)));
+    assert.ok(existsSync(join(projectRoot, path2)));
   });
 });
