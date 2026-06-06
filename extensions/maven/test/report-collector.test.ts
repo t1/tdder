@@ -249,9 +249,16 @@ describe("parseReports — since filters out stale reports", () => {
   after(() => rmSync(tmpDir, { recursive: true, force: true }));
 
   it("includes only reports modified at or after since", () => {
-    const { summary, failedTests } = parseReports(["target/surefire-reports-since"], singleRoot, sinceMs);
+    const { summary } = parseReports(["target/surefire-reports-since"], singleRoot, sinceMs);
     assert.equal(summary.testsRun, 2, "should only count the fresh report (2 tests)");
     assert.equal(summary.failures, 1);
+  });
+
+  it("includes reports whose mtime is within 2 seconds before since (filesystem clock tolerance)", () => {
+    // Simulate HFS+ 1-second mtime precision: report written at T, runStartTime recorded at T+500ms.
+    // The report mtime rounds down to T, which is 500ms before since — must still be included.
+    const { summary } = parseReports(["target/surefire-reports-since"], singleRoot, freshTime.getTime() + 500);
+    assert.equal(summary.testsRun, 2, "fresh report should be included despite sub-second mtime lag");
   });
 
   it("includes all reports when since is omitted", () => {

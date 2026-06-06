@@ -66,7 +66,7 @@ export function parseReports(
       if (since !== undefined) {
         try {
           const mtime = statSync(filePath).mtimeMs;
-          if (mtime < since) continue;
+          if (mtime < since - 2000) continue;
         } catch { continue; }
       }
       const relFilePath = join(rel, file);
