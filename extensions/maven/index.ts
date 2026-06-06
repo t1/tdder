@@ -337,11 +337,13 @@ export default function (pi: ExtensionAPI) {
 
   // ── /maven command ────────────────────────────────────────────────────────
 
-  const SUBCOMMANDS = ["info", "test", "itest", "all", "package", "version"] as const;
+  const SUBCOMMANDS = ["info", "test", "package", "version"] as const;
   type Subcommand = (typeof SUBCOMMANDS)[number];
+  const TEST_SCOPES = ["all", "surefire", "failsafe"] as const;
+  type TestScopeArg = (typeof TEST_SCOPES)[number];
 
   pi.registerCommand("maven", {
-    description: "Maven actions: info | test [selector] | itest [selector] | all [selector] | package | version <groupId>:<artifactId>",
+    description: "Maven actions: info | test [all|surefire|failsafe] [selector] | package | version <groupId>:<artifactId>",
 
     getArgumentCompletions: (prefix: string) => {
       const items = SUBCOMMANDS.filter((s) => s.startsWith(prefix)).map((s) => ({
@@ -349,9 +351,7 @@ export default function (pi: ExtensionAPI) {
         label: s,
         description: {
           info:    "Show project info",
-          test:    "Run unit tests (Surefire)",
-          itest:   "Run integration tests (Failsafe only)",
-          all:     "Run all tests (Surefire + Failsafe)",
+          test:    "Run tests (default: all)",
           package: "Package without tests",
           version: "Look up artifact version",
         }[s],
@@ -362,7 +362,6 @@ export default function (pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       const cwd = resolve(ctx.cwd);
       const [sub, ...rest] = (args?.trim() ?? "").split(/\s+/);
-      const selector = rest.join(" ") || undefined;
 
       if (!sub || !SUBCOMMANDS.includes(sub as Subcommand)) {
         mavenMessage({ kind: "usage", message: `Usage: /maven ${SUBCOMMANDS.join(" | ")}` });
@@ -371,7 +370,7 @@ export default function (pi: ExtensionAPI) {
 
       // version lookup — no Maven project required
       if (sub === "version") {
-        const coord = selector;
+        const coord = rest.join(" ") || undefined;
         if (!coord || !coord.includes(":")) {
           mavenMessage({ kind: "error", message: "Usage: /maven version <groupId>:<artifactId>" });
           return;
@@ -405,13 +404,19 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      const actionMap: Record<string, { action: MavenAction; testScope?: TestScope }> = {
-        test:    { action: "test", testScope: "surefire" },
-        itest:   { action: "test", testScope: "failsafe" },
-        all:     { action: "test", testScope: "all" },
-        package: { action: "package" },
-      };
-      const { action, testScope } = actionMap[sub];
+      let testScope: TestScope | undefined;
+      let selector: string | undefined;
+      if (sub === "test") {
+        const [maybeScope, ...selectorParts] = rest;
+        if (TEST_SCOPES.includes(maybeScope as TestScopeArg)) {
+          testScope = maybeScope as TestScope;
+          selector = selectorParts.join(" ") || undefined;
+        } else {
+          testScope = "all";
+          selector = rest.join(" ") || undefined;
+        }
+      }
+      const action: MavenAction = sub === "package" ? "package" : "test";
       const project = info.currentProject?.relativePath !== "." ? info.currentProject?.relativePath : undefined;
       const opts = { action, runner: info.runner, selector, project, testScope };
       const command = buildMavenCommand(opts);
