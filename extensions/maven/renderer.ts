@@ -101,8 +101,12 @@ function renderVersion(details: Record<string, unknown>, theme: Theme): Text {
 function renderRun(details: Record<string, unknown>, theme: Theme): Text {
   const { result } = details as { result: MavenRunResult };
 
-  const lines = [renderRunResult(result, false, theme)];
-  lines.push(label(theme, "log") + theme.fg("dim", result.rawMavenOut));
+  const icon = result.success ? theme.fg("success", "✓") : theme.fg("error", "✗");
+  const lines = [
+    label(theme, "command") + `${icon} ${theme.fg("dim", result.command)}`,
+    ...renderRunResult(result, false, theme, false).split("\n").filter(Boolean),
+    label(theme, "log") + theme.fg("dim", result.rawMavenOut),
+  ];
 
   return new Text(lines.join("\n"), 0, 0);
 }
