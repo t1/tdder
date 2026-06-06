@@ -3,7 +3,7 @@ name: grill-po
 description: >
   Requirements grilling session with a Product Owner (or anyone in that role). Challenges plans against
   the existing domain model, sharpens terminology, and updates documentation (bounded-context files,
-  Gherkin features, DMDs) inline as decisions crystallise. Use when the user wants to discuss and
+  Gherkin features, DMDs (Domain Model Decisions)) inline as decisions crystallise. Use when the user wants to discuss and
   capture requirements, stress-test a plan against the project's language, or refine feature scope.
 version: 0.1.0
 ---
