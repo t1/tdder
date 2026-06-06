@@ -80,23 +80,28 @@ export function parseSurefireReport(
   const suiteAttrs = suiteMatch ? suiteMatch[0] : "";
   const suiteClass = attrStr(suiteAttrs, "name");
 
-  const testsRun = attrInt(suiteAttrs, "tests");
-  const failures = attrInt(suiteAttrs, "failures");
-  const errors = attrInt(suiteAttrs, "errors");
+  const testsRunFromAttrs = attrInt(suiteAttrs, "tests");
+  const failuresFromAttrs = attrInt(suiteAttrs, "failures");
+  const errorsFromAttrs = attrInt(suiteAttrs, "errors");
   const skipped = attrInt(suiteAttrs, "skipped");
   const durationSeconds = parseFloat(attrStr(suiteAttrs, "time") || "0") || 0;
 
   const failedTests: FailedTest[] = [];
+  let testsRunFromTestcases = 0;
+  let failuresFromTestcases = 0;
+  let errorsFromTestcases = 0;
 
   // Match all <testcase> blocks; self-closing ones have no body so the failure/error check skips them.
   const testcasePattern = /<testcase((?:[^>]|(?!\/>)>)*?)(\/>|(>[\s\S]*?<\/testcase>))/g;
   for (const tcMatch of xml.matchAll(testcasePattern)) {
     const tcAttrs = tcMatch[1];
     const tcBody = tcMatch[3] ?? "";
+    testsRunFromTestcases++;
     const failureMatch = tcBody.match(/<(failure|error)\s+message="([^"]*)"[^>]*>/);
     if (!failureMatch) continue;
 
     const kind = failureMatch[1] as "failure" | "error";
+    if (kind === "failure") failuresFromTestcases++; else errorsFromTestcases++;
     const type = kind === "error" ? attrStr(failureMatch[0], "type") || undefined : undefined;
     const rawClassName = attrStr(tcAttrs, "classname");
     const rawName = attrStr(tcAttrs, "name");
@@ -107,7 +112,7 @@ export function parseSurefireReport(
     // (with ()[N] / (T)[N] suffixes stripped — they aren't valid in -Dtest=).
     // If classname is unrelated (Cucumber: it's a feature title), only the runner
     // class itself can be targeted, which reruns all its scenarios.
-    const isJavaClass = suiteClass === rawClassName || suiteClass.startsWith(rawClassName + "$");
+    const isJavaClass = suiteClass === rawClassName || suiteClass.startsWith(rawClassName + "$") || rawClassName.startsWith(suiteClass + "$");
 
     const className = isJavaClass ? rawClassName : suiteClass;
     const methodName = isJavaClass ? rawName : undefined;
@@ -137,6 +142,10 @@ export function parseSurefireReport(
     }
   }
 
+  // Use testcase-derived counts when the suite header under-reports (e.g. Kotlin @Nested classes)
+  const testsRun = Math.max(testsRunFromAttrs, testsRunFromTestcases);
+  const failures = Math.max(failuresFromAttrs, failuresFromTestcases);
+  const errors = Math.max(errorsFromAttrs, errorsFromTestcases);
   return { summary: { testsRun, failures, errors, skipped, durationSeconds }, failedTests, testTimings };
 }
 

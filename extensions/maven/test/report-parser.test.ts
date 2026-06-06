@@ -152,7 +152,7 @@ describe("parseSurefireReport", () => {
 
     it("returns zero counts and empty failedTests", () => {
       const { summary: result, failedTests } = parseSurefireReport(tmpFile);
-      assert.equal(result.testsRun, 0);
+      assert.equal(result.testsRun, 1, "one testcase element means one test run");
       assert.equal(result.failures, 0);
       assert.equal(result.errors, 0);
       assert.equal(result.skipped, 0);
@@ -235,3 +235,12 @@ describe("parseSurefireReport — per-test timings", () => {
     assert.equal(testTimings, undefined);
   });
 });
+
+  it("counts testcases directly when suite header under-reports (Kotlin @Nested)", () => {
+    const { summary, failedTests } = parseSurefireReport(join(reportsDir, "TEST-nested-kotlin.xml"));
+    assert.equal(summary.testsRun, 3, "should count all testcase elements, not the wrong suite header");
+    assert.equal(summary.failures, 1);
+    assert.equal(failedTests.length, 1);
+    assert.equal(failedTests[0].className, "com.example.TemporalTest$GivenUnsupportedForm");
+    assert.equal(failedTests[0].methodName, "shouldRejectGarbage");
+  });
