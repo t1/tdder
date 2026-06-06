@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { ProjectNode } from "./project-info.ts";
 import { parseSurefireReport, type FailedTest, type TestSummary, type TestTiming } from "./report-parser.ts";
@@ -69,14 +69,14 @@ export function parseReports(
           if (mtime < since) continue;
         } catch { continue; }
       }
-      const xml = readFileSync(filePath, "utf8");
-      const parsed = parseSurefireReport(xml, options);
+      const relFilePath = join(rel, file);
+      const parsed = parseSurefireReport(filePath, options);
       summary.testsRun += parsed.summary.testsRun;
       summary.failures += parsed.summary.failures;
       summary.errors += parsed.summary.errors;
       summary.skipped += parsed.summary.skipped;
       summary.durationSeconds += parsed.summary.durationSeconds;
-      failedTests.push(...parsed.failedTests.map((t) => ({ ...t, reportFile: join(rel, file) })));
+      failedTests.push(...parsed.failedTests.map((t) => ({ ...t, reportFile: relFilePath })));
       if (testTimings && parsed.testTimings) testTimings.push(...parsed.testTimings);
     }
   }

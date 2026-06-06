@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 export interface TestTiming {
   className: string;
   methodName: string;
@@ -5,12 +7,17 @@ export interface TestTiming {
 }
 
 export interface FailedTest {
+  kind: "failure" | "error";
+  type?: string;
+  className: string;
   methodName?: string;
   displayName?: string;
   message: string;
   rerunSelector: string;
   rerunScope: "method" | "class";
-  reportFile?: string;
+  reportFile: string;
+  reportFileOffset: number;
+  reportFileLimit: number;
 }
 
 export interface TestSummary {
@@ -47,10 +54,28 @@ function decodeXmlEntities(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
+function lineOf(xml: string, index: number): number {
+  let line = 1;
+  for (let i = 0; i < index; i++) {
+    if (xml[i] === "\n") line++;
+  }
+  return line;
+}
+
+function lineCount(text: string): number {
+  let count = 1;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "\n") count++;
+  }
+  return count;
+}
+
 export function parseSurefireReport(
-  xml: string,
+  filePath: string,
   options?: { includeTimings?: boolean },
 ): { summary: TestSummary; failedTests: FailedTest[]; testTimings?: TestTiming[] } {
+  const xml = readFileSync(filePath, "utf8");
+
   const suiteMatch = xml.match(/<testsuite([^>]*)>/);
   const suiteAttrs = suiteMatch ? suiteMatch[0] : "";
   const suiteClass = attrStr(suiteAttrs, "name");
@@ -63,18 +88,19 @@ export function parseSurefireReport(
 
   const failedTests: FailedTest[] = [];
 
-  // Remove self-closing <testcase .../> tags so the loop below only sees blocks with children
-  const stripped = xml.replace(/<testcase[^>]*\/>/g, "");
-  const testcasePattern = /<testcase([^>]*)>([\s\S]*?)<\/testcase>/g;
-  for (const tcMatch of stripped.matchAll(testcasePattern)) {
+  // Match all <testcase> blocks; self-closing ones have no body so the failure/error check skips them.
+  const testcasePattern = /<testcase((?:[^>]|(?!\/>)>)*?)(\/>|(>[\s\S]*?<\/testcase>))/g;
+  for (const tcMatch of xml.matchAll(testcasePattern)) {
     const tcAttrs = tcMatch[1];
-    const tcBody = tcMatch[2];
-    const failureMatch = tcBody.match(/<failure\s+message="([^"]*)"[^>]*>/);
+    const tcBody = tcMatch[3] ?? "";
+    const failureMatch = tcBody.match(/<(failure|error)\s+message="([^"]*)"[^>]*>/);
     if (!failureMatch) continue;
 
+    const kind = failureMatch[1] as "failure" | "error";
+    const type = kind === "error" ? attrStr(failureMatch[0], "type") || undefined : undefined;
     const rawClassName = attrStr(tcAttrs, "classname");
     const rawName = attrStr(tcAttrs, "name");
-    const message = decodeXmlEntities(failureMatch[1]);
+    const message = decodeXmlEntities(failureMatch[2]);
 
     // suiteClass is the JUnit runner / top-level class. If classname is that class or a
     // $-nested subclass, this is a JUnit test and the selector is classname#method
@@ -91,7 +117,11 @@ export function parseSurefireReport(
       ? `${className}#${methodName!.replace(/[([].*/u, "")}`
       : suiteClass;
 
-    failedTests.push({ className, methodName, displayName, message, rerunSelector, rerunScope });
+    const matchText = tcMatch[0];
+    const reportFileOffset = lineOf(xml, tcMatch.index ?? 0);
+    const reportFileLimit = lineCount(matchText);
+
+    failedTests.push({ kind, ...(type !== undefined ? { type } : {}), className, methodName, displayName, message, rerunSelector, rerunScope, reportFile: filePath, reportFileOffset, reportFileLimit });
   }
 
   let testTimings: TestTiming[] | undefined;

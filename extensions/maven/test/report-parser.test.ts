@@ -1,7 +1,8 @@
-import { describe, it } from "vitest";
+import { afterAll, beforeAll, describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir as osTmpdir } from "node:os";
 import { parseSurefireReport, extractCompilationErrors, extractBuildErrors } from "../report-parser.ts";
 
 const reportsDir = join(import.meta.dirname, "fixtures/reports");
@@ -9,13 +10,12 @@ const consoleDir = join(import.meta.dirname, "fixtures/console-output");
 const projectsDir = join(import.meta.dirname, "fixtures/projects");
 
 function projectReport(project: string, file: string): string {
-  return readFileSync(join(projectsDir, project, "expected-reports", file), "utf8");
+  return join(projectsDir, project, "expected-reports", file);
 }
 
 describe("parseSurefireReport", () => {
   it("returns a passing summary from a clean XML report", () => {
-    const xml = readFileSync(join(reportsDir, "TEST-passing.xml"), "utf8");
-    const { summary: result, failedTests } = parseSurefireReport(xml);
+    const { summary: result, failedTests } = parseSurefireReport(join(reportsDir, "TEST-passing.xml"));
     assert.equal(result.testsRun, 3);
     assert.equal(result.failures, 0);
     assert.equal(result.errors, 0);
@@ -25,8 +25,8 @@ describe("parseSurefireReport", () => {
   });
 
   it("returns a failing summary and populates failedTests", () => {
-    const xml = readFileSync(join(reportsDir, "TEST-failing.xml"), "utf8");
-    const { summary: result, failedTests } = parseSurefireReport(xml);
+    const path = join(reportsDir, "TEST-failing.xml");
+    const { summary: result, failedTests } = parseSurefireReport(path);
     assert.equal(result.testsRun, 2);
     assert.equal(result.failures, 1);
     assert.equal(failedTests.length, 1);
@@ -36,27 +36,38 @@ describe("parseSurefireReport", () => {
     assert.equal(failedTests[0].message, "expected 200 but was 503");
     assert.equal(failedTests[0].rerunSelector, "com.example.BarTest#shouldFail");
     assert.equal(failedTests[0].rerunScope, "method");
+    assert.equal(failedTests[0].kind, "failure");
+    assert.equal(failedTests[0].type, undefined);
+    assert.equal(failedTests[0].reportFile, path);
+    assert.equal(failedTests[0].reportFileOffset, 4, "offset should point at the <testcase> line");
+    assert.equal(failedTests[0].reportFileLimit, 7, "limit should cover the full <testcase> block");
   });
 
   it("parses a Failsafe IT report the same way", () => {
-    const xml = readFileSync(join(reportsDir, "TEST-IT-passing.xml"), "utf8");
-    const { summary: result, failedTests } = parseSurefireReport(xml);
+    const { summary: result, failedTests } = parseSurefireReport(join(reportsDir, "TEST-IT-passing.xml"));
     assert.equal(result.testsRun, 1);
     assert.equal(result.failures, 0);
     assert.deepEqual(failedTests, []);
   });
 
-  it("counts errors in the errors field but does not add them to failedTests", () => {
-    const xml = readFileSync(join(reportsDir, "TEST-error.xml"), "utf8");
-    const { summary: result, failedTests } = parseSurefireReport(xml);
+  it("parses <error> elements and includes them in failedTests with kind=error", () => {
+    const path = join(reportsDir, "TEST-error.xml");
+    const { summary: result, failedTests } = parseSurefireReport(path);
     assert.equal(result.errors, 1);
     assert.equal(result.testsRun, 2);
-    assert.deepEqual(failedTests, []);
+    assert.equal(failedTests.length, 1);
+    assert.equal(failedTests[0].className, "com.example.BazTest");
+    assert.equal(failedTests[0].methodName, "shouldThrow");
+    assert.equal(failedTests[0].message, "NullPointerException");
+    assert.equal(failedTests[0].kind, "error");
+    assert.equal(failedTests[0].type, "java.lang.NullPointerException");
+    assert.equal(failedTests[0].reportFile, path);
+    assert.ok(typeof failedTests[0].reportFileOffset === "number" && failedTests[0].reportFileOffset > 0);
+    assert.ok(typeof failedTests[0].reportFileLimit === "number" && failedTests[0].reportFileLimit > 0);
   });
 
   it("returns zero counts and empty failedTests for a no-tests-run report", () => {
-    const xml = readFileSync(join(reportsDir, "TEST-no-tests.xml"), "utf8");
-    const { summary: result, failedTests } = parseSurefireReport(xml);
+    const { summary: result, failedTests } = parseSurefireReport(join(reportsDir, "TEST-no-tests.xml"));
     assert.equal(result.testsRun, 0);
     assert.equal(result.failures, 0);
     assert.equal(result.errors, 0);
@@ -66,31 +77,24 @@ describe("parseSurefireReport", () => {
   });
 
   it("strips ()[N] suffix from @TestFactory method names to produce a rerun selector", () => {
-    const xml = projectReport("junit-java", "TEST-com.example.SampleTest$InnerContext.xml");
-    const { summary: result, failedTests } = parseSurefireReport(xml);
-    // dynamicTests()[2] — ()[N] stripped
-    const dyn = failedTests.find((t) => t.methodName.startsWith("dynamicTests()"))!;
+    const { summary: result, failedTests } = parseSurefireReport(projectReport("junit-java", "TEST-com.example.SampleTest$InnerContext.xml"));
+    const dyn = failedTests.find((t) => t.methodName?.startsWith("dynamicTests()"))!;
     assert.ok(dyn, "expected a dynamicTests failure");
     assert.equal(dyn.rerunSelector, "com.example.SampleTest#dynamicTests");
     assert.equal(dyn.rerunScope, "method");
   });
 
   it("parses a Cucumber passing report", () => {
-    const xml = projectReport("cucumber", "TEST-com.example.RunCucumberTest.xml");
-    const { summary: result, failedTests } = parseSurefireReport(xml);
+    const { summary: result } = parseSurefireReport(projectReport("cucumber", "TEST-com.example.RunCucumberTest.xml"));
     assert.equal(result.testsRun, 2);
-    assert.equal(result.failures, 1); // one passing, one failing scenario
+    assert.equal(result.failures, 1);
   });
 
   it("parses a Cucumber failing report", () => {
-    const xml = projectReport("cucumber", "TEST-com.example.RunCucumberTest.xml");
-    const { summary: result, failedTests } = parseSurefireReport(xml);
+    const { failedTests } = parseSurefireReport(projectReport("cucumber", "TEST-com.example.RunCucumberTest.xml"));
     assert.equal(failedTests.length, 1);
-    // className is the runner class, not the feature name
     assert.equal(failedTests[0].className, "com.example.RunCucumberTest");
-    // no methodName — Cucumber has no method
     assert.equal(failedTests[0].methodName, undefined);
-    // displayName carries the human-readable scenario identity
     assert.equal(failedTests[0].displayName, "Sample feature - failing scenario");
     assert.equal(failedTests[0].rerunSelector, "com.example.RunCucumberTest");
     assert.equal(failedTests[0].rerunScope, "class");
@@ -100,24 +104,20 @@ describe("parseSurefireReport", () => {
   });
 
   it("parses a Kotlin report with spaces in method and class names", () => {
-    const xml = projectReport("junit-kotlin", "TEST-com.example.SampleTest$inner context.xml");
-    const { summary: result, failedTests } = parseSurefireReport(xml);
+    const { summary: result, failedTests } = parseSurefireReport(projectReport("junit-kotlin", "TEST-com.example.SampleTest$inner context.xml"));
     assert.equal(result.testsRun, 6);
     assert.equal(result.failures, 3);
     assert.equal(failedTests.length, 3);
-    // spaces in method name — selector strips ()[N] suffix
-    const dyn = failedTests.find((t) => t.methodName.startsWith("dynamic tests()"))!;
+    const dyn = failedTests.find((t) => t.methodName?.startsWith("dynamic tests()"))!;
     assert.ok(dyn, "expected a 'dynamic tests' failure");
     assert.equal(dyn.className, "com.example.SampleTest");
     assert.equal(dyn.rerunSelector, "com.example.SampleTest#dynamic tests");
     assert.equal(dyn.rerunScope, "method");
-    // plain method with spaces — preserved verbatim
     const plain = failedTests.find((t) => t.methodName === "plain fails")!;
     assert.ok(plain, "expected a 'plain fails' failure");
     assert.equal(plain.rerunSelector, "com.example.SampleTest#plain fails");
     assert.equal(plain.rerunScope, "method");
     assert.equal(plain.displayName, undefined);
-    // spaces in both classname ($-nested) and method name
     const nested = failedTests.find((t) => t.methodName === "nested fails")!;
     assert.ok(nested, "expected a 'nested fails' failure");
     assert.equal(nested.className, "com.example.SampleTest$inner context");
@@ -127,12 +127,10 @@ describe("parseSurefireReport", () => {
   });
 
   it("parses a Kotlin root-package report (no dots in classname)", () => {
-    const xml = projectReport("junit-kotlin", "TEST-RootPackageTest.xml");
-    const { summary: result, failedTests } = parseSurefireReport(xml);
+    const { summary: result, failedTests } = parseSurefireReport(projectReport("junit-kotlin", "TEST-RootPackageTest.xml"));
     assert.equal(result.testsRun, 2);
     assert.equal(result.failures, 1);
     assert.equal(failedTests.length, 1);
-    // no dots in classname — root package
     assert.equal(failedTests[0].className, "RootPackageTest");
     assert.equal(failedTests[0].methodName, "root fails");
     assert.equal(failedTests[0].displayName, undefined);
@@ -140,14 +138,26 @@ describe("parseSurefireReport", () => {
     assert.equal(failedTests[0].rerunScope, "method");
   });
 
-  it("returns zero counts for a minimal testsuite with no attributes", () => {
-    const xml = "<testsuite><testcase name=\"x\" classname=\"X\"/></testsuite>";
-    const { summary: result, failedTests } = parseSurefireReport(xml);
-    assert.equal(result.testsRun, 0);
-    assert.equal(result.failures, 0);
-    assert.equal(result.errors, 0);
-    assert.equal(result.skipped, 0);
-    assert.deepEqual(failedTests, []);
+  describe("returns zero counts for a minimal testsuite with no attributes", () => {
+    let tmpDir: string;
+    let tmpFile: string;
+
+    beforeAll(() => {
+      tmpDir = mkdtempSync(join(osTmpdir(), "surefire-test-"));
+      tmpFile = join(tmpDir, "TEST-minimal.xml");
+      writeFileSync(tmpFile, "<testsuite><testcase name=\"x\" classname=\"X\"/></testsuite>");
+    });
+
+    afterAll(() => rmSync(tmpDir, { recursive: true, force: true }));
+
+    it("returns zero counts and empty failedTests", () => {
+      const { summary: result, failedTests } = parseSurefireReport(tmpFile);
+      assert.equal(result.testsRun, 0);
+      assert.equal(result.failures, 0);
+      assert.equal(result.errors, 0);
+      assert.equal(result.skipped, 0);
+      assert.deepEqual(failedTests, []);
+    });
   });
 });
 
@@ -213,8 +223,7 @@ describe("extractBuildErrors", () => {
 
 describe("parseSurefireReport — per-test timings", () => {
   it("returns timings for each testcase when requested", () => {
-    const xml = readFileSync(join(reportsDir, "TEST-passing.xml"), "utf8");
-    const { testTimings } = parseSurefireReport(xml, { includeTimings: true });
+    const { testTimings } = parseSurefireReport(join(reportsDir, "TEST-passing.xml"), { includeTimings: true });
     assert.equal(testTimings?.length, 3);
     assert.equal(testTimings?.[0].className, "com.example.FooTest");
     assert.equal(testTimings?.[0].methodName, "shouldDoA");
@@ -222,8 +231,7 @@ describe("parseSurefireReport — per-test timings", () => {
   });
 
   it("returns no timings by default", () => {
-    const xml = readFileSync(join(reportsDir, "TEST-passing.xml"), "utf8");
-    const { testTimings } = parseSurefireReport(xml);
+    const { testTimings } = parseSurefireReport(join(reportsDir, "TEST-passing.xml"));
     assert.equal(testTimings, undefined);
   });
 });
