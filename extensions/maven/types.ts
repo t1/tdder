@@ -18,6 +18,7 @@ export interface MavenRunResult {
   command: string;
   testSummary: TestSummary;
   failedTests: FailedTest[];
+  failedTestsLimit?: number;
   testTimings?: TestTiming[];
   compilationErrors?: string[];
   buildErrors?: string[];

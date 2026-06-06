@@ -12,14 +12,19 @@
  *   lookup-version <groupId> <artifactId> [--include-prereleases]
  */
 
-import { resolve } from "node:path";
-import { spawn } from "node:child_process";
+import {resolve} from "node:path";
+import {spawn} from "node:child_process";
 
-import { buildMavenArgs, buildMavenCommand, buildMavenEnv, type MavenAction, type TestScope } from "./maven-run.ts";
-import { buildProjectInfoResult, buildRunResult, checkSurefireSkipConfigured, getMavenProjectInfo } from "./maven-project.ts";
-import { buildMetadataUrl, fetchMetadata, selectVersion } from "./version-lookup.ts";
-import { INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE } from "./guidance.ts";
-import type { VersionLookupResult } from "./types.ts";
+import {buildMavenArgs, buildMavenCommand, buildMavenEnv, type MavenAction, type TestScope} from "./maven-run.ts";
+import {
+  buildProjectInfoResult,
+  buildRunResult,
+  checkSurefireSkipConfigured,
+  getMavenProjectInfo
+} from "./maven-project.ts";
+import {buildMetadataUrl, fetchMetadata, selectVersion} from "./version-lookup.ts";
+import {INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE} from "./guidance.ts";
+import type {VersionLookupResult} from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Maven runner (simplified — no pi widget, just spawn and collect output)
@@ -46,7 +51,7 @@ async function runMaven(
     child.stdout.on("data", onData);
     child.stderr.on("data", onData);
     child.on("close", (code) => {
-      done({ rawOutput: rawChunks.join(""), exitCode: code ?? 1 });
+      done({rawOutput: rawChunks.join(""), exitCode: code ?? 1});
     });
   });
 }
@@ -55,7 +60,17 @@ async function runMaven(
 // CLI argument parsing
 // ---------------------------------------------------------------------------
 
-function parseArgs(argv: string[]): { command: string; args: Record<string, string | boolean> } {
+export function checkUnknownFlags(
+  args: Record<string, string | boolean>,
+  known: string[],
+): string | null {
+  const knownSet = new Set(known);
+  const unknown = Object.keys(args).filter((k) => k !== "_positional" && !knownSet.has(k));
+  if (unknown.length === 0) return null;
+  return `Unknown flag${unknown.length > 1 ? "s" : ""}: ${unknown.map((k) => `--${k}`).join(", ")}`;
+}
+
+export function parseArgs(argv: string[]): { command: string; args: Record<string, string | boolean> } {
   const [command, ...rest] = argv;
   const args: Record<string, string | boolean> = {};
   const positional: string[] = [];
@@ -63,27 +78,38 @@ function parseArgs(argv: string[]): { command: string; args: Record<string, stri
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (arg.startsWith("--")) {
-      const key = arg.slice(2);
-      const next = rest[i + 1];
-      if (next && !next.startsWith("--")) {
-        args[key] = next;
-        i++;
+      const eqIdx = arg.indexOf("=");
+      if (eqIdx !== -1) {
+        args[arg.slice(2, eqIdx)] = arg.slice(eqIdx + 1);
       } else {
-        args[key] = true;
+        const key = arg.slice(2);
+        const next = rest[i + 1];
+        if (next && !next.startsWith("--")) {
+          args[key] = next;
+          i++;
+        } else {
+          args[key] = true;
+        }
       }
     } else {
       positional.push(arg);
     }
   }
   args._positional = positional.join(" ");
-  return { command: command ?? "", args };
+  return {command: command ?? "", args};
 }
 
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
 
-async function cmdInfo(): Promise<void> {
+async function cmdInfo(args: Record<string, string | boolean>): Promise<void> {
+  const unknownError = checkUnknownFlags(args, []);
+  if (unknownError) {
+    console.error(unknownError);
+    process.exitCode = 1;
+    return;
+  }
   const cwd = resolve(process.cwd());
   const json = buildProjectInfoResult(cwd);
   console.log(JSON.stringify(json, null, 2));
@@ -91,6 +117,13 @@ async function cmdInfo(): Promise<void> {
 }
 
 async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
+  const unknownError = checkUnknownFlags(args, ["scope", "selector", "project", "include-timings", "limit"]);
+  if (unknownError) {
+    console.error(unknownError);
+    process.exitCode = 1;
+    return;
+  }
+
   const cwd = resolve(process.cwd());
   const info = getMavenProjectInfo(cwd);
   if (!info) {
@@ -108,6 +141,11 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
 
   const selector = args.selector as string | undefined;
   const includeTimings = args["include-timings"] === true;
+  const rawLimit = args["limit"] as string | boolean | undefined;
+  const limit: number | null =
+    rawLimit === "none" ? null
+      : rawLimit !== undefined && rawLimit !== true ? parseInt(rawLimit as string, 10)
+        : 10;
   const project = (args.project as string | undefined)
     ?? (info.currentProject?.relativePath !== "." ? info.currentProject?.relativePath : undefined);
 
@@ -122,7 +160,7 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
     }
   }
 
-  const opts = { action: "test" as MavenAction, runner: info.runner, selector, project, testScope };
+  const opts = {action: "test" as MavenAction, runner: info.runner, selector, project, testScope};
   const command = buildMavenCommand(opts);
   const mavenArgs = buildMavenArgs(opts);
 
@@ -132,13 +170,20 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
     rawRun = await runMaven([...mavenArgs, "-o"], info.projectRoot);
   }
 
-  const result = buildRunResult(rawRun, info, command, "test", cwd, testScope, runStartTime, { includeTimings });
+  const result = buildRunResult(rawRun, info, command, "test", cwd, testScope, runStartTime, {includeTimings, limit});
 
   console.log(JSON.stringify(result, null, 2));
   if (!result.success) process.exitCode = 1;
 }
 
 async function cmdPackage(args: Record<string, string | boolean>): Promise<void> {
+  const unknownError = checkUnknownFlags(args, ["project"]);
+  if (unknownError) {
+    console.error(unknownError);
+    process.exitCode = 1;
+    return;
+  }
+
   const cwd = resolve(process.cwd());
   const info = getMavenProjectInfo(cwd);
   if (!info) {
@@ -150,7 +195,7 @@ async function cmdPackage(args: Record<string, string | boolean>): Promise<void>
   const project = (args.project as string | undefined)
     ?? (info.currentProject?.relativePath !== "." ? info.currentProject?.relativePath : undefined);
 
-  const opts = { action: "package" as MavenAction, runner: info.runner, project };
+  const opts = {action: "package" as MavenAction, runner: info.runner, project};
   const command = buildMavenCommand(opts);
   const mavenArgs = buildMavenArgs(opts);
 
@@ -167,6 +212,13 @@ async function cmdPackage(args: Record<string, string | boolean>): Promise<void>
 }
 
 async function cmdLookupVersion(args: Record<string, string | boolean>): Promise<void> {
+  const unknownError = checkUnknownFlags(args, ["include-prereleases"]);
+  if (unknownError) {
+    console.error(unknownError);
+    process.exitCode = 1;
+    return;
+  }
+
   const positional = (args._positional as string || "").split(/\s+/);
   const groupId = positional[0];
   const artifactId = positional[1];
@@ -180,8 +232,8 @@ async function cmdLookupVersion(args: Record<string, string | boolean>): Promise
   const includePrereleases = !!args["include-prereleases"];
   const metadataUrl = buildMetadataUrl(groupId, artifactId);
 
-  const { latestVersion, versions } = await fetchMetadata(groupId, artifactId);
-  const { selectedVersion, prereleaseFiltered } = selectVersion(latestVersion, versions, includePrereleases);
+  const {latestVersion, versions} = await fetchMetadata(groupId, artifactId);
+  const {selectedVersion, prereleaseFiltered} = selectVersion(latestVersion, versions, includePrereleases);
 
   const result: VersionLookupResult = {
     groupId,
@@ -227,6 +279,10 @@ Examples:
   # Include per-test timings (use when investigating slow tests)
   tdder-maven test --scope surefire --include-timings
 
+  # Limit number of failed tests reported (default: 10; use --limit=none for all)
+  tdder-maven test --scope surefire --limit=5
+  tdder-maven test --scope surefire --limit=none
+
   # Package without tests
   tdder-maven package
 
@@ -244,17 +300,21 @@ Scope values for 'test':
   failsafe   Integration tests only   (mvn verify -Dskip.surefire.tests=true -DskipITs=false)
   all        Unit + integration tests (mvn verify -DskipITs=false)
 
-If --scope failsafe returns SUREFIRE_SKIP_NOT_CONFIGURED, follow the instructions in the error response.`;
+If --scope failsafe returns SUREFIRE_SKIP_NOT_CONFIGURED, follow the instructions in the error response.
+
+If the result contains failedTestsLimit, the failedTests list is capped at that number — there may be more failures. If you need all details in a single pass, rerun with --limit=none.
+
+Each entry in failedTests has: kind (failure=assertion, error=unexpected exception), type (exception class), reportFile (relative path to the Surefire XML), reportFileOffset (1-based start line), and reportFileLimit (line count of the block). Read reportFile with reportFileOffset and reportFileLimit to get the full stacktrace or assertion diff.`;
 
 async function main(): Promise<void> {
-  const { command, args } = parseArgs(process.argv.slice(2));
+  const {command, args} = parseArgs(process.argv.slice(2));
 
   switch (command) {
     case "help":
       console.log(USAGE);
       break;
     case "info":
-      return cmdInfo();
+      return cmdInfo(args);
     case "test":
       return cmdTest(args);
     case "package":
@@ -271,3 +331,5 @@ main().catch((err) => {
   console.error(err.message ?? err);
   process.exitCode = 1;
 });
+
+export {main};

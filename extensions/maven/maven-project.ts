@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { findProjectRoot, detectRunner, buildProjectTree, resolveCurrentProject, stripInternalFields } from "./project-info.ts";
 import { collectReportPaths, parseReports } from "./report-collector.ts";
-import { extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
+import { extractCompilationErrors, extractBuildErrors, type FailedTest } from "./report-parser.ts";
 import { saveRawLog } from "./log-store.ts";
 import { formatProjectInfo } from "./formatter.ts";
 import type { ProjectInfoJson } from "./formatter.ts";
@@ -67,6 +67,16 @@ export interface RawRunOutput {
   exitCode: number;
 }
 
+export function applyFailedTestLimit(
+  failedTests: FailedTest[],
+  limit: number | null,
+): { failedTests: FailedTest[]; failedTestsLimit?: number } {
+  if (limit === null || failedTests.length <= limit) {
+    return { failedTests };
+  }
+  return { failedTests: failedTests.slice(0, limit), failedTestsLimit: limit };
+}
+
 export function buildRunResult(
   { rawOutput, exitCode }: RawRunOutput,
   info: MavenProjectInfo,
@@ -75,7 +85,7 @@ export function buildRunResult(
   cwd: string,
   testScope: TestScope | undefined,
   runStartTime: number,
-  options?: { includeTimings?: boolean },
+  options?: { includeTimings?: boolean; limit?: number | null },
 ): MavenRunResult {
   const rawMavenOut = saveRawLog(info.projectRoot, action, rawOutput);
   const success = exitCode === 0;
@@ -90,12 +100,16 @@ export function buildRunResult(
     ? totalOnDiskSummary.testsRun
     : undefined;
 
+  const limit = options?.limit !== undefined ? options.limit : 10;
+  const { failedTests: limitedFailedTests, failedTestsLimit } = applyFailedTestLimit(failedTests, limit);
+
   return {
     success,
     cwd,
     command,
     testSummary: { ...testSummary, ...(totalOnDisk !== undefined ? { totalOnDisk } : {}) },
-    failedTests,
+    failedTests: limitedFailedTests,
+    ...(failedTestsLimit !== undefined ? { failedTestsLimit } : {}),
     ...(testTimings ? { testTimings } : {}),
     ...(compilationErrors.length > 0 ? { compilationErrors } : {}),
     ...(buildErrors.length > 0 ? { buildErrors } : {}),
