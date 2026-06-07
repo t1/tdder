@@ -69,7 +69,7 @@ Tab-completion lists all subcommands.
 | Subcommand      | Behaviour                                                                      |
 |-----------------|--------------------------------------------------------------------------------|
 | `status`        | Show current app state (direct, LLM on failure)                                |
-| `start`         | Start app in dev mode (direct, LLM on failure)                                 |
+| `start`         | Start app in dev mode — blocks until running, shows startup log (LLM on failure) |
 | `stop`          | Stop the running app (direct, LLM on failure)                                  |
 | `logs`          | Show recent log output (direct, LLM on failure)                                |
 | `restart`       | Hot-reload the app (direct, LLM on failure)                                    |

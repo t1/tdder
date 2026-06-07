@@ -156,7 +156,7 @@ describe("quarkus_update remapped to quarkus_skills with query quarkus-update", 
     const block = src.slice(guidelinesIdx, guidelinesIdx + 4000);
     const skillsIdx = block.indexOf("quarkus_skills:");
     assert.ok(skillsIdx >= 0, 'TOOL_GUIDELINES must have a "quarkus_skills" entry');
-    const skillsBlock = block.slice(skillsIdx, skillsIdx + 400);
+    const skillsBlock = block.slice(skillsIdx, skillsIdx + 600);
     assert.ok(
       skillsBlock.includes("quarkus-update"),
       `TOOL_GUIDELINES["quarkus_skills"] must mention the quarkus-update query`,

@@ -26,7 +26,7 @@ import {
 import { Container, Key, type SelectItem, SelectList, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { McpClient, type McpTool } from "./mcp-client.js";
-import { extractText, filterLogSince } from "./utils.js";
+import { extractText } from "./utils.js";
 import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
 
 // ---------------------------------------------------------------------------
@@ -106,10 +106,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 // UI types
 // ---------------------------------------------------------------------------
 
-/** UI surface needed by the status-bar and log-widget polling loops. */
+/** UI surface needed by the status-bar polling loop. */
 interface PollingUi {
   setStatus: (key: string, value: string | undefined) => void;
-  setWidget: (key: string, lines: string[] | undefined) => void;
 }
 
 /** Full UI surface used by command handlers and lifecycle notifications. */
@@ -133,12 +132,6 @@ interface QuarkusState {
   registeredToolNames: Set<string>;
   /** Interval handle for the app-status polling loop. */
   statusPoller: ReturnType<typeof setInterval> | null;
-  /** Interval handle for the log-widget polling loop (active only while app is starting). */
-  logPoller: ReturnType<typeof setInterval> | null;
-  /** Accumulated startup log lines collected while the app is in the starting state. */
-  startupLogLines: string[];
-  /** Timestamp (ms) when the current starting phase began — used to filter log lines. */
-  startupBeganAt: number;
   /** Last observed app state — used to detect transitions (e.g. starting → crashed). */
   lastAppState: AppState | null;
   /** Whether we have already enabled app file logging in this session. */
@@ -183,6 +176,7 @@ const TOOL_GUIDELINES: Record<string, string[]> = {
   ],
   quarkus_skills: [
     "ALWAYS call quarkus_skills for each extension BEFORE writing code or tests — this is mandatory, not optional.",
+    "When fetching skills for multiple extensions in one session, pass them as a single comma-separated query (e.g. query='panache,rest,hibernate-validator') — one call instead of many.",
     "quarkus_skills does not require the app to be running.",
     "To check if the project is up-to-date, call quarkus_skills with query='quarkus-update'. If the quarkus-update skill is not yet installed, call quarkus_installSkills with skillName='quarkus-update' first.",
   ],
@@ -414,9 +408,6 @@ export default async function (pi: ExtensionAPI) {
     pendingStart: null,
     registeredToolNames: new Set(),
     statusPoller: null,
-    logPoller: null,
-    startupLogLines: [],
-    startupBeganAt: 0,
     lastAppState: null,
     appLogEnabled: false,
   };
@@ -635,28 +626,6 @@ export default async function (pi: ExtensionAPI) {
     }
   }
 
-  function onEnteringStarting(cwd: string, ctx: { ui: PollingUi }): void {
-    state.startupBeganAt = Date.now();
-    state.startupLogLines = [];
-    if (state.logPoller) clearInterval(state.logPoller);
-    state.logPoller = setInterval(() => { refreshLogWidget(cwd, ctx).catch(() => {}); }, 250);
-    refreshLogWidget(cwd, ctx).catch(() => {});
-  }
-
-  async function onLeavingStarting(cwd: string, ctx: { ui: PollingUi }, outcome: "running" | "crashed"): Promise<void> {
-    if (state.logPoller) { clearInterval(state.logPoller); state.logPoller = null; }
-    ctx.ui.setWidget("quarkus-log", undefined);
-    let finalLines = state.startupLogLines;
-    try {
-      const text = await callMcpTool("quarkus_app_log", { projectDir: cwd }, cwd);
-      finalLines = filterLogSince(text.split("\n").filter((l) => l.trim() !== ""), state.startupBeganAt);
-    } catch { /* fall back to accumulated lines */ }
-    pi.sendMessage(
-      { customType: QUARKUS_STARTUP_LOG_MSG_TYPE, content: "", display: true, details: { log: finalLines.join("\n"), outcome } },
-      { triggerTurn: false },
-    );
-  }
-
   async function onCrashed(cwd: string): Promise<void> {
     let logOutput = "(log unavailable)";
     let exceptionOutput = "(unavailable)";
@@ -672,19 +641,6 @@ export default async function (pi: ExtensionAPI) {
     );
   }
 
-  /** Poll the app log and update the log widget above the editor. */
-  async function refreshLogWidget(cwd: string, ctx: { ui: PollingUi }): Promise<void> {
-    if (!state.client) return;
-    try {
-      const text = await callMcpTool("quarkus_app_log", { projectDir: cwd }, cwd);
-      const lines = text.split("\n").filter((l) => l.trim() !== "");
-      state.startupLogLines = filterLogSince(lines, state.startupBeganAt);
-      ctx.ui.setWidget("quarkus-log", state.startupLogLines);
-    } catch {
-      // ignore — widget just won't update
-    }
-  }
-
   /** Update the footer status widget with the current app state. */
   async function refreshAppStatus(cwd: string, ctx: { ui: PollingUi }): Promise<void> {
     if (!state.client) return;
@@ -693,15 +649,9 @@ export default async function (pi: ExtensionAPI) {
       const newState = parseAppState(text);
       updateFooterStatus(newState, text, ctx);
 
-      if ((newState === "starting" || newState === "running") && !state.appLogEnabled) {
+      if (newState === "running" && !state.appLogEnabled) {
         state.appLogEnabled = true;
         callMcpTool("quarkus_app_log", { projectDir: cwd, action: "enable" }, cwd).catch(() => {});
-      }
-      if (newState === "starting" && state.lastAppState !== "starting") {
-        onEnteringStarting(cwd, ctx);
-      }
-      if (newState !== "starting" && state.lastAppState === "starting") {
-        await onLeavingStarting(cwd, ctx, newState === "running" ? "running" : "crashed");
       }
       if (newState === "crashed" && state.lastAppState !== "crashed") {
         await onCrashed(cwd);
@@ -779,8 +729,8 @@ export default async function (pi: ExtensionAPI) {
     if (sub === "search-tools" && extra) {
       return { projectDir: cwd, query: extra };
     }
-    if (sub === "start" && extra) {
-      return { projectDir: cwd, mavenProfiles: extra };
+    if (sub === "start") {
+      return extra ? { projectDir: cwd, mavenProfiles: extra } : { projectDir: cwd };
     }
     return { projectDir: cwd };
   }
@@ -1049,7 +999,7 @@ export default async function (pi: ExtensionAPI) {
     }
   }
 
-  async function handleDirectSubcommand(sub: string, cwd: string, ctx: { ui: CommandUi }): Promise<void> {
+  async function handleDirectSubcommand(sub: string, cwd: string, ctx: { ui: CommandUi }, extra?: string): Promise<void> {
     const toolName = TOOL_NAME[sub];
     if (!toolName) {
       ctx.ui.notify(`Unknown subcommand: ${sub}`, "error");
@@ -1061,12 +1011,21 @@ export default async function (pi: ExtensionAPI) {
     }
     ctx.ui.setStatus("quarkus", `quarkus ${sub}…`);
     try {
-      const output = await callMcpTool(toolName, buildArgs(sub, cwd), cwd);
+      const output = await callMcpTool(toolName, buildArgs(sub, cwd, extra), cwd);
       ctx.ui.setStatus("quarkus", undefined);
-      // Show first PREVIEW_LINES lines as a notification, rest is available on demand
-      const lines = output.split("\n");
-      const preview = lines.slice(0, PREVIEW_LINES).join("\n") + (lines.length > PREVIEW_LINES ? "\n…" : "");
-      ctx.ui.notify(preview || `${sub} OK`, "info");
+      if (sub === "start") {
+        // quarkus_start blocks until RUNNING or CRASHED — show startup log as a rich message
+        const outcome = parseAppState(output) === "running" ? "running" : "crashed";
+        pi.sendMessage(
+          { customType: QUARKUS_STARTUP_LOG_MSG_TYPE, content: "", display: true, details: { log: output, outcome } },
+          { triggerTurn: false },
+        );
+      } else {
+        // Show first PREVIEW_LINES lines as a notification, rest is available on demand
+        const lines = output.split("\n");
+        const preview = lines.slice(0, PREVIEW_LINES).join("\n") + (lines.length > PREVIEW_LINES ? "\n…" : "");
+        ctx.ui.notify(preview || `${sub} OK`, "info");
+      }
     } catch (err) {
       ctx.ui.setStatus("quarkus", undefined);
       const errMsg = (err as Error).message;
@@ -1114,7 +1073,6 @@ export default async function (pi: ExtensionAPI) {
 
   pi.on("session_shutdown", async () => {
     if (state.statusPoller) { clearInterval(state.statusPoller); state.statusPoller = null; }
-    if (state.logPoller)    { clearInterval(state.logPoller);    state.logPoller    = null; }
     if (state.client) {
       await state.client.close().catch(() => {});
       state.client = null;
@@ -1195,7 +1153,7 @@ export default async function (pi: ExtensionAPI) {
 
       if ((TEST_SUBCOMMANDS    as readonly string[]).includes(sub)) return handleTestSubcommand(sub, cwd, ctx);
       if ((LLM_SUBCOMMANDS     as readonly string[]).includes(sub)) return handleLlmSubcommand(sub, extra, cwd, ctx);
-      if ((DIRECT_SUBCOMMANDS  as readonly string[]).includes(sub)) return handleDirectSubcommand(sub, cwd, ctx);
+      if ((DIRECT_SUBCOMMANDS  as readonly string[]).includes(sub)) return handleDirectSubcommand(sub, cwd, ctx, extra);
 
       ctx.ui.notify(
         `Unknown subcommand: "${sub}". Try: ${ALL_SUBCOMMANDS.join(", ")}`,
