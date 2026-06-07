@@ -13,6 +13,7 @@
  */
 
 import { existsSync, readFileSync, rmSync } from "node:fs";
+import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -916,6 +917,19 @@ export default async function (pi: ExtensionAPI) {
       state.client = null;
       state.pendingStart = null;
     }
+    ctx.ui.setStatus("quarkus", "quarkus: clearing jbang cache…");
+    try {
+      // Evict the jbang JAR cache so the next launch picks up the latest
+      // quarkus-agent-mcp release instead of a stale cached jar.
+      const jbang = jbangBin();
+      await new Promise<void>((resolve, reject) => {
+        const proc = spawn(jbang, ["cache", "clear", "--no-deps"], { stdio: "ignore" });
+        proc.on("close", (code) => code === 0 ? resolve() : reject(new Error(`jbang cache clear exited ${code}`)));
+        proc.on("error", reject);
+      });
+    } catch {
+      // Cache clear failure is non-fatal — proceed with restart anyway.
+    }
     ctx.ui.setStatus("quarkus", "quarkus: restarting…");
     try {
       const c = await ensureClient(cwd);
@@ -1052,7 +1066,8 @@ export default async function (pi: ExtensionAPI) {
         const missingTools = REQUIRED_TOOLS.filter((t) => !availableNames.has(t));
         if (missingTools.length > 0) {
           ctx.ui.notify(
-            `quarkus: MCP server is missing expected tools: ${missingTools.join(", ")}. Some /quarkus subcommands may not work. Consider running /quarkus mcp-restart.`,
+            `quarkus: MCP server is missing expected tools: ${missingTools.join(", ")}. The jbang cache may be stale — run /quarkus mcp-restart to evict it and reload the latest version.`,
+
             "warning",
           );
         }
