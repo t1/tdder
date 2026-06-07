@@ -56,6 +56,7 @@ export class McpClient {
   private proc: ChildProcessWithoutNullStreams;
   private client: McpClientBase;
   private ready: Promise<void>;
+  private _rejectReady: (err: Error) => void = () => {};
   private closed = false;
   private closeListeners: Array<() => void> = [];
 
@@ -73,13 +74,21 @@ export class McpClient {
       capabilities: { roots: { listChanged: false } },
     });
 
+    this.proc.on("error", (err) => {
+      this.closed = true;
+      this._rejectReady(err);
+    });
+
     this.proc.on("close", () => {
       this.closed = true;
       this.client.close().catch(() => {});
       for (const cb of this.closeListeners) cb();
     });
 
-    this.ready = this.client.connect();
+    let rejectReady!: (err: Error) => void;
+    const spawnGuard = new Promise<void>((_resolve, reject) => { rejectReady = reject; });
+    this._rejectReady = rejectReady;
+    this.ready = Promise.race([this.client.connect(), spawnGuard]);
   }
 
   addCloseListener(cb: () => void): void {
