@@ -5,14 +5,10 @@
  * because it's specific to how quarkus-agent-mcp is launched.
  */
 
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
-import {
-  McpClient as McpClientBase,
-  type McpTransport,
-  type McpTool,
-  type McpToolResult,
-} from "./vendor/mcp-client.ts";
+import { McpClient as McpClientBase, type McpTransport, type McpTool, type McpToolResult } from "./vendor/mcp-client.ts";
+import { spawnSafe } from "./vendor/spawn-safe.ts";
 
 export type { McpTool, McpToolResult };
 
@@ -56,16 +52,16 @@ export class McpClient {
   private proc: ChildProcessWithoutNullStreams;
   private client: McpClientBase;
   private ready: Promise<void>;
-  private _rejectReady: (err: Error) => void = () => {};
   private closed = false;
   private closeListeners: Array<() => void> = [];
 
   constructor(command: string, args: string[], cwd: string, env?: Record<string, string>) {
-    this.proc = spawn(command, args, {
+    const { child, whenSpawnError } = spawnSafe(command, args, {
       cwd,
       env: { ...process.env, ...env },
       stdio: ["pipe", "pipe", "pipe"],
     });
+    this.proc = child;
 
     const transport = new StdioTransport(this.proc.stdout, this.proc.stdin);
     this.client = new McpClientBase(transport, {
@@ -74,21 +70,13 @@ export class McpClient {
       capabilities: { roots: { listChanged: false } },
     });
 
-    this.proc.on("error", (err) => {
-      this.closed = true;
-      this._rejectReady(err);
-    });
-
     this.proc.on("close", () => {
       this.closed = true;
       this.client.close().catch(() => {});
       for (const cb of this.closeListeners) cb();
     });
 
-    let rejectReady!: (err: Error) => void;
-    const spawnGuard = new Promise<void>((_resolve, reject) => { rejectReady = reject; });
-    this._rejectReady = rejectReady;
-    this.ready = Promise.race([this.client.connect(), spawnGuard]);
+    this.ready = Promise.race([this.client.connect(), whenSpawnError]);
   }
 
   addCloseListener(cb: () => void): void {

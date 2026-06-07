@@ -8,7 +8,7 @@
  */
 
 import { resolve } from "node:path";
-import { spawn } from "node:child_process";
+
 import { Container, Text } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import type { AgentToolUpdateCallback, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -26,6 +26,7 @@ import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { buildMetadataUrl, fetchMetadata, selectVersion } from "./version-lookup.ts";
 import type { MavenProjectInfo, MavenRunResult, VersionLookupResult } from "./types.ts";
 import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
+import { spawnSafe } from "./vendor/spawn-safe.ts";
 import { INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE } from "./guidance.ts";
 
 // ---------------------------------------------------------------------------
@@ -71,13 +72,14 @@ async function runMaven(
   const rawChunks: string[] = [];
   let exitCode = 0;
 
-  await new Promise<void>((done) => {
+  await new Promise<void>((done, reject) => {
     const [cmd, ...spawnArgs] = args;
-    const child = spawn(cmd, spawnArgs, {
+    const { child, whenSpawnError } = spawnSafe(cmd, spawnArgs, {
       cwd: projectRoot,
       env: buildMavenEnv(projectRoot),
       stdio: ["ignore", "pipe", "pipe"],
     });
+    whenSpawnError.catch(reject);
 
     const onData = (chunk: Buffer) => {
       const text = chunk.toString();

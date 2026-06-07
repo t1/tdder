@@ -13,7 +13,7 @@
  */
 
 import {resolve} from "node:path";
-import {spawn} from "node:child_process";
+import {spawnSafe} from "./vendor/spawn-safe.ts";
 
 import {buildMavenArgs, buildMavenCommand, buildMavenEnv, type MavenAction, type TestScope} from "./maven-run.ts";
 import {
@@ -36,13 +36,14 @@ async function runMaven(
 ): Promise<{ rawOutput: string; exitCode: number }> {
   const rawChunks: string[] = [];
 
-  return new Promise((done) => {
+  return new Promise((done, reject) => {
     const [cmd, ...spawnArgs] = args;
-    const child = spawn(cmd, spawnArgs, {
+    const { child, whenSpawnError } = spawnSafe(cmd, spawnArgs, {
       cwd: projectRoot,
       env: buildMavenEnv(projectRoot),
       stdio: ["ignore", "pipe", "pipe"],
     });
+    whenSpawnError.catch(reject);
 
     const onData = (chunk: Buffer) => {
       rawChunks.push(chunk.toString());
