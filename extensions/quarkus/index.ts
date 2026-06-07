@@ -13,7 +13,6 @@
  */
 
 import { existsSync, readFileSync, rmSync } from "node:fs";
-import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -417,11 +416,12 @@ export default async function (pi: ExtensionAPI) {
   // Start / stop the MCP server
   // -------------------------------------------------------------------------
 
-  async function startClient(cwd: string): Promise<McpClient> {
+  async function startClient(cwd: string, fresh = false): Promise<McpClient> {
     const jbang = jbangBin();
+    const args = fresh ? ["--fresh", JBANG_ALIAS] : [JBANG_ALIAS];
     const c = new McpClient(
       jbang,
-      [JBANG_ALIAS],
+      args,
       cwd,
       { AGENT_MCP_PROJECT_DIR: cwd },
     );
@@ -917,22 +917,13 @@ export default async function (pi: ExtensionAPI) {
       state.client = null;
       state.pendingStart = null;
     }
-    ctx.ui.setStatus("quarkus", "quarkus: clearing jbang cache…");
+    ctx.ui.setStatus("quarkus", "quarkus: restarting with --fresh…");
     try {
-      // Evict the jbang JAR cache so the next launch picks up the latest
-      // quarkus-agent-mcp release instead of a stale cached jar.
-      const jbang = jbangBin();
-      await new Promise<void>((resolve, reject) => {
-        const proc = spawn(jbang, ["cache", "clear", "--no-deps"], { stdio: "ignore" });
-        proc.on("close", (code) => code === 0 ? resolve() : reject(new Error(`jbang cache clear exited ${code}`)));
-        proc.on("error", reject);
-      });
-    } catch {
-      // Cache clear failure is non-fatal — proceed with restart anyway.
-    }
-    ctx.ui.setStatus("quarkus", "quarkus: restarting…");
-    try {
-      const c = await ensureClient(cwd);
+      // Pass --fresh so jbang re-downloads the latest quarkus-agent-mcp jar
+      // instead of serving whatever is in its local cache.
+      const c = await startClient(cwd, true);
+      state.client = c;
+      registerMcpTools(c.tools, cwd);
       ctx.ui.setStatus("quarkus", undefined);
       ctx.ui.notify(`quarkus restarted: ${c.tools.length} tools`, "info");
     } catch (err) {

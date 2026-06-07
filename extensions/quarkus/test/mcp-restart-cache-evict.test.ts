@@ -1,10 +1,14 @@
 /**
- * mcp-restart must evict the jbang cache before relaunching the MCP server,
- * otherwise an outdated cached jar keeps getting picked up after a version upgrade.
+ * mcp-restart must launch jbang with --fresh so it re-downloads the latest
+ * quarkus-agent-mcp jar instead of serving a stale cached version.
  *
- * Also verifies that the missing-tool warning message no longer says "Consider
- * running /quarkus mcp-restart" (which doesn't help without a cache evict) but
- * instead mentions the jbang cache explicitly.
+ * `jbang cache clear` was tried first but doesn't work reliably: the jar
+ * re-downloaded after the clear gets cached again in the deps store, which
+ * `--no-deps` doesn't touch. `--fresh` on the launch itself bypasses the cache
+ * for that specific invocation and atomically replaces it, which is what we want.
+ *
+ * Also verifies that the missing-tool warning message mentions the jbang cache
+ * so the user understands why /quarkus mcp-restart is the fix.
  */
 
 import { describe, it } from "node:test";
@@ -15,37 +19,59 @@ import { resolve } from "node:path";
 const src = readFileSync(resolve(import.meta.dirname, "../index.ts"), "utf8");
 
 // ---------------------------------------------------------------------------
-// A. handleMcpRestart runs `jbang cache clear` before relaunching
+// A. startClient accepts a `fresh` flag and passes --fresh to jbang
 // ---------------------------------------------------------------------------
 
-describe("handleMcpRestart evicts the jbang cache", () => {
-  it("handleMcpRestart calls jbang with cache clear arguments", () => {
-    const idx = src.indexOf("async function handleMcpRestart(");
-    assert.ok(idx >= 0, "handleMcpRestart not found");
-    const block = src.slice(idx, idx + 800);
+describe("startClient supports --fresh jbang flag", () => {
+  it("startClient accepts a fresh parameter", () => {
+    const idx = src.indexOf("function startClient(");
+    assert.ok(idx >= 0, "startClient not found");
+    const sig = src.slice(idx, idx + 120);
     assert.ok(
-      block.includes("cache") && block.includes("clear"),
-      `handleMcpRestart must invoke "jbang cache clear" before relaunching, got:\n${block}`,
+      sig.includes("fresh"),
+      `startClient must accept a 'fresh' parameter, got:\n${sig}`,
     );
   });
 
-  it("handleMcpRestart runs cache clear before ensureClient", () => {
-    const idx = src.indexOf("async function handleMcpRestart(");
-    assert.ok(idx >= 0, "handleMcpRestart not found");
-    const block = src.slice(idx, idx + 1200);
-    const cacheIdx = block.indexOf("cache");
-    const ensureIdx = block.indexOf("ensureClient");
-    assert.ok(cacheIdx >= 0, "cache clear call not found in handleMcpRestart");
-    assert.ok(ensureIdx >= 0, "ensureClient call not found in handleMcpRestart");
+  it("startClient passes --fresh to jbang when fresh is true", () => {
+    const idx = src.indexOf("function startClient(");
+    assert.ok(idx >= 0, "startClient not found");
+    const block = src.slice(idx, idx + 600);
     assert.ok(
-      cacheIdx < ensureIdx,
-      "cache clear must come before ensureClient in handleMcpRestart",
+      block.includes("--fresh"),
+      `startClient must pass "--fresh" to jbang when requested, got:\n${block}`,
     );
   });
 });
 
 // ---------------------------------------------------------------------------
-// B. Missing-tool warning message mentions the jbang cache
+// B. handleMcpRestart calls startClient (or ensureClient) with fresh: true
+// ---------------------------------------------------------------------------
+
+describe("handleMcpRestart relaunches with --fresh", () => {
+  it("handleMcpRestart does not spawn a separate jbang cache clear process", () => {
+    const idx = src.indexOf("async function handleMcpRestart(");
+    assert.ok(idx >= 0, "handleMcpRestart not found");
+    const block = src.slice(idx, idx + 1200);
+    assert.ok(
+      !block.includes("cache clear"),
+      "handleMcpRestart must not run 'jbang cache clear' — use --fresh on the launch instead",
+    );
+  });
+
+  it("handleMcpRestart passes fresh: true when relaunching", () => {
+    const idx = src.indexOf("async function handleMcpRestart(");
+    assert.ok(idx >= 0, "handleMcpRestart not found");
+    const block = src.slice(idx, idx + 1200);
+    assert.ok(
+      block.match(/fresh\s*:\s*true/) || block.includes("startClient") && block.includes("fresh"),
+      `handleMcpRestart must pass fresh: true when relaunching, got:\n${block}`,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// C. Missing-tool warning message mentions the jbang cache
 // ---------------------------------------------------------------------------
 
 describe("missing-tool warning mentions jbang cache", () => {
@@ -57,7 +83,6 @@ describe("missing-tool warning mentions jbang cache", () => {
   });
 
   it("warning message mentions the jbang cache", () => {
-    // Find the missing-tool warning notify call
     const warningIdx = src.indexOf("MCP server is missing expected tools");
     assert.ok(warningIdx >= 0, "missing-tool warning not found");
     const block = src.slice(warningIdx, warningIdx + 300);
