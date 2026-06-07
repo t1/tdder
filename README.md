@@ -72,6 +72,8 @@ Tab-completion lists all subcommands.
 | `start`         | Start app in dev mode — blocks until running, shows startup log (LLM on failure) |
 | `stop`          | Stop the running app (direct, LLM on failure)                                  |
 | `logs`          | Show recent log output (direct, LLM on failure)                                |
+| `list`          | List all managed Quarkus instances (direct, LLM on failure)                    |
+| `agent-log`     | Read the MCP server's own log file (direct, LLM on failure)                   |
 | `restart`       | Hot-reload the app (direct, LLM on failure)                                    |
 | `open`          | Open the app in the browser                                                    |
 | `devui`         | Open the Quarkus Dev UI in the browser                                         |

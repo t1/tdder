@@ -183,6 +183,19 @@ const TOOL_GUIDELINES: Record<string, string[]> = {
   quarkus_logs: [
     "For structured exception details (class, message, stack trace, user code location), prefer quarkus_callTool with toolName 'devui-exceptions_getLastException' over quarkus_logs.",
   ],
+  quarkus_agent_log: [
+    "Use quarkus_agent_log with action 'enable' to start file logging to ~/.quarkus/agent-mcp/agent-mcp.log, then action 'read' to inspect it.",
+    "Use quarkus_agent_log to diagnose MCP server startup failures or unexpected tool behaviour — it captures server-side logs invisible in stdio mode.",
+  ],
+  quarkus_updateSkill: [
+    "Before writing, ALWAYS ask the user: should this ENHANCE the existing skill (append your content) or OVERRIDE it (fully replace)? Enhance is the default and recommended.",
+    "quarkus_updateSkill writes to ~/.quarkus/skills/ — it affects ALL projects. For project-scoped customisation, use quarkus_saveSkill first to materialise the skill into .agent/skills/, then edit that file.",
+  ],
+  quarkus_saveSkill: [
+    "quarkus_saveSkill materialises a composed skill into the project's .agent/skills/ directory so the user can inspect, edit, and version-control it.",
+    "It will NOT overwrite an existing local skill file — safe to call even if the user has already customised it.",
+    "Use this before quarkus_updateSkill when the user wants project-scoped (not global) skill customisation.",
+  ],
 };
 
 /** Convert an MCP inputSchema to a minimal TypeBox-compatible schema. */
@@ -668,10 +681,11 @@ export default async function (pi: ExtensionAPI) {
   // /quarkus command — subcommand handlers
   // -------------------------------------------------------------------------
 
-  const DIRECT_SUBCOMMANDS = ["status", "start", "stop", "logs", "restart", "open", "devui"] as const;
+  const DIRECT_SUBCOMMANDS = ["status", "start", "stop", "logs", "restart", "open", "devui", "list", "agent-log"] as const;
   const LLM_SUBCOMMANDS    = ["update", "search-tools"] as const;
   const TEST_SUBCOMMANDS   = ["test-affected", "test-all"] as const;
   const ALL_SUBCOMMANDS    = [...DIRECT_SUBCOMMANDS, ...LLM_SUBCOMMANDS, ...TEST_SUBCOMMANDS, "info", "skills", "mcp-restart", "mcp-tools"] as const;
+
   type Subcommand = (typeof ALL_SUBCOMMANDS)[number];
 
   /**
@@ -690,6 +704,10 @@ export default async function (pi: ExtensionAPI) {
     "quarkus_skills",
     "quarkus_searchTools",
     "quarkus_callTool",
+    "quarkus_list",
+    "quarkus_agent_log",
+    "quarkus_updateSkill",
+    "quarkus_saveSkill",
     // called directly (not via TOOL_NAME)
     "quarkus_app_log",
     "quarkus_installSkills",
@@ -704,6 +722,8 @@ export default async function (pi: ExtensionAPI) {
     open:    "quarkus_browser",
     devui:   "quarkus_browser",
     restart: "quarkus_restart",
+    list:        "quarkus_list",
+    "agent-log": "quarkus_agent_log",
     update:  "quarkus_skills",
     "search-tools":  "quarkus_searchTools",
     "test-affected": "quarkus_callTool",
@@ -938,13 +958,15 @@ export default async function (pi: ExtensionAPI) {
       start:           "start         - Start app in dev mode",
       stop:            "stop          - Stop the running app",
       logs:            "logs          - Show recent log output",
+      restart:         "restart       - Restart the app (hot reload)",
       open:            "open          - Open the app in the browser",
       devui:           "devui         - Open the Dev UI in the browser",
+      list:            "list          - List all managed Quarkus instances",
+      "agent-log":     "agent-log     - Read the MCP server's own log file",
       update:          "update           - Check for Quarkus updates (LLM)",
       "search-tools":  "search-tools     - Discover Dev MCP tools on the running app (LLM)",
       "test-affected": "test-affected    - Run affected tests (LLM)",
       "test-all":      "test-all         - Run full test suite (LLM)",
-      restart:         "restart       - Restart the app (hot reload)",
       info:            "info          - Show app status, endpoints, and dev services",
       skills:          "skills        - Manage installed community skills",
       "mcp-restart":   "mcp-restart   - Restart the quarkus-agent-mcp server",
@@ -1110,13 +1132,15 @@ export default async function (pi: ExtensionAPI) {
               start:           "Start app in dev mode",
               stop:            "Stop the running app",
               logs:            "Show recent log output",
+              restart:         "Restart the app (hot reload)",
               open:            "Open the app in the browser",
               devui:           "Open the Dev UI in the browser",
+              list:            "List all managed Quarkus instances",
+              "agent-log":     "Read the MCP server's own log file",
               update:          "Check for Quarkus updates (analysed by LLM)",
               "search-tools":  "Discover Dev MCP tools on the running app (analysed by LLM)",
               "test-affected": "Run tests affected by recent changes (results analysed by LLM)",
               "test-all":      "Run the full test suite (results analysed by LLM)",
-              restart:         "Restart the app (hot reload)",
               info:            "Show app status, endpoints, and dev services",
               skills:          "Manage installed community skills",
               "mcp-restart":   "Restart the quarkus-agent-mcp server",
