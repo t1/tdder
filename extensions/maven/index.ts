@@ -54,6 +54,7 @@ async function runMaven(
   const startTime = Date.now();
   let lineCount = 0;
   let phase = "resolving dependencies";
+  let running = true;
 
   const refreshWidget = () => {
     const line = formatWidgetLine(
@@ -63,7 +64,7 @@ async function runMaven(
     );
     ctx.ui.setWidget(WIDGET_KEY, [line]);
     // Calling onUpdate triggers a pi repaint cycle that picks up the setWidget state
-    onUpdate?.({ content: [{ type: "text" as const, text: `Running: ${command}` }] });
+    if (running) onUpdate?.({ content: [{ type: "text" as const, text: `Running: ${command}` }] });
   };
 
   refreshWidget();
@@ -95,11 +96,12 @@ async function runMaven(
     child.stderr.on("data", onData);
     child.on("close", (code) => {
       exitCode = code ?? 1;
+      running = false;
+      clearInterval(widgetTimer);
       done();
     });
   });
 
-  clearInterval(widgetTimer);
   ctx.ui.setWidget(WIDGET_KEY, undefined);
 
   return { rawOutput: rawChunks.join(""), exitCode };
