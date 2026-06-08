@@ -265,7 +265,9 @@ export default function (pi: ExtensionAPI) {
     }
     if (state.kind !== "disconnected") {
       state = { kind: "disconnected" };
-      log(`state: ${prevLabel} → ${stateLabel(state)}`, err);
+      // "client closed" is an expected shutdown signal — don't log it as an error.
+      const isExpectedClose = err instanceof Error && err.message === "client closed";
+      log(`state: ${prevLabel} → ${stateLabel(state)}`, isExpectedClose ? undefined : err);
       if (ctxRef) {
         setFooter(ctxRef);
         applyToolActivation();
