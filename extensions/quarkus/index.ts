@@ -13,6 +13,7 @@
  */
 
 import { existsSync, readFileSync, rmSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -84,11 +85,14 @@ function jbangBin(): string | null {
   for (const c of candidates) {
     if (existsSync(c)) return c;
   }
-  // Last resort: check whether "jbang" resolves on PATH
-  // (existsSync can't probe PATH entries, so we fall back to trusting PATH
-  //  only when the env var is set — a missing PATH means we can't be sure)
-  if (process.env.PATH) return "jbang";
-  return null;
+  // Last resort: probe whether "jbang" actually resolves on PATH.
+  // We cannot use existsSync for PATH entries, so we run "command -v jbang".
+  try {
+    execSync("command -v jbang", { stdio: "ignore" });
+    return "jbang";
+  } catch {
+    return null;
+  }
 }
 
 /** Resolve the project directory (cwd of the pi session). */
