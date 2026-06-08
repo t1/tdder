@@ -111,7 +111,13 @@ export class McpClient {
    */
   request(method: string, params: unknown, timeoutMs?: number): Promise<unknown> {
     const timeout = timeoutMs ?? this.options.defaultTimeoutMs;
-    return this.session.request(method, params, timeout);
+    return this.session.request(method, params, timeout).catch((err) => {
+      const rpcErr = err instanceof Error ? err as Error & { code?: unknown } : null;
+      if (rpcErr && typeof rpcErr.code === "number") {
+        throw Object.assign(new Error(`MCP error ${rpcErr.code}: ${rpcErr.message}`), { code: rpcErr.code });
+      }
+      throw err;
+    });
   }
 
   /** Call an MCP tool by name. */
