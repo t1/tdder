@@ -17,16 +17,14 @@ import { StringEnum } from "@earendil-works/pi-ai";
 
 import { renderMavenMessage, renderMavenRunResult } from "./renderer.ts";
 import { buildSummary as buildCollapsedSummary } from "./run-result-renderer.ts";
-import { formatProjectInfo } from "./formatter.ts";
-import type { ProjectInfoJson } from "./formatter.ts";
-import { buildMavenArgs, buildMavenCommand, buildMavenEnv, type MavenAction, type TestScope } from "./maven-run.ts";
-import { getMavenProjectInfo, buildProjectInfoJson, buildRunResult, checkSurefireSkipConfigured } from "./maven-project.ts";
+import { buildMavenArgs, buildMavenCommand, type MavenAction, type TestScope } from "./maven-run.ts";
+import { MavenProjectInfo, MavenRun, spawnMaven, type MavenRunOptions, type RawRunOutput } from "./maven-project.ts";
 import { loadJarSkills } from "./jar-skills.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { buildMetadataUrl, fetchMetadata, selectVersion } from "./version-lookup.ts";
-import type { MavenProjectInfo, MavenRunResult, VersionLookupResult } from "./types.ts";
+import type { MavenRunJson, VersionLookupJson } from "./tool-types.ts";
+import { toMavenRunJson, toProjectInfoJson } from "./tool-types.ts";
 import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
-import { spawnSafe } from "./vendor/spawn-safe.ts";
 import { INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE } from "./guidance.ts";
 
 // ---------------------------------------------------------------------------
@@ -34,14 +32,10 @@ import { INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE } from "./guidance.ts
 // Shared Maven runner with live widget
 // ---------------------------------------------------------------------------
 
-interface RunMavenResult {
-  rawOutput: string;
-  exitCode: number;
-}
-
 /**
- * Spawn Maven, stream output, and drive a live progress widget while it runs.
- * The widget is cleared before this function returns.
+ * Spawn Maven with a live progress widget. The widget is cleared before
+ * this function returns.  Delegates the actual spawn to `spawnMaven`;
+ * this function only owns the widget lifecycle and phase tracking.
  */
 async function runMaven(
   command: string,
@@ -49,14 +43,13 @@ async function runMaven(
   projectRoot: string,
   ctx: ExtensionContext,
   onUpdate?: AgentToolUpdateCallback,
-): Promise<RunMavenResult> {
+): Promise<RawRunOutput> {
   const WIDGET_KEY = "maven-run";
   const startTime = Date.now();
   let lineCount = 0;
   let phase = "resolving dependencies";
-  let running = true;
 
-  const refreshWidget = () => {
+  const refreshWidget = (running: boolean) => {
     const line = formatWidgetLine(
       Math.floor((Date.now() - startTime) / 1000),
       lineCount,
@@ -67,44 +60,22 @@ async function runMaven(
     if (running) onUpdate?.({ content: [{ type: "text" as const, text: `Running: ${command}` }] });
   };
 
-  refreshWidget();
-  const widgetTimer = setInterval(refreshWidget, 200);
+  refreshWidget(true);
+  const widgetTimer = setInterval(() => refreshWidget(true), 200);
 
-  const rawChunks: string[] = [];
-  let exitCode = 0;
-
-  await new Promise<void>((done, reject) => {
-    const [cmd, ...spawnArgs] = args;
-    const { child, whenSpawnError } = spawnSafe(cmd, spawnArgs, {
-      cwd: projectRoot,
-      env: buildMavenEnv(projectRoot),
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    whenSpawnError.catch(reject);
-
-    const onData = (chunk: Buffer) => {
-      const text = chunk.toString();
-      rawChunks.push(text);
-      for (const line of text.split("\n")) {
-        lineCount++;
-        const detected = parsePhase(line.trimEnd());
-        if (detected !== null) phase = detected;
-      }
-    };
-
-    child.stdout.on("data", onData);
-    child.stderr.on("data", onData);
-    child.on("close", (code) => {
-      exitCode = code ?? 1;
-      running = false;
-      clearInterval(widgetTimer);
-      done();
-    });
+  const result = await spawnMaven(args, projectRoot, (text) => {
+    for (const line of text.split("\n")) {
+      lineCount++;
+      const detected = parsePhase(line.trimEnd());
+      if (detected !== null) phase = detected;
+    }
   });
 
+  clearInterval(widgetTimer);
+  refreshWidget(false);
   ctx.ui.setWidget(WIDGET_KEY, undefined);
 
-  return { rawOutput: rawChunks.join(""), exitCode };
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -157,7 +128,7 @@ export default function (pi: ExtensionAPI) {
 
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
       const cwd = resolve(ctx.cwd);
-      const info = getMavenProjectInfo(cwd);
+      const info = MavenProjectInfo.create(cwd);
 
       if (!info) {
         const result = { isMavenProject: false };
@@ -167,7 +138,7 @@ export default function (pi: ExtensionAPI) {
         };
       }
 
-      const json = buildProjectInfoJson(info);
+      const json = toProjectInfoJson(info);
       return {
         content: [{ type: "text" as const, text: JSON.stringify(json, null, 2) }],
         details: json,
@@ -198,7 +169,7 @@ export default function (pi: ExtensionAPI) {
       "maven_run examples: unit tests: maven_run(action='test', testScope='surefire'); with selector: maven_run(action='test', testScope='surefire', selector='MyTest#myMethod'); ITs only: maven_run(action='test', testScope='failsafe'); all tests: maven_run(action='test', testScope='all'); specific module: maven_run(action='test', testScope='all', project='module-a'); package: maven_run(action='package'); package module: maven_run(action='package', project='module-a'); slow test investigation: maven_run(action='test', testScope='surefire', includeTestTimings=true).",
       "If testScope='failsafe' and the tool returns SUREFIRE_SKIP_NOT_CONFIGURED, follow the instructions in the error response.",
       "If the result contains failedTestsLimit, the failedTests list is capped at that number — there may be more failures. Rerun with limit='none' to retrieve all.",
-      "Each entry in failedTests has: kind (failure=assertion, error=unexpected exception), type (exception/assertion class), reportFile (path to the Surefire XML), reportFileOffset (1-based start line), and reportFileLimit (line count of the block). Read reportFile with reportFileOffset and reportFileLimit to get the full stacktrace or assertion diff — prefer this over rawMavenOut.",
+      "Each entry in failedTests has: kind (failure=assertion, error=unexpected exception), type (exception/assertion class), reportFile (path to the Surefire XML), reportFileOffset (1-based start line), and reportFileLimit (line count of the block). Read reportFile with reportFileOffset and reportFileLimit to get the full stacktrace or assertion diff — prefer this over rawMavenLogPath.",
       "When suggesting next steps that involve running Maven, tell the user to use the /maven command (e.g. '/maven test', '/maven package') rather than raw mvn commands.",
     ],
     parameters: Type.Object({
@@ -216,15 +187,15 @@ export default function (pi: ExtensionAPI) {
 
     async execute(_toolCallId, params, _signal, onUpdate, ctx) {
       const cwd = resolve(ctx.cwd);
-      const info = getMavenProjectInfo(cwd);
+      const info = MavenProjectInfo.create(cwd);
       if (!info) throw new Error("Not a Maven project");
 
       const { action, selector, testScope, includeTestTimings, limit: rawLimit } = params;
       const limit: number | null = rawLimit === "none" ? null : (rawLimit ?? 10);
-      const project = params.project ?? (info.currentProject?.relativePath !== "." ? info.currentProject?.relativePath : undefined);
+      const project = params.project ?? info.defaultProject();
 
       if (action === "test" && testScope === "failsafe") {
-        if (!checkSurefireSkipConfigured(info.pomPath)) {
+        if (!info.surefireSkipIsConfigured) {
           return {
             content: [{ type: "text" as const, text: JSON.stringify({
               error: "SUREFIRE_SKIP_NOT_CONFIGURED",
@@ -244,16 +215,9 @@ export default function (pi: ExtensionAPI) {
       const runStartTime = Date.now();
       const { rawOutput, exitCode } = await runMaven(command, args, info.projectRoot, ctx, onUpdate);
 
-      const result = buildRunResult(
-        { rawOutput, exitCode },
-        info,
-        command,
-        action,
-        cwd,
-        testScope as TestScope | undefined,
-        runStartTime,
-        { includeTimings: includeTestTimings ?? false, limit },
-      );
+      const runOpts: MavenRunOptions = { command, action, cwd, testScope: testScope as TestScope | undefined, runStartTime, includeTimings: includeTestTimings ?? false, limit };
+      const run = MavenRun.fromRawOutput({ rawOutput, exitCode }, info, runOpts);
+      const result = toMavenRunJson(run);
 
       // Keep raw output OUT of LLM-facing content — only the structured summary goes in.
       // details carries only the minimum needed for rendering: the compact result and the absolute log path.
@@ -267,12 +231,12 @@ export default function (pi: ExtensionAPI) {
       const text = (context.lastComponent as Text | undefined)
         ?? new Text("", 0, 0);
       const { action, project, selector, testScope } = args as { action: string; project?: string; selector?: string; testScope?: TestScope };
-      const info = getMavenProjectInfo(resolve(context.cwd));
+      const info = MavenProjectInfo.create(resolve(context.cwd));
       const runner = info?.runner ?? "mvn";
       const command = buildMavenCommand({ action: action as MavenAction, runner, project, selector, testScope });
       // After the result is available, context.state.result is set by renderResult.
       // Switch the pending icon to the final outcome icon so the command appears only once.
-      const result = (context.state as { result?: MavenRunResult }).result;
+      const result = (context.state as { result?: MavenRunJson }).result;
       const icon = result
         ? (result.success ? theme.fg("success", "✓") : theme.fg("error", "✗"))
         : theme.fg("muted", "○");
@@ -281,13 +245,13 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderResult(toolResult, { expanded }, theme, context) {
-      type RunDetails = { result: MavenRunResult };
+      type RunDetails = { result: MavenRunJson };
       const details = toolResult.details as RunDetails | undefined;
       // While executing there are no details yet — return nothing (the renderCall
       // line and the progress widget already convey what is happening).
       if (!details) return new Container();
       // Share the result with renderCall so it can update its icon.
-      (context.state as { result?: MavenRunResult }).result = details.result;
+      (context.state as { result?: MavenRunJson }).result = details.result;
       if (expanded) {
         return renderMavenRunResult(details.result, true, theme, false);
       }
@@ -323,7 +287,7 @@ export default function (pi: ExtensionAPI) {
       const { latestVersion, versions } = await fetchMetadata(groupId, artifactId, signal);
       const { selectedVersion, prereleaseFiltered } = selectVersion(latestVersion, versions, includePrereleases);
 
-      const result: VersionLookupResult = {
+      const result: VersionLookupJson = {
         groupId,
         artifactId,
         latestVersion,
@@ -395,14 +359,14 @@ export default function (pi: ExtensionAPI) {
 
       // project info
       if (sub === "info") {
-        const info = getMavenProjectInfo(cwd);
-        const infoJson = info ? buildProjectInfoJson(info) : null;
+        const info = MavenProjectInfo.create(cwd);
+        const infoJson = info ? toProjectInfoJson(info) : null;
         mavenMessage({ kind: "info", ctx: infoJson });
         return;
       }
 
       // Maven run actions
-      const info = getMavenProjectInfo(cwd);
+      const info = MavenProjectInfo.create(cwd);
       if (!info) {
         mavenMessage({ kind: "info", ctx: null });
         return;
@@ -421,22 +385,16 @@ export default function (pi: ExtensionAPI) {
         }
       }
       const action: MavenAction = sub === "package" ? "package" : "test";
-      const project = info.currentProject?.relativePath !== "." ? info.currentProject?.relativePath : undefined;
+      const project = info.defaultProject();
       const opts = { action, runner: info.runner, selector, project, testScope };
       const command = buildMavenCommand(opts);
       const mavenArgs = buildMavenArgs(opts);
 
       const runStartTime = Date.now();
       const { rawOutput, exitCode } = await runMaven(command, mavenArgs, info.projectRoot, ctx);
-      const result = buildRunResult(
-        { rawOutput, exitCode },
-        info,
-        command,
-        action,
-        info.projectRoot,
-        testScope,
-        runStartTime,
-      );
+      const runOpts: MavenRunOptions = { command, action, cwd: info.projectRoot, testScope, runStartTime };
+      const run = MavenRun.fromRawOutput({ rawOutput, exitCode }, info, runOpts);
+      const result = toMavenRunJson(run);
       mavenMessage({ kind: "run", result });
     },
   });

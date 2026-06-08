@@ -3,7 +3,7 @@ import { keyHint } from "@earendil-works/pi-coding-agent";
 import { nodeColumns, collectRows } from "./formatter.ts";
 import type { ProjectInfoJson, Row } from "./formatter.ts";
 import { renderRunResult } from "./run-result-renderer.ts";
-import type { MavenRunResult } from "./types.ts";
+import type { MavenRunJson } from "./tool-types.ts";
 
 // ---------------------------------------------------------------------------
 // Themed TUI rendering — produces a Text component with ANSI colours.
@@ -99,13 +99,13 @@ function renderVersion(details: Record<string, unknown>, theme: Theme): Text {
 }
 
 function renderRun(details: Record<string, unknown>, theme: Theme): Text {
-  const { result } = details as { result: MavenRunResult };
+  const { result } = details as { result: MavenRunJson };
 
   const icon = result.success ? theme.fg("success", "✓") : theme.fg("error", "✗");
   const lines = [
     label(theme, "command") + `${icon} ${theme.fg("dim", result.command)}`,
     ...renderRunResult(result, false, theme, false).split("\n").filter(Boolean),
-    label(theme, "log") + theme.fg("dim", result.rawMavenOut),
+    label(theme, "log") + theme.fg("dim", result.rawMavenLogPath),
   ];
 
   return new Text(lines.join("\n"), 0, 0);
@@ -116,7 +116,7 @@ function renderRun(details: Record<string, unknown>, theme: Theme): Text {
 // ---------------------------------------------------------------------------
 
 export function renderMavenRunResult(
-  result: MavenRunResult,
+  result: MavenRunJson,
   expanded: boolean,
   theme: Theme,
   showCommand = true,

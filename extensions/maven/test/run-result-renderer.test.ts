@@ -1,7 +1,7 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 import { renderRunResult } from "../run-result-renderer.ts";
-import type { MavenRunResult } from "../types.ts";
+import type { MavenRunJson } from "../tool-types.ts";
 
 // ---------------------------------------------------------------------------
 // Minimal theme stub — returns plain text so assertions don't need ANSI codes
@@ -16,7 +16,7 @@ const theme = {
 // Fixture helpers
 // ---------------------------------------------------------------------------
 
-function makeResult(overrides: Partial<MavenRunResult> = {}): MavenRunResult {
+function makeResult(overrides: Partial<MavenRunJson> = {}): MavenRunJson {
   return {
     success: true,
     cwd: "/repo",
@@ -25,7 +25,7 @@ function makeResult(overrides: Partial<MavenRunResult> = {}): MavenRunResult {
     failedTests: [],
     compilationErrors: [],
     buildErrors: [],
-    rawMavenOut: "target/pi/maven-logs/2026-05-13T12-00-00-package.log",
+    rawMavenLogPath: "target/pi/maven-logs/2026-05-13T12-00-00-package.log",
     ...overrides,
   };
 }
@@ -189,11 +189,11 @@ describe("renderRunResult — expanded", () => {
     assert.ok(text.includes('"command"'), `expected JSON key "command" in expanded view: ${text}`);
   });
 
-  it("JSON contains the rawMavenOut", () => {
+  it("JSON contains the rawMavenLogPath", () => {
     const text = renderRunResult(makeResult(), true, theme);
     assert.ok(
       text.includes("target/pi/maven-logs/2026-05-13T12-00-00-package.log"),
-      `expected rawMavenOut in expanded JSON: ${text}`,
+      `expected rawMavenLogPath in expanded JSON: ${text}`,
     );
   });
 

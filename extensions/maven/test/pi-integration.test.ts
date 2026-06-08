@@ -258,25 +258,25 @@ describe("maven_run tool", () => {
     runJson = JSON.parse(contentText);
   });
 
-  it("returns a result containing rawMavenOut", () => {
-    assert.ok(typeof runJson.rawMavenOut === "string" && (runJson.rawMavenOut as string).length > 0,
-      "rawMavenOut should be a non-empty string");
+  it("returns a result containing rawMavenLogPath", () => {
+    assert.ok(typeof runJson.rawMavenLogPath === "string" && (runJson.rawMavenLogPath as string).length > 0,
+      "rawMavenLogPath should be a non-empty string");
   });
 
-  it("details contains rawMavenOut as a relative path under target/pi/maven-logs", () => {
-    const rel = runJson.rawMavenOut as string;
+  it("details contains rawMavenLogPath as a relative path under target/pi/maven-logs", () => {
+    const rel = runJson.rawMavenLogPath as string;
     assert.ok(typeof rel === "string" && rel.startsWith(join("target", "pi", "maven-logs")),
-      `rawMavenOut should be a relative path under target/pi/maven-logs, got: ${rel}`);
-    assert.ok(existsSync(join(singleModuleRoot, rel)), `rawMavenOut file should exist at ${rel}`);
+      `rawMavenLogPath should be a relative path under target/pi/maven-logs, got: ${rel}`);
+    assert.ok(existsSync(join(singleModuleRoot, rel)), `rawMavenLogPath file should exist at ${rel}`);
   });
 
   it("persists the raw log file to disk", () => {
-    const relLogPath = runJson.rawMavenOut as string;
+    const relLogPath = runJson.rawMavenLogPath as string;
     assert.ok(existsSync(join(singleModuleRoot, relLogPath)), `log file should exist at ${relLogPath}`);
   });
 
   it("writes Maven output into the raw log file", () => {
-    const relLogPath = runJson.rawMavenOut as string;
+    const relLogPath = runJson.rawMavenLogPath as string;
     const logContent = readFileSync(join(singleModuleRoot, relLogPath), "utf8");
     assert.ok(logContent.length > 0, "log file should be non-empty");
     assert.ok(logContent.includes("[INFO]"), "log file should contain Maven [INFO] lines");

@@ -13,49 +13,18 @@
  */
 
 import {resolve} from "node:path";
-import {spawnSafe} from "./vendor/spawn-safe.ts";
 
-import {buildMavenArgs, buildMavenCommand, buildMavenEnv, type MavenAction, type TestScope} from "./maven-run.ts";
+import {buildMavenArgs, buildMavenCommand, type MavenAction, type TestScope} from "./maven-run.ts";
 import {
-  buildProjectInfoResult,
-  buildRunResult,
-  checkSurefireSkipConfigured,
-  getMavenProjectInfo
+  MavenProjectInfo,
+  MavenRun,
+  spawnMaven,
+  type MavenRunOptions,
 } from "./maven-project.ts";
 import {buildMetadataUrl, fetchMetadata, selectVersion} from "./version-lookup.ts";
 import {INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE} from "./guidance.ts";
-import type {VersionLookupResult} from "./types.ts";
-
-// ---------------------------------------------------------------------------
-// Maven runner (simplified — no pi widget, just spawn and collect output)
-// ---------------------------------------------------------------------------
-
-async function runMaven(
-  args: string[],
-  projectRoot: string,
-): Promise<{ rawOutput: string; exitCode: number }> {
-  const rawChunks: string[] = [];
-
-  return new Promise((done, reject) => {
-    const [cmd, ...spawnArgs] = args;
-    const { child, whenSpawnError } = spawnSafe(cmd, spawnArgs, {
-      cwd: projectRoot,
-      env: buildMavenEnv(projectRoot),
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    whenSpawnError.catch(reject);
-
-    const onData = (chunk: Buffer) => {
-      rawChunks.push(chunk.toString());
-    };
-
-    child.stdout.on("data", onData);
-    child.stderr.on("data", onData);
-    child.on("close", (code) => {
-      done({rawOutput: rawChunks.join(""), exitCode: code ?? 1});
-    });
-  });
-}
+import type {MavenRunJson, VersionLookupJson} from "./tool-types.ts";
+import {toMavenRunJson, toProjectInfoJson} from "./tool-types.ts";
 
 // ---------------------------------------------------------------------------
 // CLI argument parsing
@@ -112,9 +81,10 @@ async function cmdInfo(args: Record<string, string | boolean>): Promise<void> {
     return;
   }
   const cwd = resolve(process.cwd());
-  const json = buildProjectInfoResult(cwd);
+  const info = MavenProjectInfo.create(cwd);
+  const json = info ? toProjectInfoJson(info) : { isMavenProject: false };
   console.log(JSON.stringify(json, null, 2));
-  if (!json.isMavenProject) process.exitCode = 1;
+  if (!info) process.exitCode = 1;
 }
 
 async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
@@ -126,7 +96,7 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
   }
 
   const cwd = resolve(process.cwd());
-  const info = getMavenProjectInfo(cwd);
+  const info = MavenProjectInfo.create(cwd);
   if (!info) {
     console.error("Not a Maven project");
     process.exitCode = 1;
@@ -147,11 +117,10 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
     rawLimit === "none" ? null
       : rawLimit !== undefined && rawLimit !== true ? parseInt(rawLimit as string, 10)
         : 10;
-  const project = (args.project as string | undefined)
-    ?? (info.currentProject?.relativePath !== "." ? info.currentProject?.relativePath : undefined);
+  const project = (args.project as string | undefined) ?? info.defaultProject();
 
   if (testScope === "failsafe") {
-    if (!checkSurefireSkipConfigured(info.pomPath)) {
+    if (!info.surefireSkipIsConfigured) {
       console.log(JSON.stringify({
         error: "SUREFIRE_SKIP_NOT_CONFIGURED",
         message: SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE,
@@ -166,12 +135,12 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
   const mavenArgs = buildMavenArgs(opts);
 
   const runStartTime = Date.now();
-  let rawRun = await runMaven(mavenArgs, info.projectRoot);
+  let rawRun = await spawnMaven(mavenArgs, info.projectRoot);
   if (rawRun.exitCode !== 0 && /resolver-status\.properties.*Operation not permitted/.test(rawRun.rawOutput)) {
-    rawRun = await runMaven([...mavenArgs, "-o"], info.projectRoot);
+    rawRun = await spawnMaven([...mavenArgs, "-o"], info.projectRoot);
   }
 
-  const result = buildRunResult(rawRun, info, command, "test", cwd, testScope, runStartTime, {includeTimings, limit});
+  const result = toMavenRunJson(MavenRun.fromRawOutput(rawRun, info, {command, action: "test", cwd, testScope, runStartTime, includeTimings, limit}));
 
   console.log(JSON.stringify(result, null, 2));
   if (!result.success) process.exitCode = 1;
@@ -186,27 +155,26 @@ async function cmdPackage(args: Record<string, string | boolean>): Promise<void>
   }
 
   const cwd = resolve(process.cwd());
-  const info = getMavenProjectInfo(cwd);
+  const info = MavenProjectInfo.create(cwd);
   if (!info) {
     console.error("Not a Maven project");
     process.exitCode = 1;
     return;
   }
 
-  const project = (args.project as string | undefined)
-    ?? (info.currentProject?.relativePath !== "." ? info.currentProject?.relativePath : undefined);
+  const project = (args.project as string | undefined) ?? info.defaultProject();
 
   const opts = {action: "package" as MavenAction, runner: info.runner, project};
   const command = buildMavenCommand(opts);
   const mavenArgs = buildMavenArgs(opts);
 
   const runStartTime = Date.now();
-  let rawRun = await runMaven(mavenArgs, info.projectRoot);
+  let rawRun = await spawnMaven(mavenArgs, info.projectRoot);
   if (rawRun.exitCode !== 0 && /resolver-status\.properties.*Operation not permitted/.test(rawRun.rawOutput)) {
-    rawRun = await runMaven([...mavenArgs, "-o"], info.projectRoot);
+    rawRun = await spawnMaven([...mavenArgs, "-o"], info.projectRoot);
   }
 
-  const result = buildRunResult(rawRun, info, command, "package", cwd, undefined, runStartTime);
+  const result = toMavenRunJson(MavenRun.fromRawOutput(rawRun, info, {command, action: "package", cwd, testScope: undefined, runStartTime}));
 
   console.log(JSON.stringify(result, null, 2));
   if (!result.success) process.exitCode = 1;
@@ -236,7 +204,7 @@ async function cmdLookupVersion(args: Record<string, string | boolean>): Promise
   const {latestVersion, versions} = await fetchMetadata(groupId, artifactId);
   const {selectedVersion, prereleaseFiltered} = selectVersion(latestVersion, versions, includePrereleases);
 
-  const result: VersionLookupResult = {
+  const result: VersionLookupJson = {
     groupId,
     artifactId,
     latestVersion,

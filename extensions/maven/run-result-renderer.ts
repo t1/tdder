@@ -1,15 +1,15 @@
-import type { MavenRunResult } from "./types.ts";
+import type { MavenRunJson } from "./tool-types.ts";
 
 type Theme = { fg: (color: string, text: string) => string; bold: (text: string) => string };
 
 /**
- * Renders a MavenRunResult as a plain string.
+ * Renders a MavenRunJson as a plain string.
  *
  * collapsed — concise summary: icon, command, and a brief outcome line.
  * expanded  — the full JSON payload that was sent to the LLM.
  */
 export function renderRunResult(
-  result: MavenRunResult,
+  result: MavenRunJson,
   expanded: boolean,
   theme: Theme,
   showCommand = true,
@@ -42,7 +42,7 @@ export function renderRunResult(
   return lines.join("\n");
 }
 
-export function buildSummary(result: MavenRunResult, theme: Theme): string {
+export function buildSummary(result: MavenRunJson, theme: Theme): string {
   if ((result.compilationErrors?.length ?? 0) > 0) {
     const count = result.compilationErrors!.length;
     return theme.fg("error", `${count} compilation error${count === 1 ? "" : "s"}`);
