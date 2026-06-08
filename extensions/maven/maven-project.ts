@@ -98,7 +98,7 @@ export async function spawnMaven(
     const { child, whenSpawnError } = spawnSafe(cmd, spawnArgs, {
       cwd: projectRoot,
       env: buildMavenEnv(projectRoot),
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [null, "pipe", "pipe"],
     });
     whenSpawnError.catch(reject);
 

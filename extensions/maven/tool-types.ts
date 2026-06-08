@@ -8,9 +8,11 @@
 
 import type { MavenRun, MavenProjectInfo } from "./maven-project.ts";
 import { stripInternalFields } from "./project-info.ts";
+import type { ProjectInfoJson } from "./formatter.ts";
+import type { FailedTest, TestSummary, TestTiming } from "./report-parser.ts";
 
-export type { ProjectInfoJson } from "./formatter.ts";
-export type { FailedTest, TestSummary, TestTiming } from "./report-parser.ts";
+export type { ProjectInfoJson };
+export type { FailedTest, TestSummary, TestTiming };
 
 export interface MavenRunJson {
   success: boolean;

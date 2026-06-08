@@ -52,7 +52,6 @@ describe("renderRunResult — collapsed", () => {
 
   it("shows test counts when tests ran", () => {
     const result = makeResult({
-      action: "test",
       command: "mvn test",
       testSummary: { testsRun: 5, failures: 1, errors: 0, skipped: 0, durationSeconds: 0 },
     });
@@ -63,7 +62,6 @@ describe("renderRunResult — collapsed", () => {
 
   it("shows duration when tests ran", () => {
     const result = makeResult({
-      action: "test",
       command: "mvn test",
       testSummary: { testsRun: 3, failures: 0, errors: 0, skipped: 0, durationSeconds: 1.23 },
     });
@@ -73,15 +71,18 @@ describe("renderRunResult — collapsed", () => {
 
   it("lists failed tests with location and message", () => {
     const result = makeResult({
-      action: "test",
       command: "mvn test",
       testSummary: { testsRun: 2, failures: 1, errors: 0, skipped: 0, durationSeconds: 0 },
       failedTests: [{
+        kind: "failure" as const,
         className: "com.example.FooTest",
         methodName: "shouldFail",
         message: "expected 200 but was 503",
         rerunSelector: "com.example.FooTest#shouldFail",
         rerunScope: "method",
+        reportFile: "",
+        reportFileOffset: 0,
+        reportFileLimit: 0,
       }],
     });
     const text = renderRunResult(result, false, theme);

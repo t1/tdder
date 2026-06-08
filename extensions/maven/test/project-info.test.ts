@@ -103,23 +103,23 @@ describe("buildProjectTree", () => {
     const root = join(fixturesDir, "flat-multi-module");
     const tree = buildProjectTree(root);
     assert.equal(tree.artifactId, "root");
-    assert.equal(Object.keys(tree.modules).length, 2);
-    assert.equal(tree.modules["module-a"].artifactId, "module-a");
-    assert.equal(tree.modules["module-a"].relativePath, "module-a");
-    assert.equal(tree.modules["module-b"].artifactId, "module-b");
+    assert.equal(Object.keys(tree.modules!).length, 2);
+    assert.equal(tree.modules!["module-a"].artifactId, "module-a");
+    assert.equal(tree.modules!["module-a"].relativePath, "module-a");
+    assert.equal(tree.modules!["module-b"].artifactId, "module-b");
   });
 
   it("builds a nested tree for a nested aggregator project", () => {
     const root = join(fixturesDir, "nested-multi-module");
     const tree = buildProjectTree(root);
     assert.equal(tree.artifactId, "root");
-    assert.equal(Object.keys(tree.modules).length, 1);
-    const services = tree.modules["services"];
+    assert.equal(Object.keys(tree.modules!).length, 1);
+    const services = tree.modules!["services"];
     assert.equal(services.artifactId, "services");
     assert.equal(services.relativePath, "services");
-    assert.equal(Object.keys(services.modules).length, 1);
-    assert.equal(services.modules["service-a"].artifactId, "service-a");
-    assert.equal(services.modules["service-a"].relativePath, "services/service-a");
+    assert.equal(Object.keys(services.modules!).length, 1);
+    assert.equal(services.modules!["service-a"].artifactId, "service-a");
+    assert.equal(services.modules!["service-a"].relativePath, "services/service-a");
   });
 });
 
@@ -137,11 +137,11 @@ describe("stripInternalFields", () => {
     const root = join(fixturesDir, "flat-multi-module");
     const tree = buildProjectTree(root);
     const stripped = stripInternalFields(tree);
-    assert.equal((stripped as Record<string, unknown>).relativePath, undefined);
-    assert.equal((stripped as Record<string, unknown>).pomPath, undefined);
+    assert.equal((stripped as unknown as Record<string, unknown>).relativePath, undefined);
+    assert.equal((stripped as unknown as Record<string, unknown>).pomPath, undefined);
     for (const child of Object.values(stripped.modules ?? {})) {
-      assert.equal((child as Record<string, unknown>).relativePath, undefined);
-      assert.equal((child as Record<string, unknown>).pomPath, undefined);
+      assert.equal((child as unknown as Record<string, unknown>).relativePath, undefined);
+      assert.equal((child as unknown as Record<string, unknown>).pomPath, undefined);
     }
   });
 

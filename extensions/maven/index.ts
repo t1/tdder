@@ -57,7 +57,7 @@ async function runMaven(
     );
     ctx.ui.setWidget(WIDGET_KEY, [line]);
     // Calling onUpdate triggers a pi repaint cycle that picks up the setWidget state
-    if (running) onUpdate?.({ content: [{ type: "text" as const, text: `Running: ${command}` }] });
+    if (running) onUpdate?.({ content: [{ type: "text" as const, text: `Running: ${command}` }], details: undefined });
   };
 
   refreshWidget(true);
@@ -114,7 +114,7 @@ export default function (pi: ExtensionAPI) {
 
   // Keep display-only /maven messages out of the LLM context.
   pi.on("context", async (event) =>
-    filterDisplayOnlyMessages(event, MAVEN_MSG_TYPE),
+    filterDisplayOnlyMessages(event, MAVEN_MSG_TYPE) as { messages?: any[] } | undefined,
   );
 
   // ── maven_project_info ────────────────────────────────────────────────────
@@ -210,7 +210,7 @@ export default function (pi: ExtensionAPI) {
       const command = buildMavenCommand(opts);
       const args = buildMavenArgs(opts);
 
-      onUpdate?.({ content: [{ type: "text" as const, text: `Running: ${command}` }] });
+      onUpdate?.({ content: [{ type: "text" as const, text: `Running: ${command}` }], details: undefined });
 
       const runStartTime = Date.now();
       const { rawOutput, exitCode } = await runMaven(command, args, info.projectRoot, ctx, onUpdate);
@@ -282,7 +282,7 @@ export default function (pi: ExtensionAPI) {
       const { groupId, artifactId, includePrereleases = false } = params;
       const metadataUrl = buildMetadataUrl(groupId, artifactId);
 
-      onUpdate?.({ content: [{ type: "text" as const, text: `Fetching ${metadataUrl}…` }] });
+      onUpdate?.({ content: [{ type: "text" as const, text: `Fetching ${metadataUrl}…` }], details: undefined });
 
       const { latestVersion, versions } = await fetchMetadata(groupId, artifactId, signal);
       const { selectedVersion, prereleaseFiltered } = selectVersion(latestVersion, versions, includePrereleases);

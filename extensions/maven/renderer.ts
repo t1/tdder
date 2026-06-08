@@ -10,7 +10,7 @@ import type { MavenRunJson } from "./tool-types.ts";
 // Called by the maven message renderer; no LLM involvement.
 // ---------------------------------------------------------------------------
 
-type Theme = { fg: (color: string, text: string) => string; bold: (text: string) => string };
+type Theme = { fg: (color: any, text: string) => string; bold: (text: string) => string };
 
 export function renderMavenMessage(
   details: Record<string, unknown>,

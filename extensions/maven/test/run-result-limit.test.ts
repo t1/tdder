@@ -8,11 +8,15 @@ import type { FailedTest } from "../report-parser.ts";
 
 function makeFailedTest(n: number): FailedTest {
   return {
+    kind: "failure" as const,
     className: `com.example.Test${n}`,
     methodName: `test${n}`,
     message: `failure ${n}`,
     rerunSelector: `com.example.Test${n}#test${n}`,
     rerunScope: "method",
+    reportFile: "",
+    reportFileOffset: 0,
+    reportFileLimit: 0,
   };
 }
 

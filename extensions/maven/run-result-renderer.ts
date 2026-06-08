@@ -1,6 +1,6 @@
 import type { MavenRunJson } from "./tool-types.ts";
 
-type Theme = { fg: (color: string, text: string) => string; bold: (text: string) => string };
+type Theme = { fg: (color: any, text: string) => string; bold: (text: string) => string };
 
 /**
  * Renders a MavenRunJson as a plain string.

@@ -9,6 +9,7 @@ import type { ProjectInfoJson } from "../formatter.ts";
 function toJson(root: string, runner: string, tree: ProjectNode, current: ProjectNode | null): ProjectInfoJson {
   const { modules, ...rootFields } = stripInternalFields(tree);
   return {
+    isMavenProject: true,
     rootPath: root,
     runner,
     currentPath: current?.relativePath ?? ".",
@@ -179,7 +180,7 @@ describe("formatProjectInfo — flat multi-module project", () => {
   it("indents child modules under the root", () => {
     const root = join(fixturesDir, "flat-multi-module");
     const tree = buildProjectTree(root);
-    const current = tree.modules["module-a"]; // module-a
+    const current = tree.modules!["module-a"]; // module-a
     const output = formatProjectInfo(toJson(root, "./mvnw", tree, current));
     const lines = output.split("\n");
     const rootLine = lines.find((l) => /^\s*-\s*root/.test(l));
@@ -198,7 +199,7 @@ describe("formatProjectInfo — nested multi-module project", () => {
   it("indents the nested tree at multiple levels", () => {
     const root = join(fixturesDir, "nested-multi-module");
     const tree = buildProjectTree(root);
-    const serviceA = tree.modules["services"].modules["service-a"]; // services/service-a
+    const serviceA = tree.modules!["services"].modules!["service-a"]; // services/service-a
     const output = formatProjectInfo(toJson(root, "./mvnw", tree, serviceA));
     const lines = output.split("\n");
     const rootLine    = lines.find((l) => /^\s*-\s*root/.test(l));
