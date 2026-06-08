@@ -180,13 +180,10 @@ export default function (pi: ExtensionAPI) {
       },
       ...(spec?.collapseResult
         ? {
-            renderResult(
-              result: { content?: Array<{ type: string; text: string }> },
-              { expanded }: { expanded: boolean; isPartial: boolean },
-              theme: { fg(color: string, text: string): string },
-            ) {
+            renderResult(result, { expanded }, theme, _context) {
               const collapse = spec!.collapseResult!;
-              const rawText = result.content?.find((c) => c.type === "text")?.text ?? "";
+              const rawText = (result.content as Array<{ type: string; text?: string }> | undefined)
+                ?.find((c) => c.type === "text")?.text ?? "";
               const parsed = parseSafe(rawText);
               const body = expanded
                 ? (collapse.expanded?.(parsed, rawText) ?? prettyPrintContent(rawText))
@@ -358,7 +355,7 @@ export default function (pi: ExtensionAPI) {
 
   // Keep our own custom messages out of the LLM context. They're for the human only.
   pi.on("context", async (event) =>
-    filterDisplayOnlyMessages(event, TOOLS_LIST_CUSTOM_TYPE),
+    filterDisplayOnlyMessages(event, TOOLS_LIST_CUSTOM_TYPE) as { messages?: any[] } | undefined,
   );
 
   // Styled in-chat renderer for the tools listing.

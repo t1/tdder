@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "sync": "mkdir -p vendor && cp ../shared/jsonrpc-session.ts ../shared/mcp-client.ts ../shared/context-filter.ts ../shared/tool-activation.ts vendor/",
-    "pretest": "npm run sync",
+    "pretest": "npm run sync && tsc",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",

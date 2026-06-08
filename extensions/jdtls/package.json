@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "sync": "mkdir -p vendor && cp ../shared/jsonrpc-session.ts ../shared/tool-activation.ts vendor/",
-    "pretest": "npm run sync",
+    "pretest": "npm run sync && tsc",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepack": "npm run sync"
