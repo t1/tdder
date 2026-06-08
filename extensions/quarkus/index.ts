@@ -80,6 +80,7 @@ function jbangBin(): string | null {
   // jbang may not be on PATH inside pi's spawned env; check well-known locations.
   const candidates = [
     `${process.env.HOME}/.sdkman/candidates/jbang/current/bin/jbang`,
+    `${process.env.HOME}/.jbang/bin/jbang`,
     "/usr/local/bin/jbang",
     "/opt/homebrew/bin/jbang",
   ];
