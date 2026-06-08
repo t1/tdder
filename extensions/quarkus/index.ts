@@ -15,6 +15,7 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { homedir } from "node:os";
+import { spawnSafe } from "./vendor/spawn-safe.ts";
 import { join, resolve } from "node:path";
 import {
   DEFAULT_MAX_BYTES,
@@ -423,29 +424,84 @@ class JbangMissingError extends Error {
   }
 }
 
-const QUARKUS_JBANG_MISSING_MSG_TYPE = "quarkus-jbang-missing";
+// ---------------------------------------------------------------------------
+// Install-jbang helpers
+// ---------------------------------------------------------------------------
 
-function renderJbangMissingMessage(
-  theme: { fg: (color: string, text: string) => string; bold: (text: string) => string },
-): Text {
-  const lines: string[] = [
-    theme.fg("error", theme.bold("⚠ jbang is not installed")),
-    "",
-    theme.fg("text", "The Quarkus extension requires jbang to launch quarkus-agent-mcp."),
-    theme.fg("text", "Install it with one of the following methods, then restart pi:"),
-    "",
-    theme.fg("accent", theme.bold("Homebrew (macOS / Linux)")),
-    theme.fg("muted",  "  brew install jbangdev/tap/jbang"),
-    "",
-    theme.fg("accent", theme.bold("SDKman")),
-    theme.fg("muted",  "  sdk install jbang"),
-    "",
-    theme.fg("accent", theme.bold("curl (universal)")),
-    theme.fg("muted",  "  curl -Ls https://sh.jbang.dev | bash -s - app install jbang"),
-    "",
-    theme.fg("dim",    "  https://www.jbang.dev/download/"),
-  ];
-  return new Text(lines.join("\n"), 1, 1);
+/** Returns the brew binary path if Homebrew is installed, otherwise null. */
+function brewBin(): string | null {
+  for (const p of ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]) {
+    if (existsSync(p)) return p;
+  }
+  return null;
+}
+
+/** Returns true if SDKman is installed. */
+function hasSdkman(): boolean {
+  return existsSync(`${process.env.HOME}/.sdkman/bin/sdkman-init.sh`);
+}
+
+interface InstallOption {
+  label: string;
+  description: string;
+  /** Runs the installer and resolves when done, or rejects on failure. */
+  install: () => Promise<void>;
+}
+
+/** Builds the list of available jbang install options based on what's present. */
+function jbangInstallOptions(): InstallOption[] {
+  const options: InstallOption[] = [];
+
+  const brew = brewBin();
+  if (brew) {
+    options.push({
+      label: "Homebrew",
+      description: `brew install jbangdev/tap/jbang`,
+      install: () => runInstallCommand(brew, ["install", "jbangdev/tap/jbang"]),
+    });
+  }
+
+  if (hasSdkman()) {
+    options.push({
+      label: "SDKman",
+      description: `sdk install jbang`,
+      install: () => runInstallCommand(
+        "/bin/bash",
+        ["-c", `source "${process.env.HOME}/.sdkman/bin/sdkman-init.sh" && sdk install jbang`],
+      ),
+    });
+  }
+
+  options.push({
+    label: "curl (universal)",
+    description: "curl -Ls https://sh.jbang.dev | bash -s - app install jbang",
+    install: () => runInstallCommand(
+      "/bin/bash",
+      ["-c", "curl -Ls https://sh.jbang.dev | bash -s - app install jbang"],
+    ),
+  });
+
+  return options;
+}
+
+/** Spawns a command and resolves when it exits with code 0, rejects otherwise. */
+function runInstallCommand(cmd: string, args: string[]): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const { child, whenSpawnError } = spawnSafe(cmd, args, {
+      stdio: "pipe",
+      env: { ...process.env },
+    });
+    const chunks: string[] = [];
+    child.stdout?.on("data", (d: Buffer) => chunks.push(d.toString()));
+    child.stderr?.on("data", (d: Buffer) => chunks.push(d.toString()));
+    const work = new Promise<void>((res, rej) => {
+      child.on("close", (code) => {
+        if (code === 0) res();
+        else rej(new Error(`Installer exited with code ${code}:\n${chunks.join("")}`));
+      });
+    });
+    Promise.race([work, whenSpawnError]).then(resolve, reject);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -465,9 +521,7 @@ export default async function (pi: ExtensionAPI) {
     renderTestResult(message.details as Record<string, unknown>, theme, options.expanded),
   );
 
-  pi.registerMessageRenderer(QUARKUS_JBANG_MISSING_MSG_TYPE, (_message, _options, theme) =>
-    renderJbangMissingMessage(theme),
-  );
+
 
   const state: QuarkusState = {
     client: null,
@@ -1003,7 +1057,7 @@ export default async function (pi: ExtensionAPI) {
     } catch (err) {
       ctx.ui.setStatus("quarkus", undefined);
       if (err instanceof JbangMissingError) {
-        notifyJbangMissing();
+        await handleJbangMissing(cwd, ctx);
       } else {
         ctx.ui.notify(`quarkus restart failed: ${(err as Error).message}`, "error");
       }
@@ -1120,14 +1174,54 @@ export default async function (pi: ExtensionAPI) {
   }
 
   // -------------------------------------------------------------------------
-  // Helpers: jbang-missing notification
+  // Helpers: jbang-missing interactive install
   // -------------------------------------------------------------------------
 
-  function notifyJbangMissing(): void {
-    pi.sendMessage(
-      { customType: QUARKUS_JBANG_MISSING_MSG_TYPE, content: "", display: true, details: {} },
-      { triggerTurn: false },
+  async function handleJbangMissing(cwd: string, ctx: { ui: CommandUi }): Promise<void> {
+    const options = jbangInstallOptions();
+    const selectItems = [
+      ...options.map((o) => ({ value: o.label, label: o.label, description: o.description })),
+      { value: "__later__", label: "Later", description: "I'll install jbang myself" },
+    ];
+
+    const chosen = await ctx.ui.select(
+      "⚠ jbang is not installed — choose how to install it:",
+      selectItems.map((i) => `${i.label}  ${i.description}`),
     );
+    if (!chosen || chosen.startsWith("Later")) return;
+
+    const option = options.find((o) => chosen.startsWith(o.label));
+    if (!option) return;
+
+    ctx.ui.setStatus("quarkus", `installing jbang via ${option.label}…`);
+    try {
+      await option.install();
+    } catch (err) {
+      ctx.ui.setStatus("quarkus", undefined);
+      ctx.ui.notify(`jbang install failed: ${(err as Error).message}`, "error");
+      return;
+    }
+
+    // Verify jbang is now on PATH
+    if (!jbangBin()) {
+      ctx.ui.setStatus("quarkus", undefined);
+      ctx.ui.notify("jbang installed but not found on PATH — you may need to restart your shell or pi.", "warning");
+      return;
+    }
+
+    ctx.ui.notify("jbang installed. Starting Quarkus MCP…", "info");
+    ctx.ui.setStatus("quarkus", "quarkus: starting…");
+    try {
+      const c = await ensureClient(cwd);
+      ctx.ui.setStatus("quarkus", undefined);
+      ctx.ui.notify(`quarkus: ${c.tools.length} tools loaded`, "info");
+      if (state.statusPoller) clearInterval(state.statusPoller);
+      state.statusPoller = setInterval(() => { refreshAppStatus(cwd, ctx).catch(() => {}); }, 5_000);
+      refreshAppStatus(cwd, ctx).catch(() => {});
+    } catch (err) {
+      ctx.ui.setStatus("quarkus", undefined);
+      ctx.ui.notify(`quarkus failed to start: ${(err as Error).message}`, "error");
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -1165,7 +1259,7 @@ export default async function (pi: ExtensionAPI) {
       .catch((err) => {
         ctx.ui.setStatus("quarkus", undefined);
         if (err instanceof JbangMissingError) {
-          notifyJbangMissing();
+          handleJbangMissing(cwd, ctx).catch(() => {});
         } else {
           ctx.ui.notify(`quarkus: failed to start – ${(err as Error).message}`, "error");
         }
@@ -1184,7 +1278,7 @@ export default async function (pi: ExtensionAPI) {
   // Keep display-only custom messages out of the LLM context.
   // QUARKUS_TEST_MSG_TYPE is intentionally excluded: its content IS the LLM prompt.
   pi.on("context", async (event) =>
-    filterDisplayOnlyMessages(event, QUARKUS_INFO_MSG_TYPE, QUARKUS_STARTUP_LOG_MSG_TYPE, QUARKUS_JBANG_MISSING_MSG_TYPE),
+    filterDisplayOnlyMessages(event, QUARKUS_INFO_MSG_TYPE, QUARKUS_STARTUP_LOG_MSG_TYPE),
   );
 
   // -------------------------------------------------------------------------
@@ -1250,7 +1344,7 @@ export default async function (pi: ExtensionAPI) {
         } catch (err) {
           ctx.ui.setStatus("quarkus", undefined);
           if (err instanceof JbangMissingError) {
-            notifyJbangMissing();
+            await handleJbangMissing(cwd, ctx);
           } else {
             ctx.ui.notify(`quarkus failed to start: ${(err as Error).message}`, "error");
           }
