@@ -446,7 +446,7 @@ interface InstallOption {
   label: string;
   description: string;
   /** Runs the installer and resolves when done, or rejects on failure. */
-  install: () => Promise<void>;
+  install: () => Promise<{ output: string }>;
 }
 
 /** Builds the list of available jbang install options based on what's present. */
@@ -486,8 +486,8 @@ function jbangInstallOptions(): InstallOption[] {
 }
 
 /** Spawns a command and resolves when it exits with code 0, rejects otherwise. */
-function runInstallCommand(cmd: string, args: string[]): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
+function runInstallCommand(cmd: string, args: string[]): Promise<{ output: string }> {
+  return new Promise((resolve, reject) => {
     const { child, whenSpawnError } = spawnSafe(cmd, args, {
       stdio: "pipe",
       env: { ...process.env },
@@ -495,10 +495,11 @@ function runInstallCommand(cmd: string, args: string[]): Promise<void> {
     const chunks: string[] = [];
     child.stdout?.on("data", (d: Buffer) => chunks.push(d.toString()));
     child.stderr?.on("data", (d: Buffer) => chunks.push(d.toString()));
-    const work = new Promise<void>((res, rej) => {
+    const work = new Promise<{ output: string }>((res, rej) => {
       child.on("close", (code) => {
-        if (code === 0) res();
-        else rej(new Error(`Installer exited with code ${code}:\n${chunks.join("")}`));
+        const output = chunks.join("");
+        if (code === 0) res({ output });
+        else rej(new Error(`Installer exited with code ${code}:\n${output}`));
       });
     });
     Promise.race([work, whenSpawnError]).then(resolve, reject);
@@ -1195,8 +1196,9 @@ export default async function (pi: ExtensionAPI) {
     if (!option) return;
 
     ctx.ui.setStatus("quarkus", `installing jbang via ${option.label}…`);
+    let installOutput = "";
     try {
-      await option.install();
+      ({ output: installOutput } = await option.install());
     } catch (err) {
       ctx.ui.setStatus("quarkus", undefined);
       ctx.ui.notify(`jbang install failed: ${(err as Error).message}`, "error");
@@ -1206,7 +1208,10 @@ export default async function (pi: ExtensionAPI) {
     // Verify jbang is now on PATH
     if (!jbangBin()) {
       ctx.ui.setStatus("quarkus", undefined);
-      ctx.ui.notify("jbang installed but not found on PATH — you may need to restart your shell or pi.", "warning");
+      ctx.ui.notify(
+        `jbang installed but not found on PATH.\nInstaller output:\n${installOutput || "(none)"}`,
+        "warning",
+      );
       return;
     }
 
