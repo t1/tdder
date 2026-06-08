@@ -70,8 +70,12 @@ function isQuarkusProject(dir: string): boolean {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function jbangBin(): string {
-  // jbang may not be on PATH inside pi's spawned env; fall back to common locations.
+/**
+ * Returns the path to the jbang binary, checking well-known locations before
+ * falling back to PATH. Returns null if jbang is definitely not installed.
+ */
+function jbangBin(): string | null {
+  // jbang may not be on PATH inside pi's spawned env; check well-known locations.
   const candidates = [
     `${process.env.HOME}/.sdkman/candidates/jbang/current/bin/jbang`,
     "/usr/local/bin/jbang",
@@ -80,7 +84,11 @@ function jbangBin(): string {
   for (const c of candidates) {
     if (existsSync(c)) return c;
   }
-  return "jbang"; // rely on PATH as a last resort
+  // Last resort: check whether "jbang" resolves on PATH
+  // (existsSync can't probe PATH entries, so we fall back to trusting PATH
+  //  only when the env var is set — a missing PATH means we can't be sure)
+  if (process.env.PATH) return "jbang";
+  return null;
 }
 
 /** Resolve the project directory (cwd of the pi session). */
@@ -400,6 +408,43 @@ function renderTestResult(
 }
 
 // ---------------------------------------------------------------------------
+// jbang-missing error and renderer
+// ---------------------------------------------------------------------------
+
+/** Thrown when jbang is not found on the system. */
+class JbangMissingError extends Error {
+  constructor() {
+    super("jbang is not installed");
+    this.name = "JbangMissingError";
+  }
+}
+
+const QUARKUS_JBANG_MISSING_MSG_TYPE = "quarkus-jbang-missing";
+
+function renderJbangMissingMessage(
+  theme: { fg: (color: string, text: string) => string; bold: (text: string) => string },
+): Text {
+  const lines: string[] = [
+    theme.fg("error", theme.bold("⚠ jbang is not installed")),
+    "",
+    theme.fg("text", "The Quarkus extension requires jbang to launch quarkus-agent-mcp."),
+    theme.fg("text", "Install it with one of the following methods, then restart pi:"),
+    "",
+    theme.fg("accent", theme.bold("Homebrew (macOS / Linux)")),
+    theme.fg("muted",  "  brew install jbangdev/tap/jbang"),
+    "",
+    theme.fg("accent", theme.bold("SDKman")),
+    theme.fg("muted",  "  sdk install jbang"),
+    "",
+    theme.fg("accent", theme.bold("curl (universal)")),
+    theme.fg("muted",  "  curl -Ls https://sh.jbang.dev | bash -s - app install jbang"),
+    "",
+    theme.fg("dim",    "  https://www.jbang.dev/download/"),
+  ];
+  return new Text(lines.join("\n"), 1, 1);
+}
+
+// ---------------------------------------------------------------------------
 // Extension
 // ---------------------------------------------------------------------------
 
@@ -414,6 +459,10 @@ export default async function (pi: ExtensionAPI) {
 
   pi.registerMessageRenderer(QUARKUS_TEST_MSG_TYPE, (message, options, theme) =>
     renderTestResult(message.details as Record<string, unknown>, theme, options.expanded),
+  );
+
+  pi.registerMessageRenderer(QUARKUS_JBANG_MISSING_MSG_TYPE, (_message, _options, theme) =>
+    renderJbangMissingMessage(theme),
   );
 
   const state: QuarkusState = {
@@ -431,6 +480,7 @@ export default async function (pi: ExtensionAPI) {
 
   async function startClient(cwd: string, fresh = false): Promise<McpClient> {
     const jbang = jbangBin();
+    if (!jbang) throw new JbangMissingError();
     const args = fresh ? ["--fresh", JBANG_ALIAS] : [JBANG_ALIAS];
     const c = new McpClient(
       jbang,
@@ -948,7 +998,11 @@ export default async function (pi: ExtensionAPI) {
       ctx.ui.notify(`quarkus restarted: ${c.tools.length} tools`, "info");
     } catch (err) {
       ctx.ui.setStatus("quarkus", undefined);
-      ctx.ui.notify(`quarkus restart failed: ${(err as Error).message}`, "error");
+      if (err instanceof JbangMissingError) {
+        notifyJbangMissing();
+      } else {
+        ctx.ui.notify(`quarkus restart failed: ${(err as Error).message}`, "error");
+      }
     }
   }
 
@@ -1062,6 +1116,17 @@ export default async function (pi: ExtensionAPI) {
   }
 
   // -------------------------------------------------------------------------
+  // Helpers: jbang-missing notification
+  // -------------------------------------------------------------------------
+
+  function notifyJbangMissing(): void {
+    pi.sendMessage(
+      { customType: QUARKUS_JBANG_MISSING_MSG_TYPE, content: "", display: true, details: {} },
+      { triggerTurn: false },
+    );
+  }
+
+  // -------------------------------------------------------------------------
   // Lifecycle
   // -------------------------------------------------------------------------
 
@@ -1095,7 +1160,11 @@ export default async function (pi: ExtensionAPI) {
       })
       .catch((err) => {
         ctx.ui.setStatus("quarkus", undefined);
-        ctx.ui.notify(`quarkus: failed to start – ${(err as Error).message}`, "error");
+        if (err instanceof JbangMissingError) {
+          notifyJbangMissing();
+        } else {
+          ctx.ui.notify(`quarkus: failed to start – ${(err as Error).message}`, "error");
+        }
       });
   });
 
@@ -1111,7 +1180,7 @@ export default async function (pi: ExtensionAPI) {
   // Keep display-only custom messages out of the LLM context.
   // QUARKUS_TEST_MSG_TYPE is intentionally excluded: its content IS the LLM prompt.
   pi.on("context", async (event) =>
-    filterDisplayOnlyMessages(event, QUARKUS_INFO_MSG_TYPE, QUARKUS_STARTUP_LOG_MSG_TYPE),
+    filterDisplayOnlyMessages(event, QUARKUS_INFO_MSG_TYPE, QUARKUS_STARTUP_LOG_MSG_TYPE, QUARKUS_JBANG_MISSING_MSG_TYPE),
   );
 
   // -------------------------------------------------------------------------
@@ -1176,7 +1245,11 @@ export default async function (pi: ExtensionAPI) {
           ctx.ui.setStatus("quarkus", undefined);
         } catch (err) {
           ctx.ui.setStatus("quarkus", undefined);
-          ctx.ui.notify(`quarkus failed to start: ${(err as Error).message}`, "error");
+          if (err instanceof JbangMissingError) {
+            notifyJbangMissing();
+          } else {
+            ctx.ui.notify(`quarkus failed to start: ${(err as Error).message}`, "error");
+          }
           return;
         }
       }
