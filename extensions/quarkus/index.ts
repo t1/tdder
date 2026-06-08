@@ -449,7 +449,15 @@ interface InstallOption {
   install: () => Promise<{ output: string }>;
 }
 
-/** Builds the list of available jbang install options based on what's present. */
+/** Returns the curl binary path if available, otherwise null. */
+function curlBin(): string | null {
+  for (const p of ["/usr/bin/curl", "/usr/local/bin/curl", "/opt/homebrew/bin/curl"]) {
+    if (existsSync(p)) return p;
+  }
+  return null;
+}
+
+
 function jbangInstallOptions(): InstallOption[] {
   const options: InstallOption[] = [];
 
@@ -473,14 +481,17 @@ function jbangInstallOptions(): InstallOption[] {
     });
   }
 
-  options.push({
-    label: "curl (universal)",
-    description: "curl -Ls https://sh.jbang.dev | bash -s - app install jbang",
-    install: () => runInstallCommand(
-      "/bin/bash",
-      ["-c", "curl -Ls https://sh.jbang.dev | bash -s - app install jbang"],
-    ),
-  });
+  const curl = curlBin();
+  if (curl) {
+    options.push({
+      label: "curl (universal)",
+      description: "curl -Ls https://sh.jbang.dev | bash -s - app install jbang",
+      install: () => runInstallCommand(
+        "/bin/bash",
+        ["-c", `set -o pipefail; "${curl}" -Ls https://sh.jbang.dev | bash -s - app install jbang`],
+      ),
+    });
+  }
 
   return options;
 }
@@ -1181,6 +1192,13 @@ export default async function (pi: ExtensionAPI) {
 
   async function handleJbangMissing(cwd: string, ctx: { ui: CommandUi }): Promise<void> {
     const options = jbangInstallOptions();
+    if (options.length === 0) {
+      ctx.ui.notify(
+        "jbang is not installed. Install it from https://www.jbang.dev/download/ and restart pi.",
+        "warning",
+      );
+      return;
+    }
     const selectItems = [
       ...options.map((o) => ({ value: o.label, label: o.label, description: o.description })),
       { value: "__later__", label: "Later", description: "I'll install jbang myself" },
