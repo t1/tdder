@@ -10,7 +10,11 @@
  * Placement: extensions/jdtls/index.ts  (part of the t1/tdder pi package)
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+  AgentToolResult,
+  ExtensionAPI,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { setToolsActive } from "./vendor/tool-activation.ts";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
@@ -50,7 +54,7 @@ const LSP_CODE_ACTION_TRIGGER_REQUESTED = 1;
 /** Return shape of every jdtls tool execute callback. */
 type JdtlsResult = {
   content: Array<{ type: "text"; text: string }>;
-  details: Record<string, never>;
+  details: undefined;
 };
 
 /** Typed execute callback — enforces (id, params) => Promise<JdtlsResult>. */
@@ -64,20 +68,20 @@ function wrapExecute<TParams extends Record<string, unknown>>(
   fn: JdtlsExecute<TParams>,
 ): (
   toolCallId: string,
-  params: Record<string, unknown>,
+  params: TParams,
   signal: AbortSignal | undefined,
-  onUpdate: unknown,
-  ctx: unknown,
-) => Promise<JdtlsResult> {
+  _onUpdate: unknown,
+  _ctx: ExtensionContext,
+) => Promise<AgentToolResult<undefined>> {
   return (toolCallId, params, _signal, _onUpdate, _ctx) =>
-    fn(toolCallId, params as TParams);
+    fn(toolCallId, params);
 }
 
 /** Build a JdtlsResult — keeps `type: "text"` literal via `as const`. */
 function result(text: string): JdtlsResult {
   return {
     content: [{ type: "text" as const, text }],
-    details: {},
+    details: undefined,
   };
 }
 
