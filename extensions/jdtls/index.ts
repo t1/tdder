@@ -44,6 +44,8 @@ import {
 
 const FOOTER_KEY = "jdtls";
 const DIAGNOSTICS_QUIET_MS = 2000;
+const LSP_INVALID_REQUEST = -32600;
+const LSP_CODE_ACTION_TRIGGER_REQUESTED = 1;
 
 /** Return shape of every jdtls tool execute callback. */
 type JdtlsResult = {
@@ -79,6 +81,7 @@ function result(text: string): JdtlsResult {
   };
 }
 
+// Keep in sync with registerJdtlsTool calls below.
 const JDTLS_TOOL_NAMES = [
   "jdtls_get_file_problems",
   "jdtls_search_symbol",
@@ -330,7 +333,7 @@ export default function (pi: ExtensionAPI): void {
           });
         } catch (err) {
           const code = (err as { code?: number }).code;
-          if (code === -32600) {
+          if (code === LSP_INVALID_REQUEST) {
             throw new Error(
               "Cannot rename: this symbol is defined in a library and is read-only.",
             );
@@ -445,7 +448,7 @@ export default function (pi: ExtensionAPI): void {
         srv.request("textDocument/codeAction", {
           textDocument: { uri },
           range: { start: position, end: position },
-          context: { diagnostics: [], triggerKind: 1 },
+          context: { diagnostics: [], triggerKind: LSP_CODE_ACTION_TRIGGER_REQUESTED },
         }),
       ) as LspAction[];
 
