@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 Read `README.md` before starting any task — it has project overview, architecture, and conventions.
 
@@ -14,7 +14,8 @@ code or artifacts to a remote. All that's the user's privilege!
 ## File locations
 
 **`~/.pi/agent/git/github.com/t1/tdder/` is a read-only checkout of this project — NEVER edit or commit there.**
-The current working directory is the real repo. Always resolve skill file paths relative to CWD, not to the read-only checkout.
+The current working directory is the real repo. Always resolve skill file paths relative to CWD, not to the read-only
+checkout.
 
 ## Claude Code vs pi
 

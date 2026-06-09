@@ -45,6 +45,40 @@ import {
 const FOOTER_KEY = "jdtls";
 const DIAGNOSTICS_QUIET_MS = 2000;
 
+/** Return shape of every jdtls tool execute callback. */
+type JdtlsResult = {
+  content: Array<{ type: "text"; text: string }>;
+  details: Record<string, never>;
+};
+
+/** Typed execute callback — enforces (id, params) => Promise<JdtlsResult>. */
+type JdtlsExecute<TParams> = (
+  id: string,
+  params: TParams,
+) => Promise<JdtlsResult>;
+
+/** Wrap a JdtlsExecute into the full pi.registerTool execute signature. */
+function wrapExecute<TParams extends Record<string, unknown>>(
+  fn: JdtlsExecute<TParams>,
+): (
+  toolCallId: string,
+  params: Record<string, unknown>,
+  signal: AbortSignal | undefined,
+  onUpdate: unknown,
+  ctx: unknown,
+) => Promise<JdtlsResult> {
+  return (toolCallId, params, _signal, _onUpdate, _ctx) =>
+    fn(toolCallId, params as TParams);
+}
+
+/** Build a JdtlsResult — keeps `type: "text"` literal via `as const`. */
+function result(text: string): JdtlsResult {
+  return {
+    content: [{ type: "text" as const, text }],
+    details: {},
+  };
+}
+
 const JDTLS_TOOL_NAMES = [
   "jdtls_get_file_problems",
   "jdtls_search_symbol",
@@ -63,6 +97,10 @@ function footerLabel(status: ServerStatus): string | undefined {
     case "error":    return "jdtls ⚠";
     case "stopped":  return undefined;
   }
+}
+
+function jdtlsToolName(label: string): string {
+  return `jdtls_${label}`;
 }
 
 export default function (pi: ExtensionAPI): void {
@@ -122,29 +160,43 @@ export default function (pi: ExtensionAPI): void {
     });
   }
 
+  function registerJdtlsTool<TParams extends Record<string, unknown>>(
+    label: string,
+    description: string,
+    parameters: ReturnType<typeof Type.Object>,
+    execute: JdtlsExecute<TParams>,
+    formatArgs?: (args: unknown) => string,
+  ): void {
+    const wrapped = wrapExecute(execute);
+    const name = jdtlsToolName(label);
+    pi.registerTool({
+      name,
+      label,
+      description,
+      parameters,
+      renderCall: simpleRenderCall(label, formatArgs),
+      execute: wrapped,
+    });
+  }
+
   // -------------------------------------------------------------------------
   // get_file_problems tool
   // -------------------------------------------------------------------------
 
-  pi.registerTool({
-    name: "jdtls_get_file_problems",
-    label: "get_file_problems",
-    description:
-      "Return compiler errors, warnings, and hints for a Java source file. " +
+  registerJdtlsTool<{ path: string }>(
+    "get_file_problems",
+    "Return compiler errors, warnings, and hints for a Java source file. " +
       "Also includes project-level diagnostics (e.g. JRE mismatch). " +
       "Backed by Eclipse JDT Language Server.",
-    parameters: Type.Object({
+    Type.Object({
       path: Type.String({
         description:
           "Absolute path to the Java source file, or a path relative to the project root.",
       }),
     }),
-
-    renderCall: simpleRenderCall("get_file_problems", (a) => (a as { path: string }).path),
-
-    async execute(_id, params) {
+    (async (_id, params) => {
       const srv = requireReady();
-      const { path: rawPath } = params as { path: string };
+      const { path: rawPath } = params;
       const { absPath, text, uri } = resolveFile(rawPath);
 
       // Collect publishDiagnostics notifications using a quiet-period strategy.
@@ -166,69 +218,54 @@ export default function (pi: ExtensionAPI): void {
         const collected = await collector.promise;
         srv.didClose(uri);
         const output = formatDiagnostics(uri, rawPath, collected);
-        return {
-          content: [{ type: "text" as const, text: output }],
-          details: {},
-        };
+        return result(output);
       } finally {
         unsub();
       }
-    },
-  });
+    }),
+    (a) => (a as { path: string }).path,
+  );
 
   // -------------------------------------------------------------------------
   // search_symbol tool
   // -------------------------------------------------------------------------
 
-  pi.registerTool({
-    name: "jdtls_search_symbol",
-    label: "search_symbol",
-    description:
-      "Search for Java symbols (classes, methods, fields, …) across the whole workspace by name. " +
+  registerJdtlsTool<{ query: string }>(
+    "search_symbol",
+    "Search for Java symbols (classes, methods, fields, …) across the whole workspace by name. " +
       "Requires full indexing — returns 0 results if called before the index is ready.",
-    parameters: Type.Object({
+    Type.Object({
       query: Type.String({
         description: "Symbol name or prefix to search for (case-insensitive).",
       }),
     }),
-
-    renderCall: simpleRenderCall("search_symbol", (a) => (a as { query: string }).query),
-
-    async execute(_id, params) {
+    (async (_id, params) => {
       const srv = requireReady();
-      const { query } = params as { query: string };
+      const { query } = params;
 
       if (!srv.serviceReady) {
-        return {
-          content: [{
-            type: "text" as const,
-            text: `Indexing still in progress — workspace/symbol returns no results yet. ` +
-                  `Try again in a few seconds.`,
-          }],
-          details: {},
-        };
+        return result(
+          `Indexing still in progress — workspace/symbol returns no results yet. ` +
+          `Try again in a few seconds.`,
+        );
       }
 
       const raw = await srv.request("workspace/symbol", { query });
       const symbols = (raw ?? []) as LspSymbolInformation[];
-      return {
-        content: [{ type: "text" as const, text: formatSymbols(symbols, cwd, query) }],
-        details: {},
-      };
-    },
-  });
+      return result(formatSymbols(symbols, cwd, query));
+    }),
+    (a) => (a as { query: string }).query,
+  );
 
   // -------------------------------------------------------------------------
   // get_symbol_info tool
   // -------------------------------------------------------------------------
 
-  pi.registerTool({
-    name: "jdtls_get_symbol_info",
-    label: "get_symbol_info",
-    description:
-      "Return type information and documentation for the symbol at a given position in a file. " +
+  registerJdtlsTool<{ path: string; line: number; character: number }>(
+    "get_symbol_info",
+    "Return type information and documentation for the symbol at a given position in a file. " +
       "Line and character are 1-based (as shown by the `read` tool).",
-    parameters: Type.Object({
+    Type.Object({
       path: Type.String({
         description: "Absolute or project-relative path to the Java source file.",
       }),
@@ -239,67 +276,48 @@ export default function (pi: ExtensionAPI): void {
         description: "1-based character offset within the line.",
       }),
     }),
-
-    renderCall: simpleRenderCall("get_symbol_info", (a) => {
-      const { path: p, line, character } = a as { path: string; line: number; character: number };
-      return `${p}:${line}:${character}`;
-    }),
-
-    async execute(_id, params) {
+    (async (_id, params) => {
       const srv = requireReady();
-      const { path: rawPath, line, character } = params as {
-        path: string;
-        line: number;
-        character: number;
-      };
+      const { path: rawPath, line, character } = params;
       const { text, uri } = resolveFile(rawPath);
 
       // Convert from 1-based (user-facing) to 0-based (LSP)
       const lspLine = line - 1;
       const lspChar = character - 1;
 
-      const result = await withOpenDoc(srv, uri, text, () =>
+      const hover = await withOpenDoc(srv, uri, text, () =>
         srv.request("textDocument/hover", {
           textDocument: { uri },
           position: { line: lspLine, character: lspChar },
         }),
       );
 
-      return {
-        content: [{ type: "text" as const, text: formatHover(result) }],
-        details: {},
-      };
+      return result(formatHover(hover));
+    }),
+    (a) => {
+      const { path: p, line, character } = a as { path: string; line: number; character: number };
+      return `${p}:${line}:${character}`;
     },
-  });
+  );
 
   // -------------------------------------------------------------------------
   // rename_refactoring tool
   // -------------------------------------------------------------------------
 
-  pi.registerTool({
-    name: "jdtls_rename_refactoring",
-    label: "rename_refactoring",
-    description:
-      "Rename a Java symbol (class, method, field, variable, …) at the given position " +
+  registerJdtlsTool<{ path: string; line: number; character: number; newName: string }>(
+    "rename_refactoring",
+    "Rename a Java symbol (class, method, field, variable, …) at the given position " +
       "across the whole project. Only user-defined symbols can be renamed — library types " +
       "are rejected with a clear error. Line and character are 1-based.",
-    parameters: Type.Object({
+    Type.Object({
       path: Type.String({ description: "Absolute or project-relative path to the source file." }),
       line: Type.Number({ description: "1-based line number of the symbol to rename." }),
       character: Type.Number({ description: "1-based character offset within the line." }),
       newName: Type.String({ description: "The new name for the symbol." }),
     }),
-
-    renderCall: simpleRenderCall("rename_refactoring", (a) => {
-      const { path: p, line, character, newName } = a as { path: string; line: number; character: number; newName: string };
-      return `${p}:${line}:${character} → ${newName}`;
-    }),
-
-    async execute(_id, params) {
+    (async (_id, params) => {
       const srv = requireReady();
-      const { path: rawPath, line, character, newName } = params as {
-        path: string; line: number; character: number; newName: string;
-      };
+      const { path: rawPath, line, character, newName } = params;
       const { text, uri } = resolveFile(rawPath);
       const position = { line: line - 1, character: character - 1 };
 
@@ -329,35 +347,28 @@ export default function (pi: ExtensionAPI): void {
         return applyWorkspaceEdit(workspaceEdit);
       });
 
-      return {
-        content: [{
-          type: "text" as const,
-          text: formatApplyResult(results, cwd, `Renamed to '${newName}'`),
-        }],
-        details: {},
-      };
+      return result(formatApplyResult(results, cwd, `Renamed to '${newName}'`));
+    }),
+    (a) => {
+      const { path: p, line, character, newName } = a as { path: string; line: number; character: number; newName: string };
+      return `${p}:${line}:${character} → ${newName}`;
     },
-  });
+  );
 
   // -------------------------------------------------------------------------
   // reformat_file tool
   // -------------------------------------------------------------------------
 
-  pi.registerTool({
-    name: "jdtls_reformat_file",
-    label: "reformat_file",
-    description:
-      "Reformat a Java source file according to the Eclipse/jdtls formatter settings. " +
+  registerJdtlsTool<{ path: string }>(
+    "reformat_file",
+    "Reformat a Java source file according to the Eclipse/jdtls formatter settings. " +
       "Edits are applied directly to disk.",
-    parameters: Type.Object({
+    Type.Object({
       path: Type.String({ description: "Absolute or project-relative path to the Java source file." }),
     }),
-
-    renderCall: simpleRenderCall("reformat_file", (a) => (a as { path: string }).path),
-
-    async execute(_id, params) {
+    (async (_id, params) => {
       const srv = requireReady();
-      const { path: rawPath } = params as { path: string };
+      const { path: rawPath } = params;
       const { absPath, text, uri } = resolveFile(rawPath);
 
       const edits = await withOpenDoc(srv, uri, text, () =>
@@ -368,10 +379,7 @@ export default function (pi: ExtensionAPI): void {
       ) as TextEdit[] | null;
 
       if (!edits || edits.length === 0) {
-        return {
-          content: [{ type: "text" as const, text: `${rawPath} is already formatted correctly` }],
-          details: {},
-        };
+        return result(`${rawPath} is already formatted correctly`);
       }
 
       const original = readFileSync(absPath, "utf-8");
@@ -379,83 +387,57 @@ export default function (pi: ExtensionAPI): void {
       writeFileSync(absPath, updated, "utf-8");
 
       const results = [{ path: absPath, editsApplied: edits.length }];
-      return {
-        content: [{
-          type: "text" as const,
-          text: formatApplyResult(results, cwd, "Reformatted"),
-        }],
-        details: {},
-      };
-    },
-  });
+      return result(formatApplyResult(results, cwd, "Reformatted"));
+    }),
+    (a) => (a as { path: string }).path,
+  );
 
   // -------------------------------------------------------------------------
   // read_file tool (jar/class decompilation via jdt:// URIs)
   // -------------------------------------------------------------------------
 
-  pi.registerTool({
-    name: "jdtls_read_file",
-    label: "read_file",
-    description:
-      "Return the source content of a library class or jar entry using its `jdt://` URI. " +
+  registerJdtlsTool<{ uri: string }>(
+    "read_file",
+    "Return the source content of a library class or jar entry using its `jdt://` URI. " +
       "Obtain the URI from `get_symbol_info` by hovering on a library type reference — " +
       "jdtls embeds the full URI in the hover response.",
-    parameters: Type.Object({
+    Type.Object({
       uri: Type.String({
         description: "The jdt:// URI of the class file, as returned in a hover response.",
       }),
     }),
-
-    renderCall: simpleRenderCall("read_file", (a) => (a as { uri: string }).uri),
-
-    async execute(_id, params) {
+    (async (_id, params) => {
       const srv = requireReady();
-      const { uri } = params as { uri: string };
+      const { uri } = params;
       const content = await srv.request("java/classFileContents", { uri }) as string | null;
 
       if (!content) {
-        return {
-          content: [{ type: "text" as const, text: "(no source available for this URI)" }],
-          details: {},
-        };
+        return result("(no source available for this URI)");
       }
 
-      return {
-        content: [{ type: "text" as const, text: content }],
-        details: {},
-      };
-    },
-  });
+      return result(content);
+    }),
+    (a) => (a as { uri: string }).uri,
+  );
 
   // -------------------------------------------------------------------------
   // code_action tool
   // -------------------------------------------------------------------------
 
-  pi.registerTool({
-    name: "jdtls_code_action",
-    label: "code_action",
-    description:
-      "List code actions (quick fixes, refactorings, source actions) available at a position. " +
+  registerJdtlsTool<{ path: string; line: number; character?: number; applyTitle?: string }>(
+    "code_action",
+    "List code actions (quick fixes, refactorings, source actions) available at a position. " +
       "Without `applyTitle`, lists all actions. With `applyTitle`, applies the matching action. " +
       "Line and character are 1-based.",
-    parameters: Type.Object({
+    Type.Object({
       path: Type.String({ description: "Absolute or project-relative path to the Java source file." }),
       line: Type.Number({ description: "1-based line number." }),
       character: Type.Optional(Type.Number({ description: "1-based character offset (defaults to 1)." })),
       applyTitle: Type.Optional(Type.String({ description: "Exact title of the action to apply (from a prior list call)." })),
     }),
-
-    renderCall: simpleRenderCall("code_action", (a) => {
-      const { path: p, line, character, applyTitle } = a as { path: string; line: number; character?: number; applyTitle?: string };
-      const suffix = applyTitle ? ` → apply "${applyTitle}"` : " (list)";
-      return `${p}:${line}:${character ?? 1}${suffix}`;
-    }),
-
-    async execute(_id, params) {
+    (async (_id, params) => {
       const srv = requireReady();
-      const { path: rawPath, line, character = 1, applyTitle } = params as {
-        path: string; line: number; character?: number; applyTitle?: string;
-      };
+      const { path: rawPath, line, character = 1, applyTitle } = params;
       const { text, uri } = resolveFile(rawPath);
       const position = { line: line - 1, character: character - 1 };
 
@@ -471,10 +453,7 @@ export default function (pi: ExtensionAPI): void {
 
       // List mode
       if (!applyTitle) {
-        return {
-          content: [{ type: "text" as const, text: formatCodeActions(actions) }],
-          details: {},
-        };
+        return result(formatCodeActions(actions));
       }
 
       // Apply mode
@@ -486,62 +465,65 @@ export default function (pi: ExtensionAPI): void {
         );
       }
 
-      // Prefer a direct WorkspaceEdit if the action carries one.
-      if (!isCommand(action) && action.edit) {
-        const results = applyWorkspaceEdit(action.edit);
-        return {
-          content: [{ type: "text" as const, text: formatApplyResult(results, cwd, `Applied: ${action.title}`) }],
-          details: {},
-        };
-      }
+      return applyCodeAction(action, srv);
+    }),
+    (a) => {
+      const { path: p, line, character, applyTitle } = a as { path: string; line: number; character?: number; applyTitle?: string };
+      const suffix = applyTitle ? ` → apply "${applyTitle}"` : " (list)";
+      return `${p}:${line}:${character ?? 1}${suffix}`;
+    },
+  );
 
-      // Otherwise execute the command (which may itself return a WorkspaceEdit).
-      const cmd = isCommand(action) ? action : action.command;
-      if (!cmd) {
-        throw new Error(
+  // -------------------------------------------------------------------------
+  // code_action helpers
+  // -------------------------------------------------------------------------
+
+  function applyCodeAction(
+    action: LspAction,
+    srv: JdtlsServer,
+  ): Promise<JdtlsResult> {
+    // Prefer a direct WorkspaceEdit if the action carries one.
+    if (!isCommand(action) && action.edit) {
+      const results = applyWorkspaceEdit(action.edit);
+      return Promise.resolve(result(formatApplyResult(results, cwd, `Applied: ${action.title}`)));
+    }
+
+    // Otherwise execute the command (which may itself return a WorkspaceEdit).
+    const cmd = isCommand(action) ? action : action.command;
+    if (!cmd) {
+      return Promise.reject(
+        new Error(
           `Action "${action.title}" has neither an edit nor a command — cannot apply.`,
-        );
-      }
+        ),
+      );
+    }
 
-      const cmdResult = await srv.request("workspace/executeCommand", {
-        command: cmd.command,
-        arguments: cmd.arguments ?? [],
-      });
-
+    return srv.request("workspace/executeCommand", {
+      command: cmd.command,
+      arguments: cmd.arguments ?? [],
+    }).then((cmdResult) => {
       if (
         cmdResult &&
         typeof cmdResult === "object" &&
         ("changes" in cmdResult || "documentChanges" in cmdResult)
       ) {
         const results = applyWorkspaceEdit(cmdResult as WorkspaceEdit);
-        return {
-          content: [{ type: "text" as const, text: formatApplyResult(results, cwd, `Applied: ${action.title}`) }],
-          details: {},
-        };
+        return result(formatApplyResult(results, cwd, `Applied: ${action.title}`));
       }
-
-      return {
-        content: [{ type: "text" as const, text: `Applied: ${action.title}` }],
-        details: {},
-      };
-    },
-  });
+      return result(`Applied: ${action.title}`);
+    });
+  }
 
   // -------------------------------------------------------------------------
   // get_project_modules tool
   // -------------------------------------------------------------------------
 
-  pi.registerTool({
-    name: "jdtls_get_project_modules",
-    label: "get_project_modules",
-    description:
-      "List source and test directories for every module in the workspace. " +
+  registerJdtlsTool<{}>(
+    "get_project_modules",
+    "List source and test directories for every module in the workspace. " +
       "Useful for understanding multi-module project layout.",
-    parameters: Type.Object({}),
-
-    renderCall: simpleRenderCall("get_project_modules"),
-
-    async execute(_id, _params) {
+    Type.Object({}),
+    (async (_id, _params) => {
       const srv = requireReady();
 
       let raw: unknown;
@@ -559,12 +541,9 @@ export default function (pi: ExtensionAPI): void {
       }
 
       const paths = (Array.isArray(raw) ? raw : []) as LspSourcePath[];
-      return {
-        content: [{ type: "text" as const, text: formatSourcePaths(paths) }],
-        details: {},
-      };
-    },
-  });
+      return result(formatSourcePaths(paths));
+    }),
+  );
 
   // -------------------------------------------------------------------------
   // Session lifecycle

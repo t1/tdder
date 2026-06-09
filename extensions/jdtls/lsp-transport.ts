@@ -98,7 +98,9 @@ export class LspTransport {
     onNotification: (method: string, params: unknown) => void,
   ) {
     this.session = new JsonRpcSession(
-      (body) => this.writable.write(frameMessage(body)),
+      (body) => {
+        this.writable.write(frameMessage(body));
+      },
       { onNotification },
     );
 
