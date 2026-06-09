@@ -478,40 +478,38 @@ export default function (pi: ExtensionAPI): void {
   // code_action helpers
   // -------------------------------------------------------------------------
 
-  function applyCodeAction(
+  async function applyCodeAction(
     action: LspAction,
     srv: JdtlsServer,
   ): Promise<JdtlsResult> {
     // Prefer a direct WorkspaceEdit if the action carries one.
     if (!isCommand(action) && action.edit) {
       const results = applyWorkspaceEdit(action.edit);
-      return Promise.resolve(result(formatApplyResult(results, cwd, `Applied: ${action.title}`)));
+      return result(formatApplyResult(results, cwd, `Applied: ${action.title}`));
     }
 
     // Otherwise execute the command (which may itself return a WorkspaceEdit).
     const cmd = isCommand(action) ? action : action.command;
     if (!cmd) {
-      return Promise.reject(
-        new Error(
-          `Action "${action.title}" has neither an edit nor a command — cannot apply.`,
-        ),
+      throw new Error(
+        `Action "${action.title}" has neither an edit nor a command — cannot apply.`,
       );
     }
 
-    return srv.request("workspace/executeCommand", {
+    const cmdResult = await srv.request("workspace/executeCommand", {
       command: cmd.command,
       arguments: cmd.arguments ?? [],
-    }).then((cmdResult) => {
-      if (
-        cmdResult &&
-        typeof cmdResult === "object" &&
-        ("changes" in cmdResult || "documentChanges" in cmdResult)
-      ) {
-        const results = applyWorkspaceEdit(cmdResult as WorkspaceEdit);
-        return result(formatApplyResult(results, cwd, `Applied: ${action.title}`));
-      }
-      return result(`Applied: ${action.title}`);
     });
+
+    if (
+      cmdResult &&
+      typeof cmdResult === "object" &&
+      ("changes" in cmdResult || "documentChanges" in cmdResult)
+    ) {
+      const results = applyWorkspaceEdit(cmdResult as WorkspaceEdit);
+      return result(formatApplyResult(results, cwd, `Applied: ${action.title}`));
+    }
+    return result(`Applied: ${action.title}`);
   }
 
   // -------------------------------------------------------------------------
