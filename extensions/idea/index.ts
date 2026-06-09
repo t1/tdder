@@ -263,7 +263,8 @@ export default function (pi: ExtensionAPI) {
     if (state.kind !== "disconnected") {
       state = { kind: "disconnected" };
       // "client closed" is an expected shutdown signal — don't log it as an error.
-      const isExpectedClose = err instanceof Error && err.message === "client closed";
+      const isExpectedClose = err instanceof Error &&
+        (err.message === "client closed" || (err as NodeJS.ErrnoException).code === "ECONNREFUSED");
       log(`state: ${prevLabel} → ${stateLabel(state)}`, isExpectedClose ? undefined : err);
       if (ctxRef) {
         setFooter(ctxRef);
