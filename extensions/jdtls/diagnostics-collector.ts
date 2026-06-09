@@ -22,9 +22,19 @@ export interface LspRange {
   end: LspPosition;
 }
 
+/** LSP DiagnosticSeverity — 1=Error, 2=Warning, 3=Info, 4=Hint. */
+export const DiagnosticSeverity = {
+  Error: 1,
+  Warning: 2,
+  Information: 3,
+  Hint: 4,
+} as const;
+
+export type DiagnosticSeverity = (typeof DiagnosticSeverity)[keyof typeof DiagnosticSeverity];
+
 export interface LspDiagnostic {
   range: LspRange;
-  severity?: 1 | 2 | 3 | 4; // 1=error 2=warning 3=info 4=hint
+  severity?: DiagnosticSeverity;
   message: string;
   source?: string;
 }
@@ -93,15 +103,15 @@ export class DiagnosticsCollector {
 // Output formatting
 // ---------------------------------------------------------------------------
 
-const SEVERITY_LABEL: Record<number, string> = {
-  1: "error",
-  2: "warning",
-  3: "info",
-  4: "hint",
+const SEVERITY_LABEL: Record<DiagnosticSeverity, string> = {
+  [DiagnosticSeverity.Error]: "error",
+  [DiagnosticSeverity.Warning]: "warning",
+  [DiagnosticSeverity.Information]: "info",
+  [DiagnosticSeverity.Hint]: "hint",
 };
 
-function severityLabel(s: number | undefined): string {
-  return SEVERITY_LABEL[s ?? 1] ?? "error";
+function severityLabel(s: DiagnosticSeverity | undefined): string {
+  return SEVERITY_LABEL[s ?? DiagnosticSeverity.Warning] ?? "error";
 }
 
 /** Convert a 0-based LSP line/char to a 1-based "line:col" display string. */
@@ -151,8 +161,8 @@ export function formatDiagnostics(
 }
 
 function countLabel(diags: LspDiagnostic[]): string {
-  const errors = diags.filter((d) => (d.severity ?? 1) === 1).length;
-  const warnings = diags.filter((d) => d.severity === 2).length;
+  const errors = diags.filter((d) => (d.severity ?? DiagnosticSeverity.Warning) === DiagnosticSeverity.Error).length;
+  const warnings = diags.filter((d) => (d.severity ?? DiagnosticSeverity.Warning) === DiagnosticSeverity.Warning).length;
   const parts: string[] = [];
   if (errors > 0) parts.push(`${errors} error${errors > 1 ? "s" : ""}`);
   if (warnings > 0) parts.push(`${warnings} warning${warnings > 1 ? "s" : ""}`);

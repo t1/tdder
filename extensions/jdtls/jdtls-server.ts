@@ -16,7 +16,7 @@ import { LspTransport } from "./lsp-transport.ts";
 // Constants
 // ---------------------------------------------------------------------------
 
-const READY_TIMEOUT_MS = 120_000; // cold start observed ~14 s; 120 s is generous
+const READY_TIMEOUT_MS = 60_000; // cold start observed ~14 s; 60 s is generous
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 
 // ---------------------------------------------------------------------------
@@ -133,17 +133,22 @@ export class JdtlsServer {
     });
     this.proc = proc;
 
-    // Drain stderr so it never blocks the child process.
-    proc.stderr?.resume();
+    // Collect stderr for diagnostic use on startup failure.
+    const stderrChunks: Buffer[] = [];
+    proc.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
 
     proc.on("error", (err) => {
-      console.error("[jdtls] process error:", err.message);
-      this.handleCrash();
+      const stderr = stderrChunks.length
+        ? `stderr: ${Buffer.concat(stderrChunks).toString()}`
+        : undefined;
+      this.handleCrash(stderr);
     });
     proc.on("exit", (code) => {
       if (this._status !== "stopped") {
-        console.error(`[jdtls] process exited unexpectedly (code=${code})`);
-        this.handleCrash();
+        const stderr = stderrChunks.length
+          ? `exit code ${code}`
+          : undefined;
+        this.handleCrash(stderr);
       }
     });
 
@@ -158,6 +163,7 @@ export class JdtlsServer {
       proc.stdout!,
       proc.stdin!,
       (method, params) => this.handleNotification(method, params),
+      10_000, // LSP handshake timeout
     );
 
     // LSP handshake — initialize request (fast, ~1 s)
@@ -185,7 +191,12 @@ export class JdtlsServer {
 
     // Wait for jdtls to finish indexing (~14 s cold, much less warm).
     const readyTimer = setTimeout(() => {
-      this.readyReject?.(new Error(`jdtls did not become ready within ${READY_TIMEOUT_MS / 1000} s`));
+      const stderr = stderrChunks.length
+        ? `\nstderr: ${Buffer.concat(stderrChunks).toString()}`
+        : "";
+      this.readyReject?.(
+        new Error(`jdtls did not become ready within ${READY_TIMEOUT_MS / 1000} s${stderr}`),
+      );
     }, READY_TIMEOUT_MS);
 
     try {
@@ -286,8 +297,10 @@ export class JdtlsServer {
     this.onStatusChange(next);
   }
 
-  private handleCrash(): void {
-    this.readyReject?.(new Error("jdtls process crashed during startup"));
+  private handleCrash(stderr?: string): void {
+    this.readyReject?.(
+      new Error(`jdtls process crashed during startup${stderr ? ` — ${stderr}` : ""}`),
+    );
     this.readyResolve = null;
     this.readyReject = null;
     this.proc = null;

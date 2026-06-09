@@ -43,6 +43,10 @@ export function frameMessage(body: string): Buffer {
 export class FramedReader {
   private buffer = Buffer.alloc(0);
 
+  constructor(
+    private readonly onError?: (err: Error) => void,
+  ) {}
+
   /**
    * Append `chunk` to internal buffer and return all complete message bodies
    * (zero or more) that can now be extracted.
@@ -63,7 +67,12 @@ export class FramedReader {
 
     const header = this.buffer.subarray(0, sepIdx).toString("ascii");
     const match = /Content-Length:\s*(\d+)/i.exec(header);
-    if (!match) return null;
+    if (!match) {
+      this.onError?.(
+        new Error("malformed LSP response: missing Content-Length header"),
+      );
+      return null;
+    }
 
     const bodyLen = parseInt(match[1], 10);
     const bodyStart = sepIdx + HEADER_SEP.length;
@@ -89,20 +98,23 @@ export class FramedReader {
  * - Incoming server notifications (no id) are forwarded to `onNotification`.
  */
 export class LspTransport {
-  private readonly reader = new FramedReader();
   private readonly session: JsonRpcSession;
+  private readonly reader: FramedReader;
 
   constructor(
     readable: Readable,
     private readonly writable: Writable,
     onNotification: (method: string, params: unknown) => void,
+    requestTimeoutMs = 30_000,
   ) {
     this.session = new JsonRpcSession(
       (body) => {
         this.writable.write(frameMessage(body));
       },
-      { onNotification },
+      { onNotification, requestTimeoutMs },
     );
+
+    this.reader = new FramedReader((err) => this.session.rejectAllPendingRequests(err));
 
     readable.on("data", (chunk: Buffer) => {
       for (const body of this.reader.feed(chunk)) {
@@ -110,8 +122,8 @@ export class LspTransport {
       }
     });
 
-    readable.on("error", (err: Error) => this.session.rejectAll(err));
-    readable.on("close", () => this.session.rejectAll(new Error("LSP transport closed")));
+    readable.on("error", (err: Error) => this.session.rejectAllPendingRequests(err));
+    readable.on("close", () => this.session.rejectAllPendingRequests(new Error("LSP transport closed")));
   }
 
   /** Send a request and await the server's response. */

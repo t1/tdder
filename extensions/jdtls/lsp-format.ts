@@ -92,16 +92,17 @@ export function formatSymbols(
 
   // Compute column widths for alignment.
   const rows = symbols.map((s) => {
-    const kind = (SYMBOL_KIND[s.kind] ?? `kind:${s.kind}`).padEnd(13);
+    const kind = SYMBOL_KIND[s.kind] ?? `kind:${s.kind}`;
     const label = s.containerName ? `${s.containerName}.${s.name}` : s.name;
     const loc = formatLocation(s.location.uri, s.location.range.start.line, cwd);
     return { kind, label, loc };
   });
 
+  const kindWidth = Math.max(...rows.map((r) => r.kind.length));
   const labelWidth = Math.max(...rows.map((r) => r.label.length));
 
   for (const { kind, label, loc } of rows) {
-    lines.push(`  ${kind}  ${label.padEnd(labelWidth)}  ${loc}`);
+    lines.push(`  ${kind.padEnd(kindWidth)}  ${label.padEnd(labelWidth)}  ${loc}`);
   }
 
   return lines.join("\n");
@@ -113,6 +114,7 @@ function formatLocation(uri: string, line: number, cwd: string): string {
     const rel = relative(cwd, abs);
     return `${rel}:${line + 1}`;
   } catch {
+    console.warn(`[jdtls] cannot resolve URI: ${uri}`);
     return `${uri}:${line + 1}`;
   }
 }

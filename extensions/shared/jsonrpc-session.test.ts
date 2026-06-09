@@ -153,7 +153,7 @@ describe("JsonRpcSession", () => {
       const p1 = session.request("a", {});
       const p2 = session.request("b", {});
 
-      session.rejectAll(new Error("transport closed"));
+      session.rejectAllPendingRequests(new Error("transport closed"));
 
       await expect(p1).rejects.toThrow("transport closed");
       await expect(p2).rejects.toThrow("transport closed");
@@ -163,7 +163,7 @@ describe("JsonRpcSession", () => {
       const session = new JsonRpcSession(() => {});
 
       const p = session.request("x", {});
-      session.rejectAll();
+      session.rejectAllPendingRequests();
 
       await expect(p).rejects.toThrow("JSON-RPC session closed");
     });
@@ -173,7 +173,7 @@ describe("JsonRpcSession", () => {
 
       vi.useFakeTimers();
       const p = session.request("slow", {}, 5000);
-      session.rejectAll();
+      session.rejectAllPendingRequests();
 
       await expect(p).rejects.toThrow("session closed");
       // Advancing past timeout should be safe

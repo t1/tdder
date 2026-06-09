@@ -147,7 +147,7 @@ export class McpClient {
 
   /** Gracefully close: reject all pending requests, then close the transport. */
   async close(): Promise<void> {
-    this.session.rejectAll(new Error("client closed"));
+    this.session.rejectAllPendingRequests(new Error("client closed"));
     await this.transport.close();
   }
 }

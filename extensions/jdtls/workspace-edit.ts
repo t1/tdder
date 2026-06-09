@@ -92,7 +92,11 @@ export function collectEditsFromWorkspaceEdit(
   if (edit.documentChanges) {
     for (const dc of edit.documentChanges) {
       // Skip resource operations (no `edits` field).
-      if (!("edits" in dc)) continue;
+      if (!("edits" in dc)) {
+        const kind = (dc as { kind?: string }).kind ?? "unknown";
+        console.warn(`[jdtls] skipping unsupported resource operation: ${kind}`);
+        continue;
+      }
       const prev = map.get(dc.textDocument.uri) ?? [];
       map.set(dc.textDocument.uri, [...prev, ...dc.edits]);
     }

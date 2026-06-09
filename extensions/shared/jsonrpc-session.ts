@@ -23,6 +23,8 @@ interface Pending {
 export interface JsonRpcSessionOptions {
   /** Called for each incoming server notification (no id). */
   onNotification?: (method: string, params: unknown) => void;
+  /** Default timeout (ms) for all requests. 0 or absent means no timeout. */
+  requestTimeoutMs?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -40,20 +42,22 @@ export class JsonRpcSession {
 
   /**
    * Send a JSON-RPC request and await the matching response.
-   * `timeoutMs` of 0, undefined, or absent means no timeout.
+   * `timeoutMs` overrides the session default (`requestTimeoutMs`).
+   * 0, undefined, or absent means no timeout.
    */
   request(method: string, params: unknown, timeoutMs?: number): Promise<unknown> {
     const id = this.nextId++;
     const body = JSON.stringify({ jsonrpc: "2.0", id, method, params });
+    const effectiveTimeout = timeoutMs ?? this.options?.requestTimeoutMs ?? 0;
 
     return new Promise<unknown>((resolve, reject) => {
       const pending: Pending = { resolve, reject };
 
-      if (timeoutMs && timeoutMs > 0) {
+      if (effectiveTimeout > 0) {
         pending.timer = setTimeout(() => {
           this.pending.delete(id);
-          reject(new Error(`JSON-RPC request '${method}' timed out after ${timeoutMs}ms`));
-        }, timeoutMs);
+          reject(new Error(`JSON-RPC request '${method}' timed out after ${effectiveTimeout}ms`));
+        }, effectiveTimeout);
       }
 
       this.pending.set(id, pending);
@@ -115,7 +119,7 @@ export class JsonRpcSession {
   }
 
   /** Reject all pending requests (e.g. on close or transport error). */
-  rejectAll(reason?: Error): void {
+  rejectAllPendingRequests(reason?: Error): void {
     const err = reason ?? new Error("JSON-RPC session closed");
     for (const p of this.pending.values()) {
       if (p.timer) clearTimeout(p.timer);
