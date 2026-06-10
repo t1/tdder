@@ -99,9 +99,9 @@ const JDTLS_TOOL_NAMES = [
 
 function footerLabel(status: ServerStatus): string | undefined {
   switch (status) {
-    case "starting": return "jdtls ◌ starting…";
-    case "ready":    return "jdtls ●";
-    case "error":    return "jdtls ⚠";
+    case "starting": return "[jdtls ◌ starting…]";
+    case "ready":    return "[jdtls ●]";
+    case "error":    return "[jdtls ⚠]";
     case "stopped":  return undefined;
   }
 }

@@ -750,7 +750,7 @@ export default async function (pi: ExtensionAPI) {
     );
     if (!ok) return false;
 
-    ctx.ui.setStatus("quarkus", "quarkus start…");
+    ctx.ui.setStatus("quarkus", "[quarkus start…]");
     try {
       await callMcpTool("quarkus_start", { projectDir: cwd }, cwd);
       ctx.ui.setStatus("quarkus", undefined);
@@ -806,7 +806,7 @@ export default async function (pi: ExtensionAPI) {
       parts.push(`${ICON[appState]}${label}`);
     }
     if (parts.length === 0) return undefined;
-    return `quarkus[${parts.join(" ")}]`;
+    return `[quarkus ${parts.join(" ")}]`;
   }
 
   async function onCrashed(cwd: string): Promise<void> {
@@ -831,7 +831,7 @@ export default async function (pi: ExtensionAPI) {
       const text = await callMcpTool("quarkus_list", {}, cwd);
       const instances = parseListOutput(text);
 
-      ctx.ui.setStatus("quarkus-app", formatFooterStatus(instances));
+      ctx.ui.setStatus("quarkus", formatFooterStatus(instances));
 
       // Enable app-file logging for newly-running instances
       for (const [dir, instanceState] of instances) {
@@ -847,7 +847,7 @@ export default async function (pi: ExtensionAPI) {
       state.instanceStates = instances;
     } catch {
       // MCP error — clear rather than show stale state
-      ctx.ui.setStatus("quarkus-app", undefined);
+      ctx.ui.setStatus("quarkus", undefined);
     }
   }
 
@@ -939,7 +939,7 @@ export default async function (pi: ExtensionAPI) {
   async function handleInfo(cwd: string, ctx: { ui: CommandUi }): Promise<void> {
     const running = await ensureDevMode(cwd, ctx);
     if (!running) return;
-    ctx.ui.setStatus("quarkus", "quarkus info…");
+    ctx.ui.setStatus("quarkus", "[quarkus info…]");
     const [statusRes, endpointsRes, devServicesRes] = await Promise.allSettled([
       callMcpTool("quarkus_status", { projectDir: cwd }, cwd),
       callMcpTool("quarkus_callTool", { projectDir: cwd, toolName: "devui-endpoints_getAllEndpoints" }, cwd),
@@ -972,7 +972,7 @@ export default async function (pi: ExtensionAPI) {
   const SKILLS_DIR = join(homedir(), ".quarkus", "skills");
 
   async function handleSkills(cwd: string, ctx: { ui: CommandUi }): Promise<void> {
-    ctx.ui.setStatus("quarkus", "quarkus: loading skills…");
+    ctx.ui.setStatus("quarkus", "[quarkus loading skills…]");
 
     // Fetch installed and available skills in parallel
     const [installedResult, availableResult] = await Promise.allSettled([
@@ -1090,7 +1090,7 @@ export default async function (pi: ExtensionAPI) {
 
     if (!chosen) return;
 
-    ctx.ui.setStatus("quarkus", `quarkus: installing ${chosen}…`);
+    ctx.ui.setStatus("quarkus", `[quarkus installing ${chosen}…]`);
     try {
       await callMcpTool("quarkus_installSkills", { projectDir: cwd, skillName: chosen }, cwd);
       ctx.ui.setStatus("quarkus", undefined);
@@ -1111,7 +1111,7 @@ export default async function (pi: ExtensionAPI) {
       state.client = null;
       state.pendingStart = null;
     }
-    ctx.ui.setStatus("quarkus", "quarkus: restarting with --fresh…");
+    ctx.ui.setStatus("quarkus", "[quarkus restarting with --fresh…]");
     try {
       // Pass --fresh so jbang re-downloads the latest quarkus-agent-mcp jar
       // instead of serving whatever is in its local cache.
@@ -1163,7 +1163,7 @@ export default async function (pi: ExtensionAPI) {
     const devuiTool = sub === "test-all"
       ? "devui-testing_runTests"
       : "devui-testing_runAffectedTests";
-    ctx.ui.setStatus("quarkus", `quarkus ${sub}…`);
+    ctx.ui.setStatus("quarkus", `[quarkus ${sub}…]`);
     let testOutput: string;
     let testFailed = false;
     try {
@@ -1193,7 +1193,7 @@ export default async function (pi: ExtensionAPI) {
       const running = await ensureDevMode(cwd, ctx);
       if (!running) return;
     }
-    ctx.ui.setStatus("quarkus", `quarkus ${sub}…`);
+    ctx.ui.setStatus("quarkus", `[quarkus ${sub}…]`);
     try {
       const output = await callMcpTool(toolName, buildArgs(sub, cwd, extra), cwd);
       ctx.ui.setStatus("quarkus", undefined);
@@ -1214,7 +1214,7 @@ export default async function (pi: ExtensionAPI) {
       const running = await ensureDevMode(cwd, ctx);
       if (!running) return;
     }
-    ctx.ui.setStatus("quarkus", `quarkus ${sub}…`);
+    ctx.ui.setStatus("quarkus", `[quarkus ${sub}…]`);
     try {
       const output = await callMcpTool(toolName, buildArgs(sub, cwd, extra), cwd);
       ctx.ui.setStatus("quarkus", undefined);
@@ -1266,7 +1266,7 @@ export default async function (pi: ExtensionAPI) {
     const option = options.find((o) => chosen.startsWith(o.label));
     if (!option) return;
 
-    ctx.ui.setStatus("quarkus", `installing jbang via ${option.label}…`);
+    ctx.ui.setStatus("quarkus", `[quarkus installing jbang via ${option.label}…]`);
     let installOutput = "";
     try {
       ({ output: installOutput } = await option.install());
@@ -1287,7 +1287,7 @@ export default async function (pi: ExtensionAPI) {
     }
 
     ctx.ui.notify("jbang installed. Starting Quarkus MCP…", "info");
-    ctx.ui.setStatus("quarkus", "quarkus: starting…");
+    ctx.ui.setStatus("quarkus", "[quarkus starting…]");
     try {
       const c = await ensureClient(cwd);
       ctx.ui.setStatus("quarkus", undefined);
@@ -1310,7 +1310,7 @@ export default async function (pi: ExtensionAPI) {
 
     if (!isQuarkusProject(cwd)) return;
 
-    ctx.ui.setStatus("quarkus", "quarkus: starting…");
+    ctx.ui.setStatus("quarkus", "[quarkus starting…]");
     // Start the MCP server in the background so it doesn't block session startup.
     ensureClient(cwd)
       .then((c) => {
@@ -1414,7 +1414,7 @@ export default async function (pi: ExtensionAPI) {
           );
           if (!ok) return;
         }
-        ctx.ui.setStatus("quarkus", "quarkus: starting…");
+        ctx.ui.setStatus("quarkus", "[quarkus starting…]");
         try {
           await ensureClient(cwd);
           ctx.ui.setStatus("quarkus", undefined);

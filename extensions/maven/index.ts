@@ -344,14 +344,11 @@ export default function (pi: ExtensionAPI) {
           return;
         }
         const [groupId, artifactId] = coord.split(":");
-        ctx.ui.setStatus("maven", "maven: looking up version…");
         try {
           const { latestVersion, versions } = await fetchMetadata(groupId, artifactId);
           const { selectedVersion } = selectVersion(latestVersion, versions, false);
-          ctx.ui.setStatus("maven", undefined);
           mavenMessage({ kind: "version", groupId, artifactId, selectedVersion });
         } catch (err) {
-          ctx.ui.setStatus("maven", undefined);
           mavenMessage({ kind: "error", message: `Version lookup failed: ${(err as Error).message}` });
         }
         return;

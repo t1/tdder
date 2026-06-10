@@ -116,10 +116,10 @@ export default function (pi: ExtensionAPI) {
   function setFooter(ctx: ExtensionContext): void {
     switch (state.kind) {
       case "ok":
-        ctx.ui.setStatus(FOOTER_KEY, `idea ● (${ALL_TOOLS.length} tools)`);
+        ctx.ui.setStatus(FOOTER_KEY, `[idea● ${ALL_TOOLS.length} tools]`);
         break;
       case "project-not-open":
-        ctx.ui.setStatus(FOOTER_KEY, "idea ⚠ not open");
+        ctx.ui.setStatus(FOOTER_KEY, "[idea⚠ not open]");
         break;
       case "disconnected":
         ctx.ui.setStatus(FOOTER_KEY, undefined);
