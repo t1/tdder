@@ -70,7 +70,7 @@ Tab-completion lists all subcommands.
 |-----------------|--------------------------------------------------------------------------------|
 | `status`        | Show current app state (direct, LLM on failure)                                |
 | `start`         | Start app in dev mode — blocks until running, shows startup log (LLM on failure) |
-| `stop`          | Stop the running app (direct, LLM on failure)                                  |
+| `stop`          | Stop one or more managed apps; with no args opens a picker, args can be module names (direct, LLM on failure) |
 | `logs`          | Show recent log output (direct, LLM on failure)                                |
 | `list`          | List all managed Quarkus instances (direct, LLM on failure)                    |
 | `agent-log`     | Read the MCP server's own log file (direct, LLM on failure)                   |

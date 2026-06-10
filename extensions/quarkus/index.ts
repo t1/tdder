@@ -16,7 +16,7 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { homedir } from "node:os";
 import { spawnSafe } from "./vendor/spawn-safe.ts";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -25,7 +25,7 @@ import {
   keyHint,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-import { Container, Key, type SelectItem, SelectList, Text } from "@earendil-works/pi-tui";
+import { Container, Key, matchesKey, type SelectItem, SelectList, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { McpClient, type McpTool } from "./mcp-client.js";
 import { extractText } from "./utils.js";
@@ -130,6 +130,14 @@ interface CommandUi extends PollingUi {
   notify: (msg: string, level: string) => void;
   confirm: (title: string, msg: string) => Promise<boolean>;
   select: (title: string, options: string[]) => Promise<string | undefined>;
+  custom: <T>(
+    factory: (tui: { requestRender: () => void }, theme: any, keybindings: unknown, done: (result: T) => void) => {
+      render: (width: number) => string[];
+      invalidate: () => void;
+      handleInput?: (data: string) => void;
+    },
+    options?: { overlay?: boolean },
+  ) => Promise<T>;
 }
 
 // ---------------------------------------------------------------------------
@@ -793,6 +801,7 @@ export default async function (pi: ExtensionAPI) {
    * Format: quarkus[●blog ◌people ⚠api]
    */
   function formatFooterStatus(instances: Map<string, AppState>): string | undefined {
+    // footer format: quarkus[●blog ◌people ⚠api]
     const ICON: Record<AppState, string> = {
       running:  "●",
       starting: "◌",
@@ -807,6 +816,234 @@ export default async function (pi: ExtensionAPI) {
     }
     if (parts.length === 0) return undefined;
     return `[quarkus ${parts.join(" ")}]`;
+  }
+
+  interface ManagedInstance {
+    projectDir: string;
+    label: string;
+    relativeDir: string;
+    appState: Exclude<AppState, "stopped">;
+  }
+
+  function toManagedInstances(cwd: string, instances: Map<string, AppState>): ManagedInstance[] {
+    return Array.from(instances.entries())
+      .filter(([, appState]) => appState !== "stopped")
+      .map(([projectDir, appState]) => ({
+        projectDir,
+        label: projectDir.split("/").at(-1) ?? projectDir,
+        relativeDir: relative(cwd, projectDir) || ".",
+        appState: appState as Exclude<AppState, "stopped">,
+      }))
+      .sort((left, right) => left.relativeDir.localeCompare(right.relativeDir));
+  }
+
+  function resolveStopTargets(rawTargets: string, instances: ManagedInstance[]): {
+    resolved: ManagedInstance[];
+    missing: string[];
+    ambiguous: Array<{ token: string; matches: ManagedInstance[] }>;
+  } {
+    const resolved = new Map<string, ManagedInstance>();
+    const missing: string[] = [];
+    const ambiguous: Array<{ token: string; matches: ManagedInstance[] }> = [];
+
+    const tokens = rawTargets
+      .split(/[\s,]+/)
+      .map((token) => token.trim().replace(/^\.\//, "").replace(/\/$/, ""))
+      .filter((token) => token.length > 0);
+
+    for (const token of tokens) {
+      const matches = instances.filter((instance) =>
+        instance.projectDir === token || instance.relativeDir === token || instance.label === token,
+      );
+      const uniqueMatches = Array.from(new Map(matches.map((instance) => [instance.projectDir, instance])).values());
+      if (uniqueMatches.length === 0) {
+        missing.push(token);
+        continue;
+      }
+      if (uniqueMatches.length > 1) {
+        ambiguous.push({ token, matches: uniqueMatches });
+        continue;
+      }
+      const match = uniqueMatches[0];
+      if (match) resolved.set(match.projectDir, match);
+    }
+
+    return {
+      resolved: Array.from(resolved.values()),
+      missing,
+      ambiguous,
+    };
+  }
+
+  async function selectInstancesToStop(instances: ManagedInstance[], ctx: { ui: CommandUi }): Promise<ManagedInstance[] | null> {
+    const selectedDirs = await ctx.ui.custom<string[] | null>(
+      (tui, theme, _kb, done) => {
+        let selected = new Set<string>();
+        let cursor = 0;
+        const maxVisibleRows = 10;
+        const statusText: Record<Exclude<AppState, "stopped">, string> = {
+          running: "running",
+          starting: "starting",
+          crashed: "crashed",
+        };
+
+        const list = {
+          render(width: number): string[] {
+            if (instances.length === 0) {
+              return [theme.fg("warning", "No managed Quarkus instances are running.")];
+            }
+
+            const visibleRows = Math.min(instances.length, maxVisibleRows);
+            const firstRow = Math.max(0, Math.min(cursor - Math.floor(visibleRows / 2), instances.length - visibleRows));
+            const rows = instances.slice(firstRow, firstRow + visibleRows).map((instance, index) => {
+              const actualIndex = firstRow + index;
+              const marker = actualIndex === cursor ? ">" : " ";
+              const checked = selected.has(instance.projectDir) ? "[x]" : "[ ]";
+              const suffix = instance.relativeDir === instance.label
+                ? statusText[instance.appState]
+                : `${instance.relativeDir} • ${statusText[instance.appState]}`;
+              const line = `${marker} ${checked} ${instance.label}  ${suffix}`;
+              return truncateToWidth(actualIndex === cursor ? theme.fg("accent", line) : line, width);
+            });
+
+            if (instances.length > visibleRows) {
+              rows.push(theme.fg("dim", `${firstRow + 1}-${firstRow + visibleRows} of ${instances.length}`));
+            }
+            return rows;
+          },
+          invalidate(): void {},
+          handleInput(data: string): void {
+            if (matchesKey(data, Key.up) && cursor > 0) {
+              cursor -= 1;
+            } else if (matchesKey(data, Key.down) && cursor < instances.length - 1) {
+              cursor += 1;
+            } else if (matchesKey(data, Key.space)) {
+              const current = instances[cursor];
+              if (!current) return;
+              selected = new Set(selected);
+              if (selected.has(current.projectDir)) selected.delete(current.projectDir);
+              else selected.add(current.projectDir);
+            } else if (matchesKey(data, Key.enter)) {
+              if (selected.size === 0) {
+                const current = instances[cursor];
+                done(current ? [current.projectDir] : []);
+              } else {
+                done(Array.from(selected));
+              }
+              return;
+            } else if (matchesKey(data, Key.escape)) {
+              done(null);
+              return;
+            }
+            tui.requestRender();
+          },
+        };
+
+        const container = new Container();
+        container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+        container.addChild(new Text(theme.fg("accent", theme.bold("Stop Quarkus Services")), 1, 0));
+        container.addChild(list);
+        container.addChild(new Text(
+          theme.fg("dim", "↑↓ navigate • space toggle • enter stop selected/current • esc cancel"),
+          1, 0,
+        ));
+        container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+
+        return {
+          render: (width: number) => container.render(width),
+          invalidate: () => container.invalidate(),
+          handleInput: (data: string) => { list.handleInput(data); },
+        };
+      },
+      { overlay: true },
+    );
+
+    if (!selectedDirs || selectedDirs.length === 0) return null;
+    const selectedSet = new Set(selectedDirs);
+    return instances.filter((instance) => selectedSet.has(instance.projectDir));
+  }
+
+  async function stopInstances(instances: ManagedInstance[], cwd: string, ctx: { ui: CommandUi }): Promise<void> {
+    ctx.ui.setStatus("quarkus", `[quarkus stop ${instances.length}…]`);
+    const successes: Array<{ instance: ManagedInstance; output: string }> = [];
+    const failures: Array<{ instance: ManagedInstance; error: string }> = [];
+
+    for (const instance of instances) {
+      try {
+        const output = await callMcpTool("quarkus_stop", { projectDir: instance.projectDir }, cwd);
+        successes.push({ instance, output });
+      } catch (err) {
+        failures.push({ instance, error: (err as Error).message });
+      }
+    }
+    ctx.ui.setStatus("quarkus", undefined);
+
+    if (failures.length === 0) {
+      if (successes.length === 1) {
+        const output = successes[0]?.output ?? "";
+        const lines = output.split("\n");
+        const preview = lines.slice(0, PREVIEW_LINES).join("\n") + (lines.length > PREVIEW_LINES ? "\n…" : "");
+        ctx.ui.notify(preview || `Stopped ${successes[0]?.instance.label ?? "service"}`, "info");
+      } else {
+        ctx.ui.notify(`Stopped ${successes.map(({ instance }) => instance.label).join(", ")}`, "info");
+      }
+      return;
+    }
+
+    const successSummary = successes.length > 0
+      ? `Stopped successfully: ${successes.map(({ instance }) => instance.relativeDir).join(", ")}`
+      : "Stopped successfully: none";
+    const failureSummary = failures
+      .map(({ instance, error }) => `Failed to stop ${instance.relativeDir}:\n${error}`)
+      .join("\n\n");
+
+    ctx.ui.notify(`stop failed for ${failures.map(({ instance }) => instance.label).join(", ")} – asking LLM for help…`, "warning");
+    handOffFailure("stop", `${successSummary}\n\n${failureSummary}`);
+  }
+
+  async function handleStopSubcommand(cwd: string, ctx: { ui: CommandUi; mode: string }, extra?: string): Promise<void> {
+    let candidates: ManagedInstance[];
+    try {
+      const text = await callMcpTool("quarkus_list", {}, cwd);
+      candidates = toManagedInstances(cwd, parseListOutput(text));
+    } catch (err) {
+      ctx.ui.notify("stop failed – asking LLM for help…", "warning");
+      handOffFailure("stop", (err as Error).message);
+      return;
+    }
+
+    if (extra) {
+      const { resolved, missing, ambiguous } = resolveStopTargets(extra, candidates);
+      if (missing.length > 0 || ambiguous.length > 0) {
+        const problems = [
+          ...missing.map((token) => `Unknown module: ${token}`),
+          ...ambiguous.map(({ token, matches }) => `Ambiguous module: ${token} → ${matches.map((match) => match.relativeDir).join(", ")}`),
+        ];
+        ctx.ui.notify(problems.join("\n"), "error");
+        return;
+      }
+      if (resolved.length === 0) {
+        ctx.ui.notify("No matching managed Quarkus services to stop.", "warning");
+        return;
+      }
+      return stopInstances(resolved, cwd, ctx);
+    }
+
+    if (candidates.length === 0) {
+      ctx.ui.notify("No managed Quarkus services are running.", "warning");
+      return;
+    }
+    if (candidates.length === 1) {
+      return stopInstances(candidates, cwd, ctx);
+    }
+    if (ctx.mode !== "tui") {
+      ctx.ui.notify("Multiple Quarkus services are running. Pass module names to /quarkus stop explicitly.", "warning");
+      return;
+    }
+
+    const selected = await selectInstancesToStop(candidates, ctx);
+    if (!selected) return;
+    await stopInstances(selected, cwd, ctx);
   }
 
   async function onCrashed(cwd: string): Promise<void> {
@@ -1134,7 +1371,7 @@ export default async function (pi: ExtensionAPI) {
     const LABELS: Record<string, string> = {
       status:          "status        - Show app status",
       start:           "start         - Start app in dev mode",
-      stop:            "stop          - Stop the running app",
+      stop:            "stop          - Stop one or more managed apps",
       logs:            "logs          - Show recent log output",
       restart:         "restart       - Restart the app (hot reload)",
       open:            "open          - Open the app in the browser",
@@ -1374,7 +1611,7 @@ export default async function (pi: ExtensionAPI) {
             description: {
               status:          "Show app status",
               start:           "Start app in dev mode",
-              stop:            "Stop the running app",
+              stop:            "Stop one or more managed apps",
               logs:            "Show recent log output",
               restart:         "Restart the app (hot reload)",
               open:            "Open the app in the browser",
@@ -1403,7 +1640,7 @@ export default async function (pi: ExtensionAPI) {
       if (sub === "skills")      return handleSkills(cwd, ctx);
       if (sub === "mcp-tools")   return handleMcpTools(ctx);
       if (sub === "mcp-restart") return handleMcpRestart(cwd, ctx);
-      if (!sub)                  return handleSelector(ctx);
+      if (!sub)                   return handleSelector(ctx);
 
       // Ensure the MCP server is running before any tool call
       if (!state.client) {
@@ -1429,9 +1666,10 @@ export default async function (pi: ExtensionAPI) {
         }
       }
 
-      if ((TEST_SUBCOMMANDS    as readonly string[]).includes(sub)) return handleTestSubcommand(sub, cwd, ctx);
-      if ((LLM_SUBCOMMANDS     as readonly string[]).includes(sub)) return handleLlmSubcommand(sub, extra, cwd, ctx);
-      if ((DIRECT_SUBCOMMANDS  as readonly string[]).includes(sub)) return handleDirectSubcommand(sub, cwd, ctx, extra);
+      if (sub === "stop")                                            return handleStopSubcommand(cwd, ctx, extra);
+      if ((TEST_SUBCOMMANDS    as readonly string[]).includes(sub))   return handleTestSubcommand(sub, cwd, ctx);
+      if ((LLM_SUBCOMMANDS     as readonly string[]).includes(sub))   return handleLlmSubcommand(sub, extra, cwd, ctx);
+      if ((DIRECT_SUBCOMMANDS  as readonly string[]).includes(sub))   return handleDirectSubcommand(sub, cwd, ctx, extra);
 
       ctx.ui.notify(
         `Unknown subcommand: "${sub}". Try: ${ALL_SUBCOMMANDS.join(", ")}`,
