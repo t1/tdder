@@ -30,7 +30,7 @@ import { Type } from "typebox";
 import { McpClient, type McpTool } from "./mcp-client.js";
 import { extractText } from "./utils.js";
 import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
-import { buildProjectTree, findProjectRoot, type ProjectNode } from "./vendor/maven-project-tree.ts";
+import { buildProjectTree, findProjectRoot, pomHasPlugin, type ProjectNode } from "./vendor/maven-project-tree.ts";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -52,21 +52,16 @@ const LIFECYCLE_SUPPRESSION_MS = 30_000;
 // Quarkus project detection
 // ---------------------------------------------------------------------------
 
-/** Returns true if the given directory looks like a Quarkus project. */
+/** Returns true if the given directory contains a pom.xml with the quarkus-maven-plugin. */
 function isQuarkusProject(dir: string): boolean {
-  const candidates = [
-    { file: "pom.xml", pattern: "quarkus" },
-    { file: "build.gradle", pattern: "quarkus" },
-    { file: "build.gradle.kts", pattern: "quarkus" },
-  ];
-  for (const { file, pattern } of candidates) {
-    const p = resolve(dir, file);
+  const pomPath = resolve(dir, "pom.xml");
+  if (existsSync(pomPath) && pomHasPlugin(pomPath, "quarkus-maven-plugin")) return true;
+  for (const gradle of ["build.gradle", "build.gradle.kts"]) {
+    const p = resolve(dir, gradle);
     if (existsSync(p)) {
       try {
-        if (readFileSync(p, "utf8").includes(pattern)) return true;
-      } catch {
-        // ignore read errors
-      }
+        if (readFileSync(p, "utf8").includes("quarkus")) return true;
+      } catch { /* ignore */ }
     }
   }
   return false;
@@ -1921,6 +1916,17 @@ export default async function (pi: ExtensionAPI) {
         : undefined;
       if (project) rememberAgentLifecycleChange(project);
     }
+  });
+
+  pi.on("before_agent_start", async (event) => {
+    const alreadyLoaded = event.systemPromptOptions.skills?.some(
+      (s) => s.name === "quarkus",
+    );
+    if (alreadyLoaded) return;
+    if (!isQuarkusProject(event.systemPromptOptions.cwd ?? "")) return;
+    return {
+      systemPrompt: event.systemPrompt + "\n\nA Quarkus project was detected (quarkus-maven-plugin present). Load the `quarkus` skill before proceeding.",
+    };
   });
 
   pi.on("before_agent_start", async (event, ctx) => {

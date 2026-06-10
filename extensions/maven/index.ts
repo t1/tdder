@@ -7,7 +7,8 @@
  *   maven_lookup_version – Maven Central version lookup
  */
 
-import { resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { resolve, join } from "node:path";
 
 import { Container, Text } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
@@ -86,6 +87,17 @@ async function runMaven(
 const MAVEN_MSG_TYPE = "maven";
 
 export default function (pi: ExtensionAPI) {
+
+  pi.on("before_agent_start", async (event) => {
+    const alreadyLoaded = event.systemPromptOptions.skills?.some(
+      (s) => s.name === "maven",
+    );
+    if (alreadyLoaded) return;
+    if (!existsSync(join(event.systemPromptOptions.cwd ?? "", "pom.xml"))) return;
+    return {
+      systemPrompt: event.systemPrompt + "\n\nA `pom.xml` was detected in this project. Load the `maven` skill before proceeding.",
+    };
+  });
 
   pi.on("resources_discover", async (event) => {
     const skills = await loadJarSkills(event.cwd);

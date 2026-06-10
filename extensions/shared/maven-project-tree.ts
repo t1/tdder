@@ -109,6 +109,26 @@ function buildNode(nodeDir: string, relPath: string): ProjectNode {
   };
 }
 
+/**
+ * Returns true if the pom.xml at `pomPath` declares a plugin with the given
+ * `artifactId` inside `<build><plugins>` or `<build><pluginManagement><plugins>`.
+ * Strips XML comments before matching to avoid false positives.
+ */
+export function pomHasPlugin(pomPath: string, pluginArtifactId: string): boolean {
+  let raw: string;
+  try {
+    raw = readFileSync(pomPath, "utf8");
+  } catch {
+    return false;
+  }
+  // Strip XML comments to avoid matching commented-out plugins
+  const stripped = raw.replace(/<!--[\s\S]*?-->/g, "");
+  const buildBlock = stripped.match(/<build>[\s\S]*?<\/build>/);
+  if (!buildBlock) return false;
+  const pluginIds = [...buildBlock[0].matchAll(/<artifactId>([^<]+)<\/artifactId>/g)].map((m) => m[1].trim());
+  return pluginIds.includes(pluginArtifactId);
+}
+
 export function stripInternalFields(node: ProjectNode): Omit<ProjectNode, "relativePath" | "pomPath" | "modules"> & { modules?: Record<string, ReturnType<typeof stripInternalFields>> } {
   const { relativePath: _, pomPath: __, modules, description, name, ...rest } = node;
   const strippedModules = modules
