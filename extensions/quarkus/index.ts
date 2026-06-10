@@ -45,6 +45,9 @@ const STARTUP_TIMEOUT_MS = 60_000;
 /** Number of result/log lines shown in the collapsed message preview. */
 const PREVIEW_LINES = 10;
 
+/** Ignore agent-initiated lifecycle transitions for this long before treating changes as external. */
+const LIFECYCLE_SUPPRESSION_MS = 30_000;
+
 // ---------------------------------------------------------------------------
 // Quarkus project detection
 // ---------------------------------------------------------------------------
@@ -147,6 +150,13 @@ interface CommandUi extends PollingUi {
 
 type AppState = "running" | "starting" | "crashed" | "stopped";
 
+interface LifecycleObservation {
+  initialState: AppState;
+  currentState: AppState;
+  sawRunning: boolean;
+  sawStopped: boolean;
+}
+
 interface QuarkusState {
   client: McpClient | null;
   /** In-flight startup promise — prevents concurrent callers from spawning multiple MCP processes. */
@@ -155,10 +165,16 @@ interface QuarkusState {
   registeredToolNames: Set<string>;
   /** Interval handle for the app-status polling loop. */
   statusPoller: ReturnType<typeof setInterval> | null;
-  /** Per-instance last observed app state — used to detect crash transitions. */
+  /** Last observed app states for all discovered services. */
   instanceStates: Map<string, AppState>;
   /** Whether we have already enabled app file logging in this session. */
   appLogEnabled: boolean;
+  /** Buffered externally-observed lifecycle changes to inject on the next turn. */
+  pendingLifecycleChanges: Map<string, LifecycleObservation>;
+  /** Temporary suppression window for agent-initiated lifecycle changes. */
+  suppressedLifecycleChanges: Map<string, number>;
+  /** Whether refreshAppStatus has already established a baseline service-state snapshot. */
+  hasObservedStates: boolean;
 }
 
 /**
@@ -578,6 +594,9 @@ export default async function (pi: ExtensionAPI) {
     statusPoller: null,
     instanceStates: new Map(),
     appLogEnabled: false,
+    pendingLifecycleChanges: new Map(),
+    suppressedLifecycleChanges: new Map(),
+    hasObservedStates: false,
   };
 
   // -------------------------------------------------------------------------
@@ -761,6 +780,7 @@ export default async function (pi: ExtensionAPI) {
 
     ctx.ui.setStatus("quarkus", "[quarkus start…]");
     try {
+      rememberAgentLifecycleChange(cwd);
       await callMcpTool("quarkus_start", { projectDir: cwd }, cwd);
       ctx.ui.setStatus("quarkus", undefined);
       ctx.ui.notify("Quarkus started.", "info");
@@ -1083,6 +1103,76 @@ export default async function (pi: ExtensionAPI) {
       .join("\n");
   }
 
+  function rememberAgentLifecycleChange(projectDir: string): void {
+    state.suppressedLifecycleChanges.set(projectDir, Date.now() + LIFECYCLE_SUPPRESSION_MS);
+  }
+
+  function suppressLifecycleChange(projectDir: string, nextState: AppState): boolean {
+    const until = state.suppressedLifecycleChanges.get(projectDir);
+    if (!until) return false;
+    if (until <= Date.now()) {
+      state.suppressedLifecycleChanges.delete(projectDir);
+      return false;
+    }
+    if (nextState === "running" || nextState === "stopped" || nextState === "crashed") {
+      state.suppressedLifecycleChanges.delete(projectDir);
+    }
+    return nextState !== "crashed";
+  }
+
+  function recordLifecycleChange(projectDir: string, previousState: AppState, nextState: AppState): void {
+    if (previousState === nextState) return;
+    if (suppressLifecycleChange(projectDir, nextState)) return;
+
+    const existing = state.pendingLifecycleChanges.get(projectDir);
+    const initialState = existing?.initialState ?? previousState;
+    const observation: LifecycleObservation = {
+      initialState,
+      currentState: nextState,
+      sawRunning: existing?.sawRunning ?? (initialState === "running"),
+      sawStopped: existing?.sawStopped ?? (initialState === "stopped"),
+    };
+    if (nextState === "running") observation.sawRunning = true;
+    if (nextState === "stopped") observation.sawStopped = true;
+    if (previousState === "running") observation.sawRunning = true;
+    if (previousState === "stopped") observation.sawStopped = true;
+    state.pendingLifecycleChanges.set(projectDir, observation);
+  }
+
+  function serviceDisplayName(cwd: string, projectDir: string): string {
+    const rel = relative(cwd, projectDir) || ".";
+    return rel === "." ? (projectDir.split("/").at(-1) ?? projectDir) : rel;
+  }
+
+  function summarizeLifecycleObservation(cwd: string, projectDir: string, observation: LifecycleObservation): string {
+    const name = serviceDisplayName(cwd, projectDir);
+    if (observation.initialState === "running" && observation.currentState === "running" && observation.sawStopped) {
+      return `${name} restarted`;
+    }
+    if (observation.currentState === "running") {
+      return `${name} started`;
+    }
+    if (observation.initialState === "running" && observation.currentState === "stopped") {
+      return `${name} stopped`;
+    }
+    if (observation.initialState === "stopped" && observation.currentState === "stopped" && observation.sawRunning) {
+      return `${name} started and then stopped`;
+    }
+    if (observation.currentState === "starting") {
+      return `${name} is starting`;
+    }
+    return `${name} changed state to ${observation.currentState}`;
+  }
+
+  function drainLifecycleSummary(cwd: string): string | undefined {
+    if (state.pendingLifecycleChanges.size === 0) return undefined;
+    const lines = Array.from(state.pendingLifecycleChanges.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([projectDir, observation]) => summarizeLifecycleObservation(cwd, projectDir, observation));
+    state.pendingLifecycleChanges.clear();
+    return lines.join("; ");
+  }
+
   async function handleStatusSubcommand(cwd: string, ctx: { ui: CommandUi; mode: string }, extra?: string): Promise<void> {
     const services = await loadServiceTargets(cwd);
     if (extra) {
@@ -1111,6 +1201,7 @@ export default async function (pi: ExtensionAPI) {
 
     ctx.ui.setStatus("quarkus", "[quarkus start…]");
     try {
+      rememberAgentLifecycleChange(target.projectDir);
       const output = await callMcpTool("quarkus_start", buildStartArgs(target.projectDir, parsed.profiles), cwd);
       ctx.ui.setStatus("quarkus", undefined);
       const outcome = output.includes("running") ? "running" : "crashed";
@@ -1222,6 +1313,7 @@ export default async function (pi: ExtensionAPI) {
 
     for (const instance of instances) {
       try {
+        rememberAgentLifecycleChange(instance.projectDir);
         const output = await callMcpTool("quarkus_stop", { projectDir: instance.projectDir }, cwd);
         successes.push({ instance, output });
       } catch (err) {
@@ -1311,6 +1403,9 @@ export default async function (pi: ExtensionAPI) {
     try {
       const text = await callMcpTool("quarkus_list", {}, cwd);
       const instances = parseListOutput(text);
+      const serviceStates = new Map(
+        mergeServiceStates(cwd, instances).map((service) => [service.projectDir, service.appState] as const),
+      );
 
       ctx.ui.setStatus("quarkus", formatFooterStatus(instances));
 
@@ -1320,12 +1415,23 @@ export default async function (pi: ExtensionAPI) {
           state.appLogEnabled = true;
           callMcpTool("quarkus_app_log", { projectDir: dir, action: "enable" }, cwd).catch(() => {});
         }
-        // Detect crash transitions per instance
-        if (instanceState === "crashed" && state.instanceStates.get(dir) !== "crashed") {
-          await onCrashed(dir);
-        }
       }
-      state.instanceStates = instances;
+
+      if (state.hasObservedStates) {
+        for (const [dir, nextState] of serviceStates) {
+          const previousState = state.instanceStates.get(dir) ?? "stopped";
+          if (nextState === "crashed" && previousState !== "crashed") {
+            state.pendingLifecycleChanges.delete(dir);
+            await onCrashed(dir);
+            continue;
+          }
+          recordLifecycleChange(dir, previousState, nextState);
+        }
+      } else {
+        state.hasObservedStates = true;
+      }
+
+      state.instanceStates = serviceStates;
     } catch {
       // MCP error — clear rather than show stale state
       ctx.ui.setStatus("quarkus", undefined);
@@ -1718,6 +1824,7 @@ export default async function (pi: ExtensionAPI) {
     }
     ctx.ui.setStatus("quarkus", `[quarkus ${sub}…]`);
     try {
+      if (sub === "restart") rememberAgentLifecycleChange(project);
       const output = await callMcpTool(toolName, buildArgs(sub, project, extra), cwd);
       ctx.ui.setStatus("quarkus", undefined);
       if (sub === "start") {
@@ -1807,6 +1914,23 @@ export default async function (pi: ExtensionAPI) {
   // Lifecycle
   // -------------------------------------------------------------------------
 
+  pi.on("tool_call", async (event) => {
+    if (event.toolName === "quarkus_start" || event.toolName === "quarkus_stop" || event.toolName === "quarkus_restart") {
+      const project = typeof (event.input as { projectDir?: unknown }).projectDir === "string"
+        ? (event.input as { projectDir: string }).projectDir
+        : undefined;
+      if (project) rememberAgentLifecycleChange(project);
+    }
+  });
+
+  pi.on("before_agent_start", async (event, ctx) => {
+    const lifecycleSummary = drainLifecycleSummary(ctx.cwd);
+    if (!lifecycleSummary) return;
+    return {
+      systemPrompt: `${event.systemPrompt}\n\nContext update: Quarkus service state changed since the last turn: ${lifecycleSummary}.`,
+    };
+  });
+
   pi.on("session_start", (_event, ctx) => {
     const cwd = projectDir(ctx);
 
@@ -1852,6 +1976,11 @@ export default async function (pi: ExtensionAPI) {
       state.client = null;
       state.pendingStart = null;
     }
+    state.instanceStates.clear();
+    state.pendingLifecycleChanges.clear();
+    state.suppressedLifecycleChanges.clear();
+    state.hasObservedStates = false;
+    state.appLogEnabled = false;
   });
 
   // Keep display-only custom messages out of the LLM context.
