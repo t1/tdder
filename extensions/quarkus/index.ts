@@ -212,6 +212,33 @@ const TOOL_GUIDELINES: Record<string, string[]> = {
   ],
 };
 
+/** Map a JSON Schema type string to the corresponding TypeBox type. */
+function jsonSchemaTypeToTypeBox(
+  schema: Record<string, unknown>,
+  description?: string,
+): ReturnType<typeof Type.Unknown> {
+  const type = schema.type as string | string[] | undefined;
+  const desc = description ?? (typeof schema.description === "string" ? schema.description : undefined);
+  const opts: { description?: string } = desc ? { description: desc } : {};
+
+  if (Array.isArray(type)) {
+    // e.g. ["string", "null"] → pick the first non-null type
+    const primary = type.find((t) => t !== "null") ?? type[0];
+    return jsonSchemaTypeToTypeBox({ ...schema, type: primary }, desc);
+  }
+
+  switch (type) {
+    case "string":  return desc ? Type.String(opts) : Type.String();
+    case "number":  return desc ? Type.Number(opts) : Type.Number();
+    case "integer": return desc ? Type.Integer(opts) : Type.Integer();
+    case "boolean": return desc ? Type.Boolean(opts) : Type.Boolean();
+    case "array":   return desc ? Type.Array(Type.Unknown(), opts) : Type.Array(Type.Unknown());
+    case "object":  return desc ? Type.Object({}, opts) : Type.Object({});
+    case "null":    return desc ? Type.Literal(null as any, opts) : Type.Literal(null as any);
+    default:        return desc ? Type.Unknown(opts) : Type.Unknown();
+  }
+}
+
 /** Convert an MCP inputSchema to a minimal TypeBox-compatible schema. */
 function toTypeBox(inputSchema: Record<string, unknown>): ReturnType<typeof Type.Object> {
   const props = inputSchema.properties as Record<string, unknown> | undefined;
@@ -226,9 +253,8 @@ function toTypeBox(inputSchema: Record<string, unknown>): ReturnType<typeof Type
   const fields: Record<string, ReturnType<typeof Type.Unknown>> = {};
   for (const [key, schema] of Object.entries(props)) {
     const s = schema as Record<string, unknown>;
-    const description = typeof s.description === "string" ? s.description : undefined;
-    const base = description ? Type.Unknown({ description }) : Type.Unknown();
-    fields[key] = required.has(key) ? base : Type.Optional(base);
+    const typeBoxType = jsonSchemaTypeToTypeBox(s);
+    fields[key] = required.has(key) ? typeBoxType : Type.Optional(typeBoxType);
   }
 
   return Type.Object(fields);
