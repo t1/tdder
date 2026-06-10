@@ -146,8 +146,8 @@ interface QuarkusState {
   registeredToolNames: Set<string>;
   /** Interval handle for the app-status polling loop. */
   statusPoller: ReturnType<typeof setInterval> | null;
-  /** Last observed app state — used to detect transitions (e.g. starting → crashed). */
-  lastAppState: AppState | null;
+  /** Per-instance last observed app state — used to detect crash transitions. */
+  instanceStates: Map<string, AppState>;
   /** Whether we have already enabled app file logging in this session. */
   appLogEnabled: boolean;
 }
@@ -541,7 +541,7 @@ export default async function (pi: ExtensionAPI) {
     pendingStart: null,
     registeredToolNames: new Set(),
     statusPoller: null,
-    lastAppState: null,
+    instanceStates: new Map(),
     appLogEnabled: false,
   };
 
@@ -741,24 +741,46 @@ export default async function (pi: ExtensionAPI) {
   // Lifecycle — app-status polling
   // -------------------------------------------------------------------------
 
-  function parseAppState(text: string): AppState {
-    if (text.match(/port:\s*\d+/)) return "running";
-    if (text.includes("starting")) return "starting";
-    if (text.includes("crashed")) return "crashed";
-    return "stopped";
+  /**
+   * Parse the JSON output of quarkus_list into a Map of projectDir → AppState.
+   * Returns an empty Map for "No managed Quarkus instances" or any parse error.
+   */
+  function parseListOutput(text: string): Map<string, AppState> {
+    const result = new Map<string, AppState>();
+    try {
+      const data = JSON.parse(text) as Record<string, string>;
+      for (const [dir, status] of Object.entries(data)) {
+        const s = status.toLowerCase();
+        if (s === "running" || s === "starting" || s === "crashed" || s === "stopped") {
+          result.set(dir, s as AppState);
+        }
+      }
+    } catch {
+      // non-JSON response (e.g. "No managed Quarkus instances") → empty map
+    }
+    return result;
   }
 
-  function updateFooterStatus(newState: AppState, text: string, ctx: { ui: PollingUi }): void {
-    const portMatch = text.match(/port:\s*(\d+)/);
-    if (newState === "running" && portMatch) {
-      ctx.ui.setStatus("quarkus-app", `quarkus ● :${portMatch[1]}`);
-    } else if (newState === "starting") {
-      ctx.ui.setStatus("quarkus-app", "quarkus ◌ starting…");
-    } else if (newState === "crashed") {
-      ctx.ui.setStatus("quarkus-app", "quarkus ⚠ crashed");
-    } else {
-      ctx.ui.setStatus("quarkus-app", undefined);
+  /**
+   * Format the footer status string for all non-stopped instances.
+   * Returns undefined when there is nothing to show.
+   * Format: quarkus[●blog ◌people ⚠api]
+   */
+  function formatFooterStatus(instances: Map<string, AppState>): string | undefined {
+    const ICON: Record<AppState, string> = {
+      running:  "●",
+      starting: "◌",
+      crashed:  "⚠",
+      stopped:  "",
+    };
+    const parts: string[] = [];
+    for (const [dir, appState] of instances) {
+      if (appState === "stopped") continue;
+      const label = dir.split("/").at(-1) ?? dir;
+      parts.push(`${ICON[appState]}${label}`);
     }
+    if (parts.length === 0) return undefined;
+    return `quarkus[${parts.join(" ")}]`;
   }
 
   async function onCrashed(cwd: string): Promise<void> {
@@ -780,18 +802,23 @@ export default async function (pi: ExtensionAPI) {
   async function refreshAppStatus(cwd: string, ctx: { ui: PollingUi }): Promise<void> {
     if (!state.client) return;
     try {
-      const text = await callMcpTool("quarkus_status", { projectDir: cwd }, cwd);
-      const newState = parseAppState(text);
-      updateFooterStatus(newState, text, ctx);
+      const text = await callMcpTool("quarkus_list", {}, cwd);
+      const instances = parseListOutput(text);
 
-      if (newState === "running" && !state.appLogEnabled) {
-        state.appLogEnabled = true;
-        callMcpTool("quarkus_app_log", { projectDir: cwd, action: "enable" }, cwd).catch(() => {});
+      ctx.ui.setStatus("quarkus-app", formatFooterStatus(instances));
+
+      // Enable app-file logging for newly-running instances
+      for (const [dir, instanceState] of instances) {
+        if (instanceState === "running" && !state.appLogEnabled) {
+          state.appLogEnabled = true;
+          callMcpTool("quarkus_app_log", { projectDir: dir, action: "enable" }, cwd).catch(() => {});
+        }
+        // Detect crash transitions per instance
+        if (instanceState === "crashed" && state.instanceStates.get(dir) !== "crashed") {
+          await onCrashed(dir);
+        }
       }
-      if (newState === "crashed" && state.lastAppState !== "crashed") {
-        await onCrashed(cwd);
-      }
-      state.lastAppState = newState;
+      state.instanceStates = instances;
     } catch {
       // MCP error — clear rather than show stale state
       ctx.ui.setStatus("quarkus-app", undefined);
@@ -1167,7 +1194,7 @@ export default async function (pi: ExtensionAPI) {
       ctx.ui.setStatus("quarkus", undefined);
       if (sub === "start") {
         // quarkus_start blocks until RUNNING or CRASHED — show startup log as a rich message
-        const outcome = parseAppState(output) === "running" ? "running" : "crashed";
+        const outcome = output.includes("running") ? "running" : "crashed";
         pi.sendMessage(
           { customType: QUARKUS_STARTUP_LOG_MSG_TYPE, content: "", display: true, details: { log: output, outcome } },
           { triggerTurn: false },
