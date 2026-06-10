@@ -68,8 +68,8 @@ Tab-completion lists all subcommands.
 
 | Subcommand      | Behaviour                                                                      |
 |-----------------|--------------------------------------------------------------------------------|
-| `status`        | Show current app state (direct, LLM on failure)                                |
-| `start`         | Start app in dev mode — blocks until running, shows startup log (LLM on failure) |
+| `status`        | Show the state of all discovered Quarkus services; with an arg, show just that module (direct, LLM on failure) |
+| `start`         | Start a discovered Quarkus service in dev mode; with multiple services it picks, and supports `--profiles=dev,foo` (LLM on failure) |
 | `stop`          | Stop one or more managed apps; with no args opens a picker, args can be module names (direct, LLM on failure) |
 | `logs`          | Show recent log output (direct, LLM on failure)                                |
 | `list`          | List all managed Quarkus instances (direct, LLM on failure)                    |
@@ -85,6 +85,8 @@ Tab-completion lists all subcommands.
 | `test-all`      | Run the full test suite — results always sent to LLM for analysis              |
 | `mcp-restart`   | Restart the quarkus-agent-mcp server process itself                            |
 | `mcp-tools`     | List all tools advertised by the MCP server (output sent to LLM)               |
+
+In multi-module Maven repos, `/quarkus status` scans all discovered Quarkus services and overlays their runtime state from the managed-instance list, so stopped services are shown too. `/quarkus start` uses the same discovery and supports an optional positional module/path plus `--profiles=dev,foo` (no spaces). Other instance-scoped subcommands (`stop`, `logs`, `restart`, `open`, `devui`, `info`, `test-affected`, `test-all`) no longer blindly assume the cwd is the target; they prompt when needed and also accept a positional module/path. `search-tools` keeps its positional query argument, so its target is inferred or picked rather than passed explicitly.
 
 **Dispatch strategy:** direct subcommands call the MCP tool immediately and show the result as a
 notification. On failure, the error output is automatically forwarded to the LLM with

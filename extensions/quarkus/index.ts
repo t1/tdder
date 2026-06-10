@@ -30,6 +30,7 @@ import { Type } from "typebox";
 import { McpClient, type McpTool } from "./mcp-client.js";
 import { extractText } from "./utils.js";
 import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
+import { buildProjectTree, findProjectRoot, type ProjectNode } from "./vendor/maven-project-tree.ts";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -818,33 +819,115 @@ export default async function (pi: ExtensionAPI) {
     return `[quarkus ${parts.join(" ")}]`;
   }
 
-  interface ManagedInstance {
+  interface ServiceTarget {
     projectDir: string;
     label: string;
     relativeDir: string;
-    appState: Exclude<AppState, "stopped">;
+    appState: AppState;
+    discovered: boolean;
   }
 
-  function toManagedInstances(cwd: string, instances: Map<string, AppState>): ManagedInstance[] {
-    return Array.from(instances.entries())
-      .filter(([, appState]) => appState !== "stopped")
-      .map(([projectDir, appState]) => ({
+  function projectNodeLabel(node: ProjectNode): string {
+    if (node.relativePath === ".") {
+      return node.artifactId || (node.pomPath.split("/").at(-2) ?? ".");
+    }
+    return node.relativePath.split("/").at(-1) ?? node.artifactId;
+  }
+
+  function sortServiceTargets(services: ServiceTarget[]): ServiceTarget[] {
+    return services.sort((left, right) => left.relativeDir.localeCompare(right.relativeDir));
+  }
+
+  function isQuarkusPom(pomPath: string): boolean {
+    try {
+      return readFileSync(pomPath, "utf8").includes("quarkus");
+    } catch {
+      return false;
+    }
+  }
+
+  function collectQuarkusServiceNodes(node: ProjectNode, found: ProjectNode[] = []): ProjectNode[] {
+    if (node.packaging !== "pom" && isQuarkusPom(node.pomPath)) {
+      found.push(node);
+    }
+    for (const child of Object.values(node.modules ?? {})) {
+      collectQuarkusServiceNodes(child, found);
+    }
+    return found;
+  }
+
+  function discoverQuarkusServices(cwd: string): ServiceTarget[] {
+    const projectRoot = findProjectRoot(cwd);
+    if (projectRoot) {
+      try {
+        const tree = buildProjectTree(projectRoot);
+        const services = collectQuarkusServiceNodes(tree).map((node) => ({
+          projectDir: resolve(projectRoot, node.relativePath),
+          label: projectNodeLabel(node),
+          relativeDir: node.relativePath,
+          appState: "stopped" as AppState,
+          discovered: true,
+        }));
+        if (services.length > 0) return sortServiceTargets(services);
+      } catch {
+        // fall through to single-project discovery
+      }
+    }
+
+    if (!isQuarkusProject(cwd)) return [];
+    return [{
+      projectDir: cwd,
+      label: cwd.split("/").at(-1) ?? cwd,
+      relativeDir: ".",
+      appState: "stopped",
+      discovered: false,
+    }];
+  }
+
+  function mergeServiceStates(cwd: string, instances: Map<string, AppState>): ServiceTarget[] {
+    const merged = new Map<string, ServiceTarget>(
+      discoverQuarkusServices(cwd).map((service) => [service.projectDir, service]),
+    );
+
+    for (const [projectDir, appState] of instances) {
+      const existing = merged.get(projectDir);
+      if (existing) {
+        existing.appState = appState;
+        continue;
+      }
+      merged.set(projectDir, {
         projectDir,
         label: projectDir.split("/").at(-1) ?? projectDir,
         relativeDir: relative(cwd, projectDir) || ".",
-        appState: appState as Exclude<AppState, "stopped">,
-      }))
-      .sort((left, right) => left.relativeDir.localeCompare(right.relativeDir));
+        appState,
+        discovered: false,
+      });
+    }
+
+    return sortServiceTargets(Array.from(merged.values()));
   }
 
-  function resolveStopTargets(rawTargets: string, instances: ManagedInstance[]): {
-    resolved: ManagedInstance[];
+  async function loadServiceTargets(cwd: string): Promise<ServiceTarget[]> {
+    try {
+      const text = await callMcpTool("quarkus_list", {}, cwd);
+      return mergeServiceStates(cwd, parseListOutput(text));
+    } catch {
+      return discoverQuarkusServices(cwd);
+    }
+  }
+
+  function runningServiceTargets(services: ServiceTarget[]): ServiceTarget[] {
+    return services.filter((service) => service.appState !== "stopped");
+  }
+
+  function resolveServiceTargets(rawTargets: string, services: ServiceTarget[]): {
+    resolved: ServiceTarget[];
     missing: string[];
-    ambiguous: Array<{ token: string; matches: ManagedInstance[] }>;
+    ambiguous: Array<{ token: string; matches: ServiceTarget[] }>;
   } {
-    const resolved = new Map<string, ManagedInstance>();
+    const resolved = new Map<string, ServiceTarget>();
     const missing: string[] = [];
-    const ambiguous: Array<{ token: string; matches: ManagedInstance[] }> = [];
+    const ambiguous: Array<{ token: string; matches: ServiceTarget[] }> = [];
 
     const tokens = rawTargets
       .split(/[\s,]+/)
@@ -852,10 +935,10 @@ export default async function (pi: ExtensionAPI) {
       .filter((token) => token.length > 0);
 
     for (const token of tokens) {
-      const matches = instances.filter((instance) =>
-        instance.projectDir === token || instance.relativeDir === token || instance.label === token,
+      const matches = services.filter((service) =>
+        service.projectDir === token || service.relativeDir === token || service.label === token,
       );
-      const uniqueMatches = Array.from(new Map(matches.map((instance) => [instance.projectDir, instance])).values());
+      const uniqueMatches = Array.from(new Map(matches.map((service) => [service.projectDir, service])).values());
       if (uniqueMatches.length === 0) {
         missing.push(token);
         continue;
@@ -875,16 +958,185 @@ export default async function (pi: ExtensionAPI) {
     };
   }
 
-  async function selectInstancesToStop(instances: ManagedInstance[], ctx: { ui: CommandUi }): Promise<ManagedInstance[] | null> {
+  function preferredServiceTarget(cwd: string, services: ServiceTarget[]): ServiceTarget | undefined {
+    return services.find((service) => service.projectDir === cwd || service.relativeDir === ".");
+  }
+
+  async function selectServiceTarget(
+    action: string,
+    services: ServiceTarget[],
+    ctx: { ui: CommandUi },
+  ): Promise<ServiceTarget | null> {
+    const items: SelectItem[] = services.map((service) => ({
+      value: service.projectDir,
+      label: service.label,
+      description: service.relativeDir === service.label
+        ? service.appState
+        : `${service.relativeDir} • ${service.appState}`,
+    }));
+
+    const chosen = await ctx.ui.custom<string | null>(
+      (tui, theme, _kb, done) => {
+        const container = new Container();
+        container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+        container.addChild(new Text(theme.fg("accent", theme.bold(`Quarkus ${action}`)), 1, 0));
+        const list = new SelectList(items, Math.min(items.length + 2, 15), {
+          selectedPrefix: (t: string) => theme.fg("accent", t),
+          selectedText:   (t: string) => theme.fg("accent", t),
+          description:    (t: string) => theme.fg("muted",  t),
+          scrollInfo:     (t: string) => theme.fg("dim",    t),
+          noMatch:        (t: string) => theme.fg("warning", t),
+        });
+        list.onSelect = (item: { value: string }) => done(item.value);
+        list.onCancel = () => done(null);
+        container.addChild(list);
+        container.addChild(new Text(
+          theme.fg("dim", "↑↓ navigate • type to filter • enter select • esc cancel"),
+          1, 0,
+        ));
+        container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+        return {
+          render: (width: number) => container.render(width),
+          invalidate: () => container.invalidate(),
+          handleInput: (data: string) => { list.handleInput(data); tui.requestRender(); },
+        };
+      },
+      { overlay: true },
+    );
+
+    return services.find((service) => service.projectDir === chosen) ?? null;
+  }
+
+  async function chooseServiceTarget(
+    action: string,
+    cwd: string,
+    ctx: { ui: CommandUi; mode: string },
+    rawTarget: string | undefined,
+    services: ServiceTarget[],
+  ): Promise<ServiceTarget | null | undefined> {
+    if (rawTarget) {
+      const { resolved, missing, ambiguous } = resolveServiceTargets(rawTarget, services);
+      const problems = [
+        ...missing.map((token) => `Unknown module: ${token}`),
+        ...ambiguous.map(({ token, matches }) => `Ambiguous module: ${token} → ${matches.map((match) => match.relativeDir).join(", ")}`),
+      ];
+      if (resolved.length > 1) {
+        problems.push(`Pick exactly one module for /quarkus ${action}: ${resolved.map((match) => match.relativeDir).join(", ")}`);
+      }
+      if (problems.length > 0) {
+        ctx.ui.notify(problems.join("\n"), "error");
+        return null;
+      }
+      return resolved[0];
+    }
+
+    const preferred = preferredServiceTarget(cwd, services);
+    if (preferred) return preferred;
+    if (services.length === 0) return undefined;
+    if (services.length === 1) return services[0];
+    if (ctx.mode !== "tui") {
+      ctx.ui.notify(`Multiple Quarkus services are available. Pass a module name to /quarkus ${action}.`, "warning");
+      return null;
+    }
+    return selectServiceTarget(action, services, ctx);
+  }
+
+  function parseStartArgs(rawArgs?: string): { target?: string; profiles?: string; error?: string } {
+    if (!rawArgs) return {};
+
+    let target: string | undefined;
+    let profiles: string | undefined;
+
+    for (const token of rawArgs.split(/\s+/).filter((part) => part.length > 0)) {
+      if (token.startsWith("--profiles=")) {
+        if (profiles !== undefined) return { error: "Only one --profiles=... argument is allowed." };
+        profiles = token.slice("--profiles=".length);
+        if (!profiles) return { error: "--profiles=... must not be empty." };
+        continue;
+      }
+      if (token.startsWith("--")) {
+        return { error: `Unknown /quarkus start option: ${token}` };
+      }
+      if (target !== undefined) {
+        return { error: "Pass at most one module/path to /quarkus start." };
+      }
+      target = token.replace(/^\.\//, "").replace(/\/$/, "");
+    }
+
+    return { target, profiles };
+  }
+
+  function buildStartArgs(project: string, profiles?: string): Record<string, unknown> {
+    return profiles ? { projectDir: project, mavenProfiles: profiles } : { projectDir: project };
+  }
+
+  function formatStatusLines(services: ServiceTarget[]): string {
+    const ICON: Record<AppState, string> = {
+      running: "●",
+      starting: "◌",
+      crashed: "⚠",
+      stopped: "○",
+    };
+    if (services.length === 0) return "No Quarkus services discovered.";
+    return services
+      .map((service) => `${ICON[service.appState]} ${service.appState.padEnd(8)} ${service.relativeDir === "." ? service.label : service.relativeDir}`)
+      .join("\n");
+  }
+
+  async function handleStatusSubcommand(cwd: string, ctx: { ui: CommandUi; mode: string }, extra?: string): Promise<void> {
+    const services = await loadServiceTargets(cwd);
+    if (extra) {
+      const target = await chooseServiceTarget("status", cwd, ctx, extra, services);
+      if (target === null) return;
+      ctx.ui.notify(formatStatusLines(target ? [target] : []), "info");
+      return;
+    }
+    ctx.ui.notify(formatStatusLines(services), "info");
+  }
+
+  async function handleStartSubcommand(cwd: string, ctx: { ui: CommandUi; mode: string }, rawArgs?: string): Promise<void> {
+    const parsed = parseStartArgs(rawArgs);
+    if (parsed.error) {
+      ctx.ui.notify(parsed.error, "error");
+      return;
+    }
+
+    const services = await loadServiceTargets(cwd);
+    const target = await chooseServiceTarget("start", cwd, ctx, parsed.target, services);
+    if (target === null) return;
+    if (target === undefined) {
+      ctx.ui.notify("No Quarkus services discovered.", "warning");
+      return;
+    }
+
+    ctx.ui.setStatus("quarkus", "[quarkus start…]");
+    try {
+      const output = await callMcpTool("quarkus_start", buildStartArgs(target.projectDir, parsed.profiles), cwd);
+      ctx.ui.setStatus("quarkus", undefined);
+      const outcome = output.includes("running") ? "running" : "crashed";
+      pi.sendMessage(
+        { customType: QUARKUS_STARTUP_LOG_MSG_TYPE, content: "", display: true, details: { log: output, outcome } },
+        { triggerTurn: false },
+      );
+    } catch (err) {
+      ctx.ui.setStatus("quarkus", undefined);
+      const errMsg = (err as Error).message;
+      ctx.ui.notify("start failed – asking LLM for help…", "warning");
+      handOffFailure("start", errMsg);
+    }
+  }
+
+  async function selectInstancesToStop(instances: ServiceTarget[], ctx: { ui: CommandUi }): Promise<ServiceTarget[] | null> {
     const selectedDirs = await ctx.ui.custom<string[] | null>(
       (tui, theme, _kb, done) => {
         let selected = new Set<string>();
         let cursor = 0;
         const maxVisibleRows = 10;
-        const statusText: Record<Exclude<AppState, "stopped">, string> = {
+        const statusText: Record<AppState, string> = {
           running: "running",
           starting: "starting",
           crashed: "crashed",
+          stopped: "stopped",
         };
 
         const list = {
@@ -963,10 +1215,10 @@ export default async function (pi: ExtensionAPI) {
     return instances.filter((instance) => selectedSet.has(instance.projectDir));
   }
 
-  async function stopInstances(instances: ManagedInstance[], cwd: string, ctx: { ui: CommandUi }): Promise<void> {
+  async function stopInstances(instances: ServiceTarget[], cwd: string, ctx: { ui: CommandUi }): Promise<void> {
     ctx.ui.setStatus("quarkus", `[quarkus stop ${instances.length}…]`);
-    const successes: Array<{ instance: ManagedInstance; output: string }> = [];
-    const failures: Array<{ instance: ManagedInstance; error: string }> = [];
+    const successes: Array<{ instance: ServiceTarget; output: string }> = [];
+    const failures: Array<{ instance: ServiceTarget; error: string }> = [];
 
     for (const instance of instances) {
       try {
@@ -1002,18 +1254,10 @@ export default async function (pi: ExtensionAPI) {
   }
 
   async function handleStopSubcommand(cwd: string, ctx: { ui: CommandUi; mode: string }, extra?: string): Promise<void> {
-    let candidates: ManagedInstance[];
-    try {
-      const text = await callMcpTool("quarkus_list", {}, cwd);
-      candidates = toManagedInstances(cwd, parseListOutput(text));
-    } catch (err) {
-      ctx.ui.notify("stop failed – asking LLM for help…", "warning");
-      handOffFailure("stop", (err as Error).message);
-      return;
-    }
+    const candidates = runningServiceTargets(await loadServiceTargets(cwd));
 
     if (extra) {
-      const { resolved, missing, ambiguous } = resolveStopTargets(extra, candidates);
+      const { resolved, missing, ambiguous } = resolveServiceTargets(extra, candidates);
       if (missing.length > 0 || ambiguous.length > 0) {
         const problems = [
           ...missing.map((token) => `Unknown module: ${token}`),
@@ -1161,9 +1405,6 @@ export default async function (pi: ExtensionAPI) {
     if (sub === "search-tools" && extra) {
       return { projectDir: cwd, query: extra };
     }
-    if (sub === "start") {
-      return extra ? { projectDir: cwd, mavenProfiles: extra } : { projectDir: cwd };
-    }
     return { projectDir: cwd };
   }
 
@@ -1172,15 +1413,20 @@ export default async function (pi: ExtensionAPI) {
    * If the app is not running, the user is offered to start it first.
    */
   const REQUIRES_DEV_MODE = new Set(["devui", "open", "restart", "search-tools"]);
+  const INSTANCE_SCOPED_DIRECT_SUBCOMMANDS = new Set(["logs", "restart", "open", "devui"]);
 
-  async function handleInfo(cwd: string, ctx: { ui: CommandUi }): Promise<void> {
-    const running = await ensureDevMode(cwd, ctx);
+  async function handleInfo(cwd: string, ctx: { ui: CommandUi; mode: string }, extra?: string): Promise<void> {
+    const services = await loadServiceTargets(cwd);
+    const target = await chooseServiceTarget("info", cwd, ctx, extra, services);
+    if (target === null) return;
+    const project = target?.projectDir ?? cwd;
+    const running = await ensureDevMode(project, ctx);
     if (!running) return;
     ctx.ui.setStatus("quarkus", "[quarkus info…]");
     const [statusRes, endpointsRes, devServicesRes] = await Promise.allSettled([
-      callMcpTool("quarkus_status", { projectDir: cwd }, cwd),
-      callMcpTool("quarkus_callTool", { projectDir: cwd, toolName: "devui-endpoints_getAllEndpoints" }, cwd),
-      callMcpTool("quarkus_callTool", { projectDir: cwd, toolName: "devui-dev-services_getDevServices" }, cwd),
+      callMcpTool("quarkus_status", { projectDir: project }, cwd),
+      callMcpTool("quarkus_callTool", { projectDir: project, toolName: "devui-endpoints_getAllEndpoints" }, cwd),
+      callMcpTool("quarkus_callTool", { projectDir: project, toolName: "devui-dev-services_getDevServices" }, cwd),
     ]);
     ctx.ui.setStatus("quarkus", undefined);
 
@@ -1369,8 +1615,8 @@ export default async function (pi: ExtensionAPI) {
 
   async function handleSelector(ctx: { ui: CommandUi }): Promise<void> {
     const LABELS: Record<string, string> = {
-      status:          "status        - Show app status",
-      start:           "start         - Start app in dev mode",
+      status:          "status        - Show all discovered app states",
+      start:           "start         - Start a discovered app in dev mode",
       stop:            "stop          - Stop one or more managed apps",
       logs:            "logs          - Show recent log output",
       restart:         "restart       - Restart the app (hot reload)",
@@ -1394,8 +1640,12 @@ export default async function (pi: ExtensionAPI) {
     pi.sendUserMessage(`/quarkus ${chosenSub}`, { deliverAs: "followUp" });
   }
 
-  async function handleTestSubcommand(sub: string, cwd: string, ctx: { ui: CommandUi }): Promise<void> {
-    const running = await ensureDevMode(cwd, ctx);
+  async function handleTestSubcommand(sub: string, cwd: string, ctx: { ui: CommandUi; mode: string }, extra?: string): Promise<void> {
+    const services = await loadServiceTargets(cwd);
+    const target = await chooseServiceTarget(sub, cwd, ctx, extra, services);
+    if (target === null) return;
+    const project = target?.projectDir ?? cwd;
+    const running = await ensureDevMode(project, ctx);
     if (!running) return;
     const devuiTool = sub === "test-all"
       ? "devui-testing_runTests"
@@ -1404,7 +1654,7 @@ export default async function (pi: ExtensionAPI) {
     let testOutput: string;
     let testFailed = false;
     try {
-      testOutput = await callMcpTool("quarkus_callTool", { projectDir: cwd, toolName: devuiTool }, cwd);
+      testOutput = await callMcpTool("quarkus_callTool", { projectDir: project, toolName: devuiTool }, cwd);
     } catch (err) {
       testOutput = (err as Error).message;
       testFailed = true;
@@ -1420,19 +1670,26 @@ export default async function (pi: ExtensionAPI) {
     );
   }
 
-  async function handleLlmSubcommand(sub: string, extra: string | undefined, cwd: string, ctx: { ui: CommandUi }): Promise<void> {
+  async function handleLlmSubcommand(sub: string, extra: string | undefined, cwd: string, ctx: { ui: CommandUi; mode: string }): Promise<void> {
     const toolName = TOOL_NAME[sub];
     if (!toolName) {
       ctx.ui.notify(`Unknown subcommand: ${sub}`, "error");
       return;
     }
+    let project = cwd;
+    if (sub === "search-tools") {
+      const services = await loadServiceTargets(cwd);
+      const target = await chooseServiceTarget(sub, cwd, ctx, undefined, services);
+      if (target === null) return;
+      project = target?.projectDir ?? cwd;
+    }
     if (REQUIRES_DEV_MODE.has(sub)) {
-      const running = await ensureDevMode(cwd, ctx);
+      const running = await ensureDevMode(project, ctx);
       if (!running) return;
     }
     ctx.ui.setStatus("quarkus", `[quarkus ${sub}…]`);
     try {
-      const output = await callMcpTool(toolName, buildArgs(sub, cwd, extra), cwd);
+      const output = await callMcpTool(toolName, buildArgs(sub, project, extra), cwd);
       ctx.ui.setStatus("quarkus", undefined);
       handOffSuccess(sub, output);
     } catch (err) {
@@ -1441,19 +1698,27 @@ export default async function (pi: ExtensionAPI) {
     }
   }
 
-  async function handleDirectSubcommand(sub: string, cwd: string, ctx: { ui: CommandUi }, extra?: string): Promise<void> {
+  async function handleDirectSubcommand(sub: string, cwd: string, ctx: { ui: CommandUi; mode: string }, extra?: string): Promise<void> {
     const toolName = TOOL_NAME[sub];
     if (!toolName) {
       ctx.ui.notify(`Unknown subcommand: ${sub}`, "error");
       return;
     }
+    let project = cwd;
+    if (INSTANCE_SCOPED_DIRECT_SUBCOMMANDS.has(sub)) {
+      const services = await loadServiceTargets(cwd);
+      const target = await chooseServiceTarget(sub, cwd, ctx, extra, services);
+      if (target === null) return;
+      project = target?.projectDir ?? cwd;
+      extra = undefined;
+    }
     if (REQUIRES_DEV_MODE.has(sub)) {
-      const running = await ensureDevMode(cwd, ctx);
+      const running = await ensureDevMode(project, ctx);
       if (!running) return;
     }
     ctx.ui.setStatus("quarkus", `[quarkus ${sub}…]`);
     try {
-      const output = await callMcpTool(toolName, buildArgs(sub, cwd, extra), cwd);
+      const output = await callMcpTool(toolName, buildArgs(sub, project, extra), cwd);
       ctx.ui.setStatus("quarkus", undefined);
       if (sub === "start") {
         // quarkus_start blocks until RUNNING or CRASHED — show startup log as a rich message
@@ -1609,8 +1874,8 @@ export default async function (pi: ExtensionAPI) {
             value: s,
             label: s,
             description: {
-              status:          "Show app status",
-              start:           "Start app in dev mode",
+              status:          "Show all discovered app states",
+              start:           "Start a discovered app in dev mode",
               stop:            "Stop one or more managed apps",
               logs:            "Show recent log output",
               restart:         "Restart the app (hot reload)",
@@ -1636,7 +1901,7 @@ export default async function (pi: ExtensionAPI) {
       const [sub, ...extraParts] = (args?.trim() || "").split(/\s+/);
       const extra = extraParts.join(" ") || undefined;
 
-      if (sub === "info")        return handleInfo(cwd, ctx);
+      if (sub === "info")        return handleInfo(cwd, ctx, extra);
       if (sub === "skills")      return handleSkills(cwd, ctx);
       if (sub === "mcp-tools")   return handleMcpTools(ctx);
       if (sub === "mcp-restart") return handleMcpRestart(cwd, ctx);
@@ -1666,8 +1931,10 @@ export default async function (pi: ExtensionAPI) {
         }
       }
 
+      if (sub === "status")                                          return handleStatusSubcommand(cwd, ctx, extra);
+      if (sub === "start")                                           return handleStartSubcommand(cwd, ctx, extra);
       if (sub === "stop")                                            return handleStopSubcommand(cwd, ctx, extra);
-      if ((TEST_SUBCOMMANDS    as readonly string[]).includes(sub))   return handleTestSubcommand(sub, cwd, ctx);
+      if ((TEST_SUBCOMMANDS    as readonly string[]).includes(sub))   return handleTestSubcommand(sub, cwd, ctx, extra);
       if ((LLM_SUBCOMMANDS     as readonly string[]).includes(sub))   return handleLlmSubcommand(sub, extra, cwd, ctx);
       if ((DIRECT_SUBCOMMANDS  as readonly string[]).includes(sub))   return handleDirectSubcommand(sub, cwd, ctx, extra);
 

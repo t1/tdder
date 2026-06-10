@@ -33,27 +33,27 @@ describe("multi-module /quarkus stop", () => {
     );
   });
 
-  it("uses quarkus_list to discover stoppable instances", () => {
+  it("uses the discovered service target list for stoppable instances", () => {
     const idx = src.indexOf("async function handleStopSubcommand");
     assert.ok(idx >= 0, "handleStopSubcommand not found");
     const block = src.slice(idx, idx + 900);
     assert.ok(
-      block.includes("quarkus_list"),
-      `handleStopSubcommand must call quarkus_list, got:\n${block}`,
+      block.includes("loadServiceTargets") || block.includes("quarkus_list"),
+      `handleStopSubcommand must load the service target list, got:\n${block}`,
     );
   });
 
   it("resolves explicit stop targets by module name and relative module path", () => {
-    const idx = src.indexOf("function resolveStopTargets");
-    assert.ok(idx >= 0, "resolveStopTargets not found");
+    const idx = src.indexOf("function resolveServiceTargets");
+    assert.ok(idx >= 0, "resolveServiceTargets not found");
     const block = src.slice(idx, idx + 1200);
     assert.ok(
-      block.includes("instance.label === token"),
-      `resolveStopTargets must match module names, got:\n${block}`,
+      block.includes("service.label === token"),
+      `resolveServiceTargets must match module names, got:\n${block}`,
     );
     assert.ok(
-      block.includes("instance.relativeDir === token"),
-      `resolveStopTargets must match relative module paths, got:\n${block}`,
+      block.includes("service.relativeDir === token"),
+      `resolveServiceTargets must match relative module paths, got:\n${block}`,
     );
   });
 

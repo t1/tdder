@@ -169,28 +169,27 @@ describe("quarkus_update remapped to quarkus_skills with query quarkus-update", 
 // ---------------------------------------------------------------------------
 
 describe("mavenProfiles parameter for /quarkus start", () => {
-  it("buildArgs('start', cwd, 'myprofile') includes mavenProfiles", () => {
-    const buildArgsIdx = src.indexOf("function buildArgs(");
-    assert.ok(buildArgsIdx >= 0, "buildArgs function not found");
-    const block = src.slice(buildArgsIdx, buildArgsIdx + 800);
+  it("parseStartArgs understands --profiles=...", () => {
+    const idx = src.indexOf("function parseStartArgs");
+    assert.ok(idx >= 0, "parseStartArgs function not found");
+    const block = src.slice(idx, idx + 900);
     assert.ok(
-      block.includes("mavenProfiles"),
-      'buildArgs must include a mavenProfiles field for "start"',
+      block.includes("--profiles="),
+      'parseStartArgs must recognise the --profiles=... flag',
     );
   });
 
-  it("buildArgs('start', cwd) without extra does not set mavenProfiles", () => {
-    // When extra is undefined/empty, mavenProfiles must not be passed
-    // (so the MCP server uses its default, not an empty string)
-    const buildArgsIdx = src.indexOf("function buildArgs(");
-    assert.ok(buildArgsIdx >= 0, "buildArgs function not found");
-    const block = src.slice(buildArgsIdx, buildArgsIdx + 800);
-    // Must be conditional — either guarded by `extra &&`, `extra ?`, or similar
+  it("buildStartArgs includes mavenProfiles only when provided", () => {
+    const idx = src.indexOf("function buildStartArgs");
+    assert.ok(idx >= 0, "buildStartArgs function not found");
+    const block = src.slice(idx, idx + 300);
     assert.ok(
-      block.match(/extra\s*&&.*mavenProfiles/s) ||
-      block.match(/mavenProfiles.*extra/s) ||
-      block.match(/extra\s*\?.*mavenProfiles/s),
-      'mavenProfiles must only be set when extra is truthy',
+      block.includes("mavenProfiles"),
+      'buildStartArgs must be able to set mavenProfiles',
+    );
+    assert.ok(
+      block.match(/profiles\s*\?/) || block.match(/profiles.*mavenProfiles/s),
+      'buildStartArgs must only set mavenProfiles when profiles were provided',
     );
   });
 });
