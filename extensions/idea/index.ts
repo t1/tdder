@@ -173,11 +173,16 @@ export default function (pi: ExtensionAPI) {
 
         // For xdebug_start_debugger_session: activate IDEA up front so it's already
         // in the foreground when the security dialog appears, then show a widget.
+        // We await osascript completion before making the MCP call — otherwise the
+        // activation and the dialog race and the dialog wins.
         if (tool.name === "xdebug_start_debugger_session") {
-          spawn("osascript", ["-e", 'tell application "IntelliJ IDEA" to activate'], {
-            detached: true,
-            stdio: "ignore",
-          }).unref();
+          await new Promise<void>((resolve) => {
+            const proc = spawn("osascript", ["-e", 'tell application "IntelliJ IDEA" to activate'], {
+              stdio: "ignore",
+            });
+            proc.on("close", () => resolve());
+            proc.on("error", () => resolve());
+          });
           ctxRef?.ui.setWidget(DIALOG_WIDGET_KEY, (_tui, theme) => ({
             render: () => [
               theme.fg("warning", "⚠ IntelliJ IDEA is waiting for your confirmation — click Allow"),
