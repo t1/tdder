@@ -61,35 +61,6 @@ type ProbeState =
   | { kind: "project-not-open"; openProjects: string[] }
   | { kind: "ok" };
 
-/**
- * After 3 s, checks whether IDEA's security dialog is blocking `start_debugger_session`.
- * If no session has appeared yet, focuses the IDE and shows a confirm widget above the editor.
- * Returns the timer handle so the caller can cancel it in `finally`.
- */
-function scheduleConfirmWidget(
-  client: IdeaClient,
-  ctxRef: ExtensionContext | undefined,
-): ReturnType<typeof setTimeout> {
-  return setTimeout(() => {
-    client.rawClient.callTool("xdebug_get_debugger_status", {}).then((result) => {
-      const text = result.content?.find((c) => c.type === "text")?.text ?? "{}";
-      const sessions = (JSON.parse(text) as { sessions?: unknown[] }).sessions ?? [];
-      if (sessions.length === 0) {
-        spawn("open", ["-na", "IntelliJ IDEA", "--args", ctxRef?.cwd ?? ""], {
-          detached: true,
-          stdio: "ignore",
-        }).unref();
-        ctxRef?.ui.setWidget(DIALOG_WIDGET_KEY, (_tui, theme) => ({
-          render: () => [
-            theme.fg("warning", "⚠ IntelliJ IDEA is waiting for your confirmation — click Allow"),
-          ],
-          invalidate: () => {},
-        }));
-      }
-    }).catch(() => { /* ignore — main call may already be done */ });
-  }, 3000);
-}
-
 function stateLabel(s: ProbeState): string {
   switch (s.kind) {
     case "disconnected":
@@ -200,11 +171,20 @@ export default function (pi: ExtensionAPI) {
         const timeoutMs = spec?.executionTimeoutMs ?? 5000;
         const retryCeiling = Date.now() + INDEXING_RETRY_CEILING_MS;
 
-        // For xdebug_start_debugger_session: after 3 s with no session appearing,
-        // IDEA is most likely showing the security dialog — show a widget and focus the IDE.
-        const dialogTimer = tool.name === "xdebug_start_debugger_session"
-          ? scheduleConfirmWidget(client, ctxRef)
-          : undefined;
+        // For xdebug_start_debugger_session: activate IDEA up front so it's already
+        // in the foreground when the security dialog appears, then show a widget.
+        if (tool.name === "xdebug_start_debugger_session") {
+          spawn("osascript", ["-e", 'tell application "IntelliJ IDEA" to activate'], {
+            detached: true,
+            stdio: "ignore",
+          }).unref();
+          ctxRef?.ui.setWidget(DIALOG_WIDGET_KEY, (_tui, theme) => ({
+            render: () => [
+              theme.fg("warning", "⚠ IntelliJ IDEA is waiting for your confirmation — click Allow"),
+            ],
+            invalidate: () => {},
+          }));
+        }
 
         try {
           let result = await client.callTool(tool.name, mergedParams, timeoutMs);
@@ -230,7 +210,6 @@ export default function (pi: ExtensionAPI) {
             details: {},
           };
         } finally {
-          if (dialogTimer !== undefined) clearTimeout(dialogTimer);
           ctxRef?.ui.setWidget(DIALOG_WIDGET_KEY, undefined);
         }
       },
