@@ -335,7 +335,7 @@ export const ALL_TOOLS: IdeaToolSpec[] = [
       "IntelliJ IDEA will show a 'Confirm Command Execution' security dialog — the extension will notify you to switch to the IDE and click Allow." +
       " Use filePath+line to run a specific test (IDEA synthesises the run configuration); use configurationName for a stored configuration." +
       " The call returns when the process has launched (state: running), before any breakpoint is hit." +
-      " Poll xdebug_get_debugger_status for state: paused to know when the breakpoint is hit.",
+      " Call xdebug_control_session(action=WAIT_FOR_PAUSE) to wait for the first suspension.",
     collapseResult: {
       summary: (p) => {
         const r = p as { name?: string; state?: string };
