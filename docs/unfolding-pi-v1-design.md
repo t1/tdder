@@ -364,6 +364,38 @@ parent is also alive (paused at `task_delegate`). This model needs to be
 validated against pi's actual sub-session capabilities during
 implementation.
 
+## Coordination protocol
+
+### File-based polling (both sides)
+
+Parent and child coordinate exclusively through the task file:
+
+- `task_delegate` (parent) — polls until status is `finished` or `blocked`
+- `task_finished` / `task_block` (child) — write the new status, then poll until
+  status is `null` (file deleted = accepted) or `in_progress` (reopened/unblocked)
+
+This replaces any in-process signalling mechanism (e.g. a `ParkingLot` Promise map).
+In-process mechanisms cannot work because `createAgentSession` loads the extension
+fresh for each sub-session, giving parent and child independent closure state.
+
+### Thread safety
+
+No file locking is needed. The coordination protocol is inherently sequential: the
+child writes its status and parks; the parent reads and decides; the parent acts
+(write or delete); the child's poller detects the change. They never write
+simultaneously, and Node.js is single-threaded so operations within one microtask
+cannot be interleaved with another in the same process.
+
+### Polling vs. fs.watch
+
+v1 uses polling at 500 ms intervals. `fs.watch` (FSEvents / inotify) would give
+lower latency without busy-wait and is a straightforward later improvement. It is
+not used in v1 because:
+
+- `fs.watch` has a history of platform quirks
+- inotify can miss events on network filesystems and some container setups
+- latency at the 500 ms scale is acceptable for feature delegation
+
 ## Out of scope for v1
 
 Potential later additions, intentionally deferred:
