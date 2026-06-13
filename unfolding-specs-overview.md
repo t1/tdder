@@ -8,6 +8,7 @@ Tests — similar to the notorious [V-Model](https://en.wikipedia.org/wiki/V-mod
 iterating baby steps instead of heavy, supposedly "complete" specs).
 
 Specs live in two tiers:
+
 - **Business tier** — *what* the product does: Acceptance Tests and Business Rules
   are the primary spec; Domain Model Decisions (DMDs) capture decisions and
   trade-offs that tests alone can't express, including alternatives considered
@@ -35,67 +36,120 @@ compliance.
 
 ## Architecture
 
-Roles are implemented as **Claude Code agents** (`.claude/agents/unfolding-*.md`).
-The Orchestrator manages the team, spawning agents on demand. Agents communicate
-directly with their collaborators via SendMessage and coordinate work through the
-shared task list.
+Unfolding Specs is defined in terms of **roles** and **handoffs**, not in terms
+of one specific agent runtime.
 
-| Role             | Agent Definition                | Responsibility                                                                             |
-|------------------|---------------------------------|--------------------------------------------------------------------------------------------|
-| **Orchestrator** | skill: `unfolding-orchestrator` | Spawns agents, relays Sensei questions, proxies Playwright actions, owns `docs/state.yaml` |
-| **PO**           | `unfolding-po.md`               | Decomposes Features, writes Acceptance Tests and Business Rules, proposes DMDs             |
-| **Architect**    | `unfolding-architect.md`        | Decomposes Features into Tasks, writes System Tests, proposes ADRs                         |
-| **Coder**        | `unfolding-coder.md`            | Implements Tasks using TDD (Red-Green-Refactor)                                            |
-| **UX Designer**  | `unfolding-ux-designer.md`      | User's advocate; challenges Feature specs, designs tech-agnostic UX                        |
-| **API Designer** | `unfolding-api-designer.md`     | Consumer's advocate; designs customer-facing integration APIs (API-first)                  |
-| **UI Expert**    | `unfolding-ui-expert.md`        | Maps UX components to concrete technology                                                  |
-| **Process Dev**  | skill: `unfolding-specs`        | Meta-role: develops the process itself, using the product as a test bed                    |
+Each role has a role definition (prompt/instructions), reads and writes its own
+artifacts, and hands work to the next role through the shared work queue plus a
+runtime-specific handoff mechanism.
 
-The Orchestrator is a **skill only** (no agent definition) — it runs in the
-current session via `/unfold` or by loading the `unfolding-orchestrator` skill.
+| Role             | Role Definition / Runtime Hook         | Responsibility                                                                                    |
+|------------------|----------------------------------------|---------------------------------------------------------------------------------------------------|
+| **Orchestrator** | skill / command / extension entrypoint | Dispatches role runs, relays Sensei questions, proxies restricted actions, owns `docs/state.yaml` |
+| **PO**           | `unfolding-po.md`                      | Decomposes Features, writes Acceptance Tests and Business Rules, proposes DMDs                    |
+| **Architect**    | `unfolding-architect.md`               | Decomposes Features into Tasks, writes System Tests, proposes ADRs                                |
+| **Coder**        | `unfolding-coder.md`                   | Implements Tasks using TDD (Red-Green-Refactor)                                                   |
+| **UX Designer**  | `unfolding-ux-designer.md`             | User's advocate; challenges Feature specs, designs tech-agnostic UX                               |
+| **API Designer** | `unfolding-api-designer.md`            | Consumer's advocate; designs customer-facing integration APIs (API-first)                         |
+| **UI Expert**    | `unfolding-ui-expert.md`               | Maps UX components to concrete technology                                                         |
+| **Process Dev**  | skill: `unfolding-specs`               | Meta-role: develops the process itself, using the product as a test bed                           |
+
+The exact runtime mechanics differ by platform:
+
+- In **Claude Code**, role runs are typically implemented as spawned agents plus
+  direct messages.
+- In **pi**, role runs may be implemented as subagents, dedicated sessions, or
+  extension-managed dispatch.
+
+The process itself should not depend on which runtime happens to provide those
+mechanics.
+
+## Runtime-Neutral Terms
+
+These terms describe the process independently of Claude Code or pi:
+
+- **Role definition** — the instructions that define one role's responsibilities,
+  boundaries, and process.
+- **Role run** — one active execution of a role against a specific task or
+  verification step.
+- **Dispatcher** — the runtime component that resumes or starts the next role
+  run, keeps global process state, and mediates Sensei interaction.
+- **Shared work queue** — the durable list of work items (`[PO]`, `[ARCH]`,
+  `[CODE]`, `[AT]`, `[DMD]`, `[ADR]`, ...).
+- **Handoff** — a directed transfer of responsibility from one role to another.
+  The handoff may be implemented as direct messaging, durable files, or runtime
+  routing.
+- **Activation** — making a target role able to receive its next handoff.
+  Depending on runtime this may mean spawning an agent, resuming a session, or
+  invoking a subagent.
+- **Sensei escalation** — any question that requires human judgment and must be
+  routed back to the human.
+- **Process state** — the durable checkpoint that allows `/unfold` to resume.
+
+## Runtime Mapping
+
+| Runtime-neutral term  | Claude Code term / mechanism                        | pi term / mechanism                                                            |
+|-----------------------|-----------------------------------------------------|--------------------------------------------------------------------------------|
+| **Role definition**   | Agent definition in `.claude/agents/unfolding-*.md` | Agent/role prompt used by an extension, subagent, or dedicated session         |
+| **Role run**          | Spawned agent instance                              | Subagent run or dedicated pi session                                           |
+| **Dispatcher**        | Orchestrator skill in the current session           | `/unfold` command and/or extension in the current session                      |
+| **Shared work queue** | Shared task list                                    | Shared task/state files or extension-managed queue                             |
+| **Handoff**           | `SendMessage` plus task references                  | Durable task/artifact update plus extension-routed or session-directed message |
+| **Activation**        | `Agent(...)` / ensure-active                        | Start or resume the target role session/subagent                               |
+| **Sensei escalation** | Orchestrator asks the human                         | Orchestrator/extension asks the human                                          |
+| **Process state**     | `docs/state.yaml`                                   | `docs/state.yaml`                                                              |
 
 ## Communication Model
 
-### Task List (work coordination)
+### Shared Work Queue (work coordination)
 
-Agents create tasks with prefixed subjects to route work:
+Roles create work items with prefixed subjects to route work:
 
 ```
 [PO] Define Feature ──> PO works
-  ├── [DMD] Decision ──> Orchestrator relays to Sensei
-  ├── [UX] Design ──> UX Designer works <──messages──> PO
-  ├── [API] Design ──> API Designer works <──messages──> PO
+  ├── [DMD] Decision ──> Dispatcher relays to Sensei
+  ├── [UX] Design ──> UX Designer works <──handoff──> PO
+  ├── [API] Design ──> API Designer works <──handoff──> PO
   └── [ARCH] Implement Feature ──> Architect works
-        ├── [ADR] Decision ──> Orchestrator relays to Sensei
-        ├── [UX-MAP] Map component ──> UI Expert works <──messages──> Architect
-        └── [CODE] Implement Task ──> Coder works <──messages──> Architect
-              └── [UX-REVIEW] Review UX ──> UX Designer reviews in browser <──messages──> PO
+        ├── [ADR] Decision ──> Dispatcher relays to Sensei
+        ├── [UX-MAP] Map component ──> UI Expert works <──handoff──> Architect
+        └── [CODE] Implement Task ──> Coder works <──handoff──> Architect
+              └── [UX-REVIEW] Review UX ──> UX Designer reviews in browser <──handoff──> PO
                     └── [AT] Verify ──> PO runs all ATs and business rule tests
 ```
 
-### Direct Messaging (peer collaboration)
+### Directed Handoffs (peer collaboration)
 
-Agents message their primary collaborators directly:
+Primary collaboration paths are:
 
 - PO <-> UX Designer, API Designer
 - Architect <-> Coder, UI Expert
 - Architect -> PO (AT verification)
-- Any agent -> Orchestrator (ensure-active requests, Sensei escalation only)
+- Any role -> Dispatcher (activation requests, Sensei escalation only)
 
-**Spawn-first rule:** Before an agent sends the first message in a new
-commissioning cycle, it must ask the Orchestrator: "Please ensure [role]
-is active for task #X." The Orchestrator spawns if needed or confirms the
-agent is active. This prevents silent message loss when a target agent
-has been shut down. Subsequent messages in the same cycle go directly.
+The process requires that a handoff reaches a role that is ready to receive it.
+How that is achieved is runtime-specific:
 
-The Orchestrator does NOT relay routine communication.
+- **Claude Code:** the sender typically asks the Dispatcher to ensure the target
+  role is active, then messages that role directly.
+- **pi:** the Dispatcher may resume or invoke the target role and pass along the
+  task context through durable files, a routed message, or session state.
+
+The important rule is not "use direct messages"; it is:
+
+> **Do not assume the target role is ready until the Dispatcher/runtime has made
+> it ready.**
+
+The Dispatcher should avoid relaying routine collaboration when the runtime can
+support direct handoff, but the process remains valid even when a runtime needs
+more mediation.
 
 ## Artifact Ownership
 
 | Artifact                      | Location              | Owned by     |
 |-------------------------------|-----------------------|--------------|
 | Product brief                 | `docs/product.md`     | PO           |
-| Domain Model Decisions      | `docs/dmd/`           | PO           |
+| Domain Model Decisions        | `docs/dmd/`           | PO           |
 | Architecture Decision Records | `docs/adr/`           | Architect    |
 | Acceptance Tests              | `docs/ats/`           | PO (private) |
 | AT index (incl. Roles)        | `docs/ats/INDEX.md`   | PO (shared)  |
@@ -123,4 +177,4 @@ AT files in `docs/ats/` use the slug as file name; business rules in
 ## Entry Points
 
 - `/unfold` — resumes from `docs/state.yaml`
-- `/unfold <guidance>` — passes free-text as Sensei guidance to the first agent spawned
+- `/unfold <guidance>` — passes free-text as Sensei guidance to the first role run dispatched
