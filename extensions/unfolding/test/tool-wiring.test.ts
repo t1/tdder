@@ -94,4 +94,9 @@ describe("task_delegate wiring", () => {
     const block = blockAfter(loadSrc(), 'name: "task_delegate"', 2000);
     assert.ok(block.includes("waitForChildDecision"), "must call waitForChildDecision");
   });
+
+  it("accepts optional parent_slug and passes it to createTask", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_delegate"', 2000);
+    assert.ok(block.includes("parent_slug"), "must accept and forward parent_slug");
+  });
 });

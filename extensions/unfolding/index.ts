@@ -158,6 +158,7 @@ export default function (pi: ExtensionAPI) {
       role: Type.String({ description: "Role to delegate to (e.g. po, architect, coder)" }),
       slug: Type.String({ description: "Unique slug for this task" }),
       body: Type.String({ description: "Task description for the role" }),
+      parent_slug: Type.Optional(Type.String({ description: "Slug of the parent task, if this is a sub-delegation" })),
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       const agentsDir = resolve(new URL(import.meta.url).pathname, "../../..", "agents");
@@ -186,6 +187,7 @@ export default function (pi: ExtensionAPI) {
         from: "orchestrator",
         to: params.role,
         body: params.body,
+        parent_slug: params.parent_slug,
         session_id: session.sessionId,
       });
 
