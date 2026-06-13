@@ -165,3 +165,47 @@ describe("task_finished + task_accept coordination", { timeout: TIMEOUT_MS }, ()
     assert.ok(finishedResult, "task_finished tool result must mention 'accepted'");
   });
 });
+
+// ---------------------------------------------------------------------------
+// /unfold smoke test
+// ---------------------------------------------------------------------------
+
+describe("/unfold command smoke test", { timeout: 90_000 }, () => {
+  let cwd: string;
+  before(() => { cwd = mkdtempSync(join(tmpdir(), "unfolding-smoke-")); });
+  after(() => { rmSync(cwd, { recursive: true }); });
+
+  it("injects orchestrator skill and registers task_delegate tool", async () => {
+    const instance = startPi(cwd);
+    await waitForReady(instance.send, instance.nextEvent);
+
+    // Send /unfold — extension arms skill injection then calls pi.sendUserMessage()
+    // which starts a full agent turn. Wait for that turn to finish.
+    instance.send({ id: "unfold-cmd", type: "prompt", message: "/unfold" });
+    await waitFor(instance.nextEvent, e => e.type === "agent_end", 60_000);
+
+    // Now ask the LLM to list its tools in a fresh follow-up prompt
+    instance.send({
+      id: "list-tools",
+      type: "prompt",
+      message: "List the names of every tool available to you, one per line. Do not call any tool.",
+    });
+
+    // Collect text_delta content until agent_end
+    let fullText = "";
+    await waitFor(instance.nextEvent, e => {
+      if (e.type === "message_update") {
+        const ae = (e as { assistantMessageEvent?: { type?: string; delta?: string } }).assistantMessageEvent;
+        if (ae?.type === "text_delta" && ae.delta) fullText += ae.delta;
+      }
+      return e.type === "agent_end";
+    }, 60_000);
+
+    instance.proc.kill();
+
+    assert.ok(
+      fullText.includes("task_delegate"),
+      `Expected task_delegate in tool listing, got:\n${fullText.slice(0, 800)}`,
+    );
+  });
+});
