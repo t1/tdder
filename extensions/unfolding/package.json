@@ -7,7 +7,8 @@
   "type": "module",
   "scripts": {
     "sync": "echo 'no vendored files'",
-    "test": "node --test test/*.test.ts"
+    "test": "node --test test/unfold-command.test.ts test/task-store.test.ts test/task-tools.test.ts test/task-delegate.test.ts test/tool-wiring.test.ts",
+    "test:integration": "node --test test/integration.test.ts"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
