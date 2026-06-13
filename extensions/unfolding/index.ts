@@ -10,11 +10,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createAgentSession, DefaultResourceLoader, SessionManager } from "@earendil-works/pi-coding-agent";
+import { resolve } from "node:path";
 import { Type } from "typebox";
 import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
 import { ensureGitignore, createTask, readTask, listTasks, updateTaskStatus, deleteTask } from "./task-store.ts";
 import { taskList, taskRead, taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock } from "./task-tools.ts";
 import { loadAgentSystemPrompt, waitForChildDecision, waitForResume, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
+import { ParkingLot } from "./parking-lot.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -46,6 +49,7 @@ function loadStateYaml(cwd: string): string | null {
 // ---------------------------------------------------------------------------
 
 export default function (pi: ExtensionAPI) {
+  const parkingLot = new ParkingLot();
   /** Set when /unfold is invoked; cleared after the next before_agent_start fires. */
   let pendingSkillInjection: string | null = null;
 
@@ -119,7 +123,10 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       taskFinished(ctx.cwd, params.slug);
-      return { content: [{ type: "text", text: `Task "${params.slug}" marked as finished.` }], details: {} };
+      return parkingLot.park(params.slug).then(outcome => ({
+        content: [{ type: "text", text: `Task "${params.slug}" finished. Commissioner decision: ${outcome}` }],
+        details: {},
+      }));
     },
   });
 
@@ -133,7 +140,10 @@ export default function (pi: ExtensionAPI) {
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       taskBlock(ctx.cwd, params.slug, params.blocked_reason);
-      return { content: [{ type: "text", text: `Task "${params.slug}" blocked: ${params.blocked_reason}` }], details: {} };
+      return parkingLot.park(params.slug).then(outcome => ({
+        content: [{ type: "text", text: `Task "${params.slug}" blocked. Commissioner decision: ${outcome}` }],
+        details: {},
+      }));
     },
   });
 
@@ -147,11 +157,49 @@ export default function (pi: ExtensionAPI) {
       body: Type.String({ description: "Task description for the role" }),
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
-      // TODO: sub-session spawning
+      const agentsDir = resolve(new URL(import.meta.url).pathname, "../../..", "agents");
+      const systemPrompt = loadAgentSystemPrompt(agentsDir, params.role);
+      if (!systemPrompt) {
+        throw new Error(`No agent definition found for role "${params.role}" in ${agentsDir}`);
+      }
+
       ensureGitignore(ctx.cwd);
-      createTask(ctx.cwd, { slug: params.slug, from: "orchestrator", to: params.role, body: params.body });
       const initialMessage = `${params.body}\n\n${CHILD_FIXED_INSTRUCTION}`;
-      return { content: [{ type: "text", text: `Task "${params.slug}" delegated to ${params.role} (sub-session not yet implemented). Initial message would be:\n${initialMessage}` }], details: {} };
+
+      const loader = new DefaultResourceLoader({
+        cwd: ctx.cwd,
+        systemPromptOverride: () => systemPrompt,
+      });
+      await loader.reload();
+
+      const { session } = await createAgentSession({
+        cwd: ctx.cwd,
+        sessionManager: SessionManager.create(ctx.cwd),
+        resourceLoader: loader,
+      });
+
+      const task = createTask(ctx.cwd, {
+        slug: params.slug,
+        from: "orchestrator",
+        to: params.role,
+        body: params.body,
+        session_id: session.sessionId,
+      });
+
+      // Start the child session — it will park when it calls task_finished or task_block
+      session.prompt(initialMessage).catch((err: unknown) => {
+        console.error(`[unfolding] child session for task "${params.slug}" failed:`, err);
+      });
+
+      // Wait for the child to reach a commissioner decision point
+      const outcome = await waitForChildDecision(
+        async () => readTask(ctx.cwd, task.slug)?.status ?? null,
+      );
+
+      return {
+        content: [{ type: "text", text: `Task "${params.slug}" delegated to ${params.role}. Outcome: ${outcome}` }],
+        details: {},
+      };
     },
   });
 
@@ -162,6 +210,7 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       taskAccept(ctx.cwd, params.slug);
+      parkingLot.release(params.slug, "accepted");
       return { content: [{ type: "text", text: `Task "${params.slug}" accepted.` }], details: {} };
     },
   });
@@ -176,6 +225,7 @@ export default function (pi: ExtensionAPI) {
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       taskReopen(ctx.cwd, params.slug, params.reason);
+      parkingLot.release(params.slug, "in_progress");
       return { content: [{ type: "text", text: `Task "${params.slug}" reopened: ${params.reason}` }], details: {} };
     },
   });
@@ -190,6 +240,7 @@ export default function (pi: ExtensionAPI) {
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       taskUnblock(ctx.cwd, params.slug, params.reason);
+      parkingLot.release(params.slug, "in_progress");
       return { content: [{ type: "text", text: `Task "${params.slug}" unblocked.` }], details: {} };
     },
   });
