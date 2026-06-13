@@ -193,3 +193,46 @@ describe("taskUnblock", () => {
     }
   });
 });
+
+describe("taskReopen resume_message", () => {
+  it("writes resume_message as 'reopened: <reason>'", () => {
+    const cwd = mkdtempSync(tmpdir() + "/tools-test-");
+    try {
+      createTask(cwd, { slug: "reopen-msg", from: "orchestrator", to: "po", body: "Redo" });
+      taskFinished(cwd, "reopen-msg");
+      taskReopen(cwd, "reopen-msg", "the output was wrong");
+      const result = taskRead(cwd, "reopen-msg");
+      assert.ok(result.includes("reopened: the output was wrong"), "resume_message must include reason");
+    } finally {
+      rmSync(cwd, { recursive: true });
+    }
+  });
+});
+
+describe("taskUnblock resume_message", () => {
+  it("writes 'unblocked: <reason>' when reason given", () => {
+    const cwd = mkdtempSync(tmpdir() + "/tools-test-");
+    try {
+      createTask(cwd, { slug: "unblock-reason", from: "orchestrator", to: "po", body: "Continue" });
+      taskBlock(cwd, "unblock-reason", "waiting for info");
+      taskUnblock(cwd, "unblock-reason", "info arrived");
+      const result = taskRead(cwd, "unblock-reason");
+      assert.ok(result.includes("unblocked: info arrived"), "resume_message must include reason");
+    } finally {
+      rmSync(cwd, { recursive: true });
+    }
+  });
+
+  it("writes 'unblocked' when no reason given", () => {
+    const cwd = mkdtempSync(tmpdir() + "/tools-test-");
+    try {
+      createTask(cwd, { slug: "unblock-noreason", from: "orchestrator", to: "po", body: "Continue" });
+      taskBlock(cwd, "unblock-noreason", "waiting");
+      taskUnblock(cwd, "unblock-noreason");
+      const result = taskRead(cwd, "unblock-noreason");
+      assert.ok(result.includes("resume_message: unblocked"), "resume_message must be 'unblocked'");
+    } finally {
+      rmSync(cwd, { recursive: true });
+    }
+  });
+});

@@ -5,52 +5,63 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+
+function loadSrc() {
+  return readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
+}
+
+function blockAfter(src: string, marker: string, len = 600): string {
+  const idx = src.indexOf(marker);
+  assert.ok(idx >= 0, `marker not found: ${marker}`);
+  return src.slice(idx, idx + len);
+}
+
 // ---------------------------------------------------------------------------
 // Structural wiring
 // ---------------------------------------------------------------------------
 
 describe("structural wiring", () => {
   it("task_finished tool waits for resume after writing finished status", () => {
-    const src = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
-    const idx = src.indexOf('name: "task_finished"');
-    assert.ok(idx >= 0);
-    const block = src.slice(idx, idx + 500);
+    const block = blockAfter(loadSrc(), 'name: "task_finished"');
     assert.ok(block.includes("taskFinished"), "must call taskFinished");
     assert.ok(block.includes("waitForResume"), "must call waitForResume");
   });
 
+  it("task_finished returns the resume message from waitForResume", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_finished"');
+    assert.ok(block.includes(".message"), "must return result.message from waitForResume");
+  });
+
   it("task_block tool waits for resume after writing blocked status", () => {
-    const src = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
-    const idx = src.indexOf('name: "task_block"');
-    assert.ok(idx >= 0);
-    const block = src.slice(idx, idx + 500);
+    const block = blockAfter(loadSrc(), 'name: "task_block"');
     assert.ok(block.includes("taskBlock"), "must call taskBlock");
     assert.ok(block.includes("waitForResume"), "must call waitForResume");
   });
 
   it("task_accept tool deletes the task file", () => {
-    const src = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
-    const idx = src.indexOf('name: "task_accept"');
-    assert.ok(idx >= 0);
-    const block = src.slice(idx, idx + 500);
+    const block = blockAfter(loadSrc(), 'name: "task_accept"');
     assert.ok(block.includes("taskAccept"), "must call taskAccept");
     // No release needed — child detects deletion via file polling
   });
 
-  it("task_reopen tool sets status to in_progress", () => {
-    const src = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
-    const idx = src.indexOf('name: "task_reopen"');
-    assert.ok(idx >= 0);
-    const block = src.slice(idx, idx + 500);
+  it("task_reopen tool calls taskReopen", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_reopen"');
     assert.ok(block.includes("taskReopen"), "must call taskReopen");
   });
 
-  it("task_unblock tool sets status to in_progress", () => {
-    const src = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
-    const idx = src.indexOf('name: "task_unblock"');
-    assert.ok(idx >= 0);
-    const block = src.slice(idx, idx + 500);
+  it("task_reopen tool passes resume_message with 'reopened:' prefix", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_reopen"');
+    assert.ok(block.includes("reopened:"), "must set resume_message to 'reopened: <reason>'");
+  });
+
+  it("task_unblock tool calls taskUnblock", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_unblock"');
     assert.ok(block.includes("taskUnblock"), "must call taskUnblock");
+  });
+
+  it("task_unblock tool passes resume_message with 'unblocked' prefix", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_unblock"');
+    assert.ok(block.includes("unblocked"), "must set resume_message to 'unblocked...'");
   });
 });
 
@@ -60,31 +71,27 @@ describe("structural wiring", () => {
 
 describe("task_delegate wiring", () => {
   it("errors when role agent file not found", () => {
-    const src = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
-    const idx = src.indexOf('name: "task_delegate"');
-    assert.ok(idx >= 0);
-    const block = src.slice(idx, idx + 1500);
+    const block = blockAfter(loadSrc(), 'name: "task_delegate"', 2000);
     assert.ok(block.includes("loadAgentSystemPrompt"), "must call loadAgentSystemPrompt");
     assert.ok(
       block.includes("throw") || block.includes("isError"),
-      "must throw or return error when agent file not found"
+      "must throw or return error when agent file not found",
     );
   });
 
-  it("creates task file and writes session_id after session starts", () => {
-    const src = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
-    const idx = src.indexOf('name: "task_delegate"');
-    assert.ok(idx >= 0);
-    const block = src.slice(idx, idx + 1500);
-    assert.ok(block.includes("createTask"), "must call createTask");
-    assert.ok(block.includes("session_id"), "must write session_id to task");
+  it("passes body + CHILD_FIXED_INSTRUCTION as initial message", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_delegate"', 2000);
+    assert.ok(block.includes("CHILD_FIXED_INSTRUCTION"), "must append CHILD_FIXED_INSTRUCTION");
   });
 
-  it("passes body + CHILD_FIXED_INSTRUCTION as initial message", () => {
-    const src = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
-    const idx = src.indexOf('name: "task_delegate"');
-    assert.ok(idx >= 0);
-    const block = src.slice(idx, idx + 1500);
-    assert.ok(block.includes("CHILD_FIXED_INSTRUCTION"), "must append CHILD_FIXED_INSTRUCTION");
+  it("creates task after obtaining child session id", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_delegate"', 2000);
+    assert.ok(block.includes("createTask"), "must call createTask");
+    assert.ok(block.includes("session_id"), "must write session_id into task");
+  });
+
+  it("waits for child decision via waitForChildDecision", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_delegate"', 2000);
+    assert.ok(block.includes("waitForChildDecision"), "must call waitForChildDecision");
   });
 });

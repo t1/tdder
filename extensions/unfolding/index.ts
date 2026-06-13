@@ -120,11 +120,11 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       taskFinished(ctx.cwd, params.slug);
-      const outcome = await waitForResume(
-        async () => readTask(ctx.cwd, params.slug)?.status ?? null,
+      const result = await waitForResume(
+        async () => readTask(ctx.cwd, params.slug) ?? null,
       );
       return {
-        content: [{ type: "text", text: `Task "${params.slug}" finished. Commissioner decision: ${outcome}` }],
+        content: [{ type: "text", text: result.message }],
         details: {},
       };
     },
@@ -140,11 +140,11 @@ export default function (pi: ExtensionAPI) {
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       taskBlock(ctx.cwd, params.slug, params.blocked_reason);
-      const outcome = await waitForResume(
-        async () => readTask(ctx.cwd, params.slug)?.status ?? null,
+      const result = await waitForResume(
+        async () => readTask(ctx.cwd, params.slug) ?? null,
       );
       return {
-        content: [{ type: "text", text: `Task "${params.slug}" blocked. Commissioner decision: ${outcome}` }],
+        content: [{ type: "text", text: result.message }],
         details: {},
       };
     },

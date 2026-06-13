@@ -173,6 +173,29 @@ describe("updateTaskStatus", () => {
     }
   });
 
+  it("writes resume_message when provided", () => {
+    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    try {
+      createTask(cwd, { slug: "msg-me", from: "po", to: "coder", body: "Do it" });
+      updateTaskStatus(cwd, "msg-me", "in_progress", undefined, "reopened: try again");
+      assert.equal(readTask(cwd, "msg-me")?.resume_message, "reopened: try again");
+    } finally {
+      rmSync(cwd, { recursive: true });
+    }
+  });
+
+  it("clears resume_message when not provided", () => {
+    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    try {
+      createTask(cwd, { slug: "clear-msg", from: "po", to: "coder", body: "Do it" });
+      updateTaskStatus(cwd, "clear-msg", "in_progress", undefined, "old message");
+      updateTaskStatus(cwd, "clear-msg", "finished");
+      assert.equal(readTask(cwd, "clear-msg")?.resume_message, undefined);
+    } finally {
+      rmSync(cwd, { recursive: true });
+    }
+  });
+
   it("updates status to blocked and sets blocked_reason", () => {
     const cwd = mkdtempSync(tmpdir() + "/task-test-");
     try {

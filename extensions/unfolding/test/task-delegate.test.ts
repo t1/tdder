@@ -62,19 +62,24 @@ describe("waitForChildDecision", () => {
 
 describe("waitForResume", () => {
   it("resolves 'accepted' when task file is deleted (readStatus returns null)", async () => {
-    const sequence = ["finished", "finished", null];
+    const sequence = ["finished", "finished", null] as const;
     let i = 0;
-    const readStatus = async () => sequence[Math.min(i++, sequence.length - 1)];
-    const result = await waitForResume(readStatus, 0);
-    assert.equal(result, "accepted");
+    const readStatus = async () => (sequence[Math.min(i++, sequence.length - 1)] as string | null);
+    const result = await waitForResume(readStatus as any, 0);
+    assert.equal(result.outcome, "accepted");
+    assert.equal(result.message, "accepted. you can close your session now");
   });
 
-  it("resolves 'in_progress' when status returns to in_progress", async () => {
-    const sequence = ["finished", "in_progress"];
+  it("resolves 'in_progress' with resume_message from file", async () => {
+    const sequence = [
+      { status: "finished",    resume_message: undefined },
+      { status: "in_progress", resume_message: "reopened: try harder" },
+    ];
     let i = 0;
-    const readStatus = async () => sequence[Math.min(i++, sequence.length - 1)];
-    const result = await waitForResume(readStatus, 0);
-    assert.equal(result, "in_progress");
+    const readStatus = async () => sequence[Math.min(i++, sequence.length - 1)] as { status: string; resume_message?: string } | null;
+    const result = await waitForResume(readStatus as any, 0);
+    assert.equal(result.outcome, "in_progress");
+    assert.equal(result.message, "reopened: try harder");
   });
 });
 

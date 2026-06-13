@@ -38,14 +38,18 @@ export async function waitForChildDecision(
 // waitForResume
 // ---------------------------------------------------------------------------
 
+export const ACCEPTED_MESSAGE = "accepted. you can close your session now";
+
 export async function waitForResume(
-  readStatus: () => Promise<string | null>,
+  readStatus: () => Promise<{ status: string; resume_message?: string } | null>,
   pollIntervalMs = POLL_INTERVAL_MS,
-): Promise<"accepted" | "in_progress"> {
+): Promise<{ outcome: "accepted" | "in_progress"; message: string }> {
   while (true) {
-    const status = await readStatus();
-    if (status === null) return "accepted";
-    if (status === "in_progress") return "in_progress";
+    const task = await readStatus();
+    if (task === null) return { outcome: "accepted", message: ACCEPTED_MESSAGE };
+    if (task.status === "in_progress") {
+      return { outcome: "in_progress", message: task.resume_message ?? "in_progress" };
+    }
     await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
   }
 }

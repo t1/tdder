@@ -23,6 +23,7 @@ export interface TaskInput {
 export interface Task extends TaskInput {
   status: TaskStatus;
   blocked_reason?: string;
+  resume_message?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -62,10 +63,11 @@ function serialize(task: Task): string {
     `from: ${task.from}`,
     `to: ${task.to}`,
   ];
-  if (task.references)   lines.push(`references: ${task.references}`);
-  if (task.parent_slug)  lines.push(`parent_slug: ${task.parent_slug}`);
-  if (task.session_id)   lines.push(`session_id: ${task.session_id}`);
+  if (task.references)    lines.push(`references: ${task.references}`);
+  if (task.parent_slug)   lines.push(`parent_slug: ${task.parent_slug}`);
+  if (task.session_id)    lines.push(`session_id: ${task.session_id}`);
   if (task.blocked_reason) lines.push(`blocked_reason: ${task.blocked_reason}`);
+  if (task.resume_message) lines.push(`resume_message: ${task.resume_message}`);
   lines.push(`body: |`);
   for (const line of task.body.split("\n")) {
     lines.push(`  ${line}`);
@@ -141,6 +143,7 @@ export function updateTaskStatus(
   slug: string,
   status: TaskStatus,
   blocked_reason?: string,
+  resume_message?: string,
 ): void {
   const found = taskFiles(cwd).find(({ task }) => task.slug === slug);
   if (!found) throw new Error(`Task "${slug}" not found`);
@@ -149,6 +152,11 @@ export function updateTaskStatus(
     updated.blocked_reason = blocked_reason;
   } else {
     delete updated.blocked_reason;
+  }
+  if (resume_message) {
+    updated.resume_message = resume_message;
+  } else {
+    delete updated.resume_message;
   }
   writeFileSync(found.file, serialize(updated));
 }

@@ -24,6 +24,7 @@ export function taskRead(cwd: string, slug: string): string {
   if (task.parent_slug)   lines.push(`parent_slug: ${task.parent_slug}`);
   if (task.session_id)    lines.push(`session_id: ${task.session_id}`);
   if (task.blocked_reason) lines.push(`blocked_reason: ${task.blocked_reason}`);
+  if (task.resume_message)  lines.push(`resume_message: ${task.resume_message}`);
   lines.push(`\nbody:\n${task.body}`);
   return lines.join("\n");
 }
@@ -41,12 +42,11 @@ export function taskAccept(cwd: string, slug: string): void {
   deleteTask(cwd, slug);
 }
 
-export function taskReopen(cwd: string, slug: string, _reason: string): void {
-  // reason is passed to the child session resume message (not yet implemented)
-  updateTaskStatus(cwd, slug, "in_progress");
+export function taskReopen(cwd: string, slug: string, reason: string): void {
+  updateTaskStatus(cwd, slug, "in_progress", undefined, `reopened: ${reason}`);
 }
 
-export function taskUnblock(cwd: string, slug: string, _reason?: string): void {
-  // reason is passed to the child session resume message (not yet implemented)
-  updateTaskStatus(cwd, slug, "in_progress");
+export function taskUnblock(cwd: string, slug: string, reason?: string): void {
+  const msg = reason ? `unblocked: ${reason}` : "unblocked";
+  updateTaskStatus(cwd, slug, "in_progress", undefined, msg);
 }
