@@ -1,0 +1,106 @@
+/**
+ * Tests for task_delegate mechanics:
+ * - agent file loading
+ * - bidirectional polling (waitForChildDecision, waitForResume)
+ * - structural invariants
+ */
+
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import {
+  loadAgentSystemPrompt,
+  waitForChildDecision,
+  waitForResume,
+} from "../task-delegate.ts";
+
+const agentsDir = resolve(new URL("../../../agents", import.meta.url).pathname);
+
+// ---------------------------------------------------------------------------
+// loadAgentSystemPrompt
+// ---------------------------------------------------------------------------
+
+describe("loadAgentSystemPrompt", () => {
+  it("loads and strips frontmatter from agents/unfolding-po.md", () => {
+    const prompt = loadAgentSystemPrompt(agentsDir, "po");
+    assert.ok(prompt !== null, "should load the po agent file");
+    assert.ok(!prompt.startsWith("---"), "frontmatter must be stripped");
+    assert.ok(prompt.includes("Product Owner") || prompt.includes("PO"), "body content must be present");
+  });
+
+  it("returns null for an unknown role", () => {
+    assert.equal(loadAgentSystemPrompt(agentsDir, "nonexistent-role"), null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// waitForChildDecision
+// ---------------------------------------------------------------------------
+
+describe("waitForChildDecision", () => {
+  it("resolves 'finished' when task status becomes finished", async () => {
+    const sequence = ["in_progress", "in_progress", "finished"];
+    let i = 0;
+    const readStatus = async () => sequence[Math.min(i++, sequence.length - 1)];
+    const result = await waitForChildDecision(readStatus, 0);
+    assert.equal(result, "finished");
+  });
+
+  it("resolves 'blocked' when task status becomes blocked", async () => {
+    const sequence = ["in_progress", "blocked"];
+    let i = 0;
+    const readStatus = async () => sequence[Math.min(i++, sequence.length - 1)];
+    const result = await waitForChildDecision(readStatus, 0);
+    assert.equal(result, "blocked");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// waitForResume
+// ---------------------------------------------------------------------------
+
+describe("waitForResume", () => {
+  it("resolves 'accepted' when task file is deleted (readStatus returns null)", async () => {
+    const sequence = ["finished", "finished", null];
+    let i = 0;
+    const readStatus = async () => sequence[Math.min(i++, sequence.length - 1)];
+    const result = await waitForResume(readStatus, 0);
+    assert.equal(result, "accepted");
+  });
+
+  it("resolves 'in_progress' when status returns to in_progress", async () => {
+    const sequence = ["finished", "in_progress"];
+    let i = 0;
+    const readStatus = async () => sequence[Math.min(i++, sequence.length - 1)];
+    const result = await waitForResume(readStatus, 0);
+    assert.equal(result, "in_progress");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Structural
+// ---------------------------------------------------------------------------
+
+describe("structural invariants", () => {
+  it("task_delegate tool calls ensureGitignore before creating the task", () => {
+    const src = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
+    const delegateIdx = src.indexOf('name: "task_delegate"');
+    assert.ok(delegateIdx >= 0, 'task_delegate tool must be registered');
+    const executeIdx = src.indexOf("async execute", delegateIdx);
+    const executeBlock = src.slice(executeIdx, executeIdx + 400);
+    assert.ok(executeBlock.includes("ensureGitignore"), "task_delegate execute must call ensureGitignore");
+  });
+
+  it("task_delegate appends a fixed instruction to the child's initial message", () => {
+    const src = readFileSync(new URL("../task-delegate.ts", import.meta.url).pathname, "utf8");
+    assert.ok(
+      src.includes("CHILD_FIXED_INSTRUCTION"),
+      "task-delegate.ts must export CHILD_FIXED_INSTRUCTION",
+    );
+    assert.ok(
+      src.includes("task_finished") && src.includes("task_block"),
+      "CHILD_FIXED_INSTRUCTION must mention task_finished and task_block",
+    );
+  });
+});

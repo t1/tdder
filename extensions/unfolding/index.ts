@@ -14,6 +14,7 @@ import { Type } from "typebox";
 import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
 import { ensureGitignore, createTask, readTask, listTasks, updateTaskStatus, deleteTask } from "./task-store.ts";
 import { taskList, taskRead, taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock } from "./task-tools.ts";
+import { loadAgentSystemPrompt, waitForChildDecision, waitForResume, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -149,7 +150,8 @@ export default function (pi: ExtensionAPI) {
       // TODO: sub-session spawning
       ensureGitignore(ctx.cwd);
       createTask(ctx.cwd, { slug: params.slug, from: "orchestrator", to: params.role, body: params.body });
-      return { content: [{ type: "text", text: `Task "${params.slug}" delegated to ${params.role} (sub-session not yet implemented).` }], details: {} };
+      const initialMessage = `${params.body}\n\n${CHILD_FIXED_INSTRUCTION}`;
+      return { content: [{ type: "text", text: `Task "${params.slug}" delegated to ${params.role} (sub-session not yet implemented). Initial message would be:\n${initialMessage}` }], details: {} };
     },
   });
 
