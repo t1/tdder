@@ -16,6 +16,8 @@ I'd be happy to hear about them!
 - **Extensible**: Add language skills (Java, TypeScript, ...) and build-system skills (Maven, npm, ...)
 - **Unfolding Architecture**: Progressive architectural decisions — start simple, add complexity only when it reduces
   complexity
+- **Unfolding Specs**: Orchestrated feature development — orchestrator breaks features into delegated tasks,
+  coordinates specialist roles (PO, architect, coder, …) through file-based checkpoints
 - **Configurable human-in-the-loop**: Control how often the AI pauses for your input
 
 ## Skills
@@ -92,6 +94,41 @@ In multi-module Maven repos, `/quarkus status` scans all discovered Quarkus serv
 notification. On failure, the error output is automatically forwarded to the LLM with
 *"what went wrong and how should I fix it?"*. `update`, `test-affected`, and `test-all` always route through the LLM
 because their output is analytical rather than a simple pass/fail signal.
+
+### unfolding (pi only)
+
+Implements the **Unfolding Specs** workflow: the orchestrator breaks a feature down into delegated
+tasks for specialist roles (PO, architect, coder, …), coordinates them through file-based
+checkpoints, and assembles the results.
+
+> **Note:** this extension cannot currently be released as a standalone pi package. It depends
+> on agent definition files (`agents/unfolding-*.md`) and the `unfolding-orchestrator` skill that
+> live at the root of the tdder repo. Publishing it separately would require bundling those files,
+> which is not yet set up. Install it as part of the full tdder package (`pi install git:github.com/t1/tdder`).
+
+**`/unfold` command:** injects the `unfolding-orchestrator` skill into the current session and
+starts the Unfolding Specs process. Run it in any project where you want to unfold a feature.
+
+**Task tools** — used by the orchestrator and delegate sub-sessions to coordinate work:
+
+| Tool             | Used by       | Purpose                                                             |
+|------------------|---------------|---------------------------------------------------------------------|
+| `task_delegate`  | orchestrator  | Delegate work to a role sub-session; blocks until finished/blocked  |
+| `task_list`      | orchestrator  | List all tasks with slug, status, and assigned role                 |
+| `task_read`      | orchestrator  | Read full details of a task                                         |
+| `task_accept`    | orchestrator  | Accept a finished task (deletes the file; unblocks the child)       |
+| `task_reopen`    | orchestrator  | Send a finished task back with a reason; child resumes              |
+| `task_unblock`   | orchestrator  | Unblock a blocked task, optionally with context; child resumes      |
+| `task_finished`  | delegate      | Mark own task finished; blocks until orchestrator accepts/reopens   |
+| `task_block`     | delegate      | Mark own task blocked with reason; blocks until orchestrator acts   |
+
+**Coordination protocol:** tasks are stored as YAML files in `.pi/unfolding/tasks/` (gitignored).
+Parent and child sessions are separate pi processes; they rendezvous by polling the task file
+at 500 ms intervals. No shared memory or locking is used.
+
+**Roles:** agent definitions live in `agents/unfolding-<role>.md`. Built-in roles:
+`po`, `architect`, `coder`, `api-designer`, `ux-designer`, `ui-expert`.
+The orchestrator role is defined by the `unfolding-orchestrator` skill.
 
 ### maven
 
