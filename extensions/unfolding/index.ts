@@ -10,7 +10,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
+import { ensureGitignore, createTask, readTask, listTasks, updateTaskStatus, deleteTask } from "./task-store.ts";
+import { taskList, taskRead, taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock } from "./task-tools.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -81,6 +84,111 @@ export default function (pi: ExtensionAPI) {
       pendingSkillInjection = skill;
 
       pi.sendUserMessage(message);
+    },
+  });
+
+  // -------------------------------------------------------------------------
+  // Task tools
+  // -------------------------------------------------------------------------
+
+  pi.registerTool({
+    name: "task_list",
+    label: "Task list",
+    description: "List all delegated tasks (orchestrator only).",
+    parameters: Type.Object({}),
+    async execute(_id, _params, _signal, _onUpdate, ctx) {
+      return { content: [{ type: "text", text: taskList(ctx.cwd) }], details: {} };
+    },
+  });
+
+  pi.registerTool({
+    name: "task_read",
+    label: "Task read",
+    description: "Read full details of a delegated task by slug (orchestrator only).",
+    parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      return { content: [{ type: "text", text: taskRead(ctx.cwd, params.slug) }], details: {} };
+    },
+  });
+
+  pi.registerTool({
+    name: "task_finished",
+    label: "Task finished",
+    description: "Mark the current delegated task as finished and wait for commissioner decision.",
+    parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      taskFinished(ctx.cwd, params.slug);
+      return { content: [{ type: "text", text: `Task "${params.slug}" marked as finished.` }], details: {} };
+    },
+  });
+
+  pi.registerTool({
+    name: "task_block",
+    label: "Task block",
+    description: "Mark the current delegated task as blocked and wait for commissioner decision.",
+    parameters: Type.Object({
+      slug: Type.String({ description: "Task slug" }),
+      blocked_reason: Type.String({ description: "Why the task is blocked" }),
+    }),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      taskBlock(ctx.cwd, params.slug, params.blocked_reason);
+      return { content: [{ type: "text", text: `Task "${params.slug}" blocked: ${params.blocked_reason}` }], details: {} };
+    },
+  });
+
+  pi.registerTool({
+    name: "task_delegate",
+    label: "Task delegate",
+    description: "Delegate work to a role sub-session and wait for it to finish or block.",
+    parameters: Type.Object({
+      role: Type.String({ description: "Role to delegate to (e.g. po, architect, coder)" }),
+      slug: Type.String({ description: "Unique slug for this task" }),
+      body: Type.String({ description: "Task description for the role" }),
+    }),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      // TODO: sub-session spawning
+      ensureGitignore(ctx.cwd);
+      createTask(ctx.cwd, { slug: params.slug, from: "orchestrator", to: params.role, body: params.body });
+      return { content: [{ type: "text", text: `Task "${params.slug}" delegated to ${params.role} (sub-session not yet implemented).` }], details: {} };
+    },
+  });
+
+  pi.registerTool({
+    name: "task_accept",
+    label: "Task accept",
+    description: "Accept a finished delegated task (commissioner).",
+    parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      taskAccept(ctx.cwd, params.slug);
+      return { content: [{ type: "text", text: `Task "${params.slug}" accepted.` }], details: {} };
+    },
+  });
+
+  pi.registerTool({
+    name: "task_reopen",
+    label: "Task reopen",
+    description: "Reopen a finished delegated task and resume the child session (commissioner).",
+    parameters: Type.Object({
+      slug: Type.String({ description: "Task slug" }),
+      reason: Type.String({ description: "Why the task is being reopened" }),
+    }),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      taskReopen(ctx.cwd, params.slug, params.reason);
+      return { content: [{ type: "text", text: `Task "${params.slug}" reopened: ${params.reason}` }], details: {} };
+    },
+  });
+
+  pi.registerTool({
+    name: "task_unblock",
+    label: "Task unblock",
+    description: "Unblock a blocked delegated task and resume the child session (commissioner).",
+    parameters: Type.Object({
+      slug: Type.String({ description: "Task slug" }),
+      reason: Type.Optional(Type.String({ description: "Optional context for the unblock" })),
+    }),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      taskUnblock(ctx.cwd, params.slug, params.reason);
+      return { content: [{ type: "text", text: `Task "${params.slug}" unblocked.` }], details: {} };
     },
   });
 }
