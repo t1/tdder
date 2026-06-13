@@ -1,0 +1,17 @@
+{
+  "name": "pi-unfolding",
+  "version": "0.1.0",
+  "description": "Unfolding Specs orchestration extension for pi",
+  "keywords": ["pi-package"],
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "sync": "echo 'no vendored files'"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": ["."]
+  }
+}
