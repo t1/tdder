@@ -9,17 +9,12 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
-import { parseFrontmatter, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Strip YAML frontmatter and return the markdown body. */
-function stripFrontmatter(content: string): string {
-  const { body } = parseFrontmatter(content);
-  return body.trim();
-}
 
 /** Resolve the path to the orchestrator skill relative to this extension. */
 function orchestratorSkillPath(): string {
@@ -73,33 +68,19 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      const guidance = args?.trim() || undefined;
-      const state = loadStateYaml(ctx.cwd);
-
-      // Build the user message that kicks off the orchestrator turn.
-      const parts: string[] = [];
-
-      if (state) {
-        parts.push(`Current state (docs/state.yaml):\n\`\`\`yaml\n${state}\n\`\`\``);
-      } else {
-        parts.push("No docs/state.yaml found — this appears to be a fresh project.");
-      }
-
-      if (guidance) {
-        parts.push(`Sensei guidance: ${guidance}`);
-      }
-
-      parts.push("Please pick up where the process left off.");
-
       if (!ctx.isIdle()) {
         ctx.ui.notify("/unfold: agent is busy, try again when idle", "warning");
         return;
       }
 
+      const guidance = args?.trim() || undefined;
+      const state = loadStateYaml(ctx.cwd);
+      const message = buildUnfoldMessage({ state, guidance });
+
       // Arm the system-prompt injection for the upcoming turn.
       pendingSkillInjection = skill;
 
-      pi.sendUserMessage(parts.join("\n\n"));
+      pi.sendUserMessage(message);
     },
   });
 }
