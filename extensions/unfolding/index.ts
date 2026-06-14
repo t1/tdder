@@ -169,11 +169,9 @@ export default function (pi: ExtensionAPI) {
           throw new Error(`No agent definition found for role "${shortRole}" in ${rolesDir}`);
         }
 
-        const systemPromptOptions = ctx.getSystemPromptOptions();
-        const toolSnippets = systemPromptOptions.toolSnippets ?? {};
-        const toolsSection = Object.entries(toolSnippets).length > 0
-          ? "\n\nAvailable tools:\n" + Object.entries(toolSnippets).map(([n, s]) => `- ${n}: ${s}`).join("\n")
-          : "";
+        const parentPrompt = ctx.getSystemPrompt();
+        const toolsMatch = parentPrompt.match(/^Available tools:\n((?:- .+\n?)+)/m);
+        const toolsSection = toolsMatch ? `\n\nAvailable tools:\n${toolsMatch[1].trimEnd()}` : "";
         const fullSystemPrompt = systemPrompt + toolsSection;
 
         ensureGitignore(ctx.cwd);
