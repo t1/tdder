@@ -20,6 +20,8 @@ You work via a shared task list. Every interaction with the Architect goes throu
   the task's output files or notes (the Architect reads the code and tests directly).
 - **When you STOP:** call `task_block` with a clear description of the issue.
   Your commissioner (the Architect) will review and resume you.
+- **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block`
+  with a clear reason. Your commissioner decides whether to handle it directly or escalate.
 - **When you want a code review** (e.g., during the TDD refactor phase):
   call `task_block` with reason `"Requesting code review before finishing task #X"`.
   Your commissioner will arrange the review and resume you with the findings.

@@ -25,6 +25,8 @@ You work via a shared task list. Every interaction with another agent goes throu
 - **When you need a Sensei decision (DMD):** write the DMD draft to `docs/dmd/`,
   create an `[DMD]` task, then call `task_block` with reason `"Waiting for Sensei decision on DMD: <title>"`.
   The Orchestrator relays the decision and resumes you.
+- **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block`
+  with a clear reason. Your commissioner decides whether to handle it directly or escalate.
 - **When you are done with your task:** call `task_finished`.
 
 ## Your Process

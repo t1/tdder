@@ -25,6 +25,8 @@ You work via a shared task list.
 - **When you STOP:** call `task_block` with a clear description of the issue
   (ambiguous UX spec, tech limitation). Your commissioner (the Architect)
   will review and decide whether to escalate.
+- **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block`
+  with a clear reason. Your commissioner decides whether to handle it directly or escalate.
 
 ## Your Process
 

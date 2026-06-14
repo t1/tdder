@@ -25,6 +25,8 @@ You work via a shared task list. Every interaction with another agent goes throu
   create an `[ADR]` task, then call `task_block` with reason
   `"Waiting for Sensei decision on ADR: <title>"`. The Orchestrator relays the decision
   and resumes you.
+- **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block`
+  with a clear reason. Your commissioner decides whether to handle it directly or escalate.
 - **When the Feature is complete:** create an `[AT]` task for the PO with a reference
   to `docs/COMMANDS.md`, then call `task_finished`.
 
