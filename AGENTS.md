@@ -67,6 +67,15 @@ The `clean-code-reviewer` agent exists in two copies with different formats:
 
 Keep them in sync when changing review criteria.
 
+The Unfolding Specs role agents also exist in two variants:
+
+- `agents/unfolding-<role>.md` — Claude Code / OpenCode format (uses `Agent()`, `SendMessage`, team API)
+- `extensions/unfolding/roles/<role>.md` — pi format (uses `task_finished`, `task_block`; no messaging)
+
+When changing role behaviour (process steps, constraints, domain rules), update **both** variants.
+When changing only the coordination mechanics (how agents signal completion or block), update only
+the relevant variant.
+
 ## Commits
 
 - Keep commit messages short (single line, no body text).

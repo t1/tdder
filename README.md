@@ -101,11 +101,6 @@ Implements the **Unfolding Specs** workflow: the orchestrator breaks a feature d
 tasks for specialist roles (PO, architect, coder, …), coordinates them through file-based
 checkpoints, and assembles the results.
 
-> **Note:** this extension cannot currently be released as a standalone pi package. It depends
-> on agent definition files (`agents/unfolding-*.md`) and the `unfolding-orchestrator` skill that
-> live at the root of the tdder repo. Publishing it separately would require bundling those files,
-> which is not yet set up. Install it as part of the full tdder package (`pi install git:github.com/t1/tdder`).
-
 **`/unfold` command:** injects the `unfolding-orchestrator` skill into the current session and
 starts the Unfolding Specs process. Run it in any project where you want to unfold a feature.
 
@@ -126,9 +121,11 @@ starts the Unfolding Specs process. Run it in any project where you want to unfo
 Parent and child sessions are separate pi processes; they rendezvous by polling the task file
 at 500 ms intervals. No shared memory or locking is used.
 
-**Roles:** agent definitions live in `agents/unfolding-<role>.md`. Built-in roles:
-`po`, `architect`, `coder`, `api-designer`, `ux-designer`, `ui-expert`.
+**Roles:** pi-native agent definitions live in `extensions/unfolding/roles/<role>.md`.
 The orchestrator role is defined by the `unfolding-orchestrator` skill.
+When `task_delegate` receives a role name it strips any `unfolding-` prefix, so both
+`"po"` and `"unfolding-po"` resolve correctly.
+Built-in roles: `po`, `architect`, `coder`, `api-designer`, `ux-designer`, `ui-expert`.
 
 ### maven
 

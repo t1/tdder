@@ -91,7 +91,7 @@ describe("task_delegate wiring", () => {
   });
 
   it("waits for child decision via waitForChildDecision", () => {
-    const block = blockAfter(loadSrc(), 'name: "task_delegate"', 2000);
+    const block = blockAfter(loadSrc(), 'name: "task_delegate"', 2200);
     assert.ok(block.includes("waitForChildDecision"), "must call waitForChildDecision");
   });
 

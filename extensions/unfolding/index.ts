@@ -161,10 +161,11 @@ export default function (pi: ExtensionAPI) {
       parent_slug: Type.Optional(Type.String({ description: "Slug of the parent task, if this is a sub-delegation" })),
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
-      const agentsDir = resolve(new URL(import.meta.url).pathname, "../../..", "agents");
-      const systemPrompt = loadAgentSystemPrompt(agentsDir, params.role);
+      const rolesDir = resolve(new URL(import.meta.url).pathname, "../..", "roles");
+      const shortRole = params.role.replace(/^unfolding-/, "");
+      const systemPrompt = loadAgentSystemPrompt(rolesDir, shortRole);
       if (!systemPrompt) {
-        throw new Error(`No agent definition found for role "${params.role}" in ${agentsDir}`);
+        throw new Error(`No agent definition found for role "${shortRole}" in ${rolesDir}`);
       }
 
       ensureGitignore(ctx.cwd);

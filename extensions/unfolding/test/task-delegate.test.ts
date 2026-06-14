@@ -15,22 +15,22 @@ import {
   waitForResume,
 } from "../task-delegate.ts";
 
-const agentsDir = resolve(new URL("../../../agents", import.meta.url).pathname);
+const rolesDir = resolve(new URL("../roles", import.meta.url).pathname);
 
 // ---------------------------------------------------------------------------
 // loadAgentSystemPrompt
 // ---------------------------------------------------------------------------
 
 describe("loadAgentSystemPrompt", () => {
-  it("loads and strips frontmatter from agents/unfolding-po.md", () => {
-    const prompt = loadAgentSystemPrompt(agentsDir, "po");
+  it("loads and strips frontmatter from roles/po.md", () => {
+    const prompt = loadAgentSystemPrompt(rolesDir, "po");
     assert.ok(prompt !== null, "should load the po agent file");
     assert.ok(!prompt.startsWith("---"), "frontmatter must be stripped");
     assert.ok(prompt.includes("Product Owner") || prompt.includes("PO"), "body content must be present");
   });
 
   it("returns null for an unknown role", () => {
-    assert.equal(loadAgentSystemPrompt(agentsDir, "nonexistent-role"), null);
+    assert.equal(loadAgentSystemPrompt(rolesDir, "nonexistent-role"), null);
   });
 });
 
@@ -93,7 +93,7 @@ describe("structural invariants", () => {
     const delegateIdx = src.indexOf('name: "task_delegate"');
     assert.ok(delegateIdx >= 0, 'task_delegate tool must be registered');
     const executeIdx = src.indexOf("async execute", delegateIdx);
-    const executeBlock = src.slice(executeIdx, executeIdx + 400);
+    const executeBlock = src.slice(executeIdx, executeIdx + 600);
     assert.ok(executeBlock.includes("ensureGitignore"), "task_delegate execute must call ensureGitignore");
   });
 

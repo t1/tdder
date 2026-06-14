@@ -10,8 +10,8 @@ export const CHILD_FIXED_INSTRUCTION =
 // loadAgentSystemPrompt
 // ---------------------------------------------------------------------------
 
-export function loadAgentSystemPrompt(agentsDir: string, role: string): string | null {
-  const path = join(agentsDir, `unfolding-${role}.md`);
+export function loadAgentSystemPrompt(rolesDir: string, role: string): string | null {
+  const path = join(rolesDir, `${role}.md`);
   if (!existsSync(path)) return null;
   return stripFrontmatter(readFileSync(path, "utf8"));
 }
