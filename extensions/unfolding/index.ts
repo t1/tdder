@@ -10,7 +10,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { createAgentSession, DefaultResourceLoader, SessionManager } from "@earendil-works/pi-coding-agent";
+import { createAgentSession, DefaultResourceLoader, SessionManager, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
 import { ensureGitignore, createTask, readTask, listTasks, updateTaskStatus, deleteTask } from "./task-store.ts";
@@ -174,6 +174,7 @@ export default function (pi: ExtensionAPI) {
 
         const loader = new DefaultResourceLoader({
           cwd: ctx.cwd,
+          agentDir: getAgentDir(),
           systemPromptOverride: () => systemPrompt,
         });
         await loader.reload();
