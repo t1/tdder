@@ -106,7 +106,11 @@ For every UX change summary, create a `[UX-MAP]` task including:
 - Existing mapping files for context
 
 Then call `task_delegate` with role `ui-expert` and the task slug.
-When resumed, read the completed mapping files. Review them for **completeness**
+- **If it returns `finished`:** read the completed mapping files and continue.
+- **If it returns `blocked`:** read the block reason.
+  If you understand the concern and know what to do, call `task_unblock` with your answer.
+  If not, create an ADR and call `task_block` to ask your commissioner.
+When the UI Expert finishes, read the completed mapping files. Review them for **completeness**
 (all components covered, mirroring rule holds), **ADR conformance** (uses the
 decided tech stack), and **implementability** (concrete enough for a `[CODE]`
 task). Do not second-guess the UI choices themselves — that is the UI Expert's
@@ -185,6 +189,10 @@ If you share the tests, the lower level may optimize for passing them rather
 than truly understanding and solving the problem.
 
 Call `task_delegate` with role `coder` and the task slug.
+- **If it returns `finished`:** verify with STs and continue.
+- **If it returns `blocked`:** read the block reason.
+  If you understand the issue and know what to do, call `task_unblock` with your answer.
+  If not, create an ADR and call `task_block` to ask your commissioner.
 
 ## When to STOP
 

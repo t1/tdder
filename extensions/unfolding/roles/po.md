@@ -166,7 +166,11 @@ integration APIs):
 1. Create a `[UX]` task with the Feature description, relevant DMDs, and
    references to the AT feature file(s) for this Feature
 2. Call `task_delegate` with role `ux-designer` and the task slug
-3. When resumed, read the UX spec and change summary from the referenced files
+   - **If it returns `finished`:** read the UX spec and continue.
+   - **If it returns `blocked`:** read the block reason.
+     If you understand the concern and know what to do, call `task_unblock` with your answer.
+     If not, create a DMD and call `task_block` to ask your commissioner.
+3. When the UX Designer finishes, read the UX spec and change summary from the referenced files
 4. Review the UX spec for misunderstandings, but do not repeat the work
 
 The UX Designer is your design partner, not a passive spec converter.
@@ -197,7 +201,11 @@ are the Architect's concern, not the API Designer's.
    (REST, GraphQL, etc.), and references to the AT feature file(s) for
    this Feature
 2. Call `task_delegate` with role `api-designer` and the task slug
-3. When resumed, read the API spec and change summary from the referenced files
+   - **If it returns `finished`:** read the API spec and continue.
+   - **If it returns `blocked`:** read the block reason.
+     If you understand the concern and know what to do, call `task_unblock` with your answer.
+     If not, create a DMD and call `task_block` to ask your commissioner.
+3. When the API Designer finishes, read the API spec and change summary from the referenced files
 4. Review the API spec for misunderstandings, but do not repeat the work
 
 The API Designer's result may include questions that reveal new business
@@ -334,7 +342,10 @@ your verification tool — if you share the scenarios, the Architect may
 optimize for passing them rather than truly understanding the problem.
 
 Call `task_delegate` with role `architect` and the task slug.
-When resumed, the Architect has created an `[AT]` task — proceed to step 9.
+- **If it returns `finished`:** the Architect has created an `[AT]` task — proceed to step 9.
+- **If it returns `blocked` with an ADR reason:** do NOT attempt to resolve it —
+  pass the block reason up unchanged by calling `task_block` yourself.
+  You must not answer technical decisions.
 
 ### 9. Commission UX Review (UI Features)
 
@@ -344,7 +355,11 @@ whether the Feature had a UX design (a `[UX]` task was created in step 6). If so
 1. Create a `[UX-REVIEW]` task with references to the UX component specs
    and the pages/flows to review
 2. Call `task_delegate` with role `ux-designer` and the task slug
-3. When resumed, read the UX Designer's findings from the referenced files or task result
+   - **If it returns `finished`:** read findings and continue.
+   - **If it returns `blocked`:** read the block reason.
+     If you understand it and know what to do, call `task_unblock` with your answer.
+     If not, create a DMD and call `task_block` to ask your commissioner.
+3. When the UX Designer finishes, read the UX Designer's findings from the referenced files or task result
 4. If issues are found: discuss with the UX Designer by creating a clarification
    task. For confirmed issues, create an `[ARCH]` task with the fix requests (in
    business/UX terms, not technical terms). Call `task_block` to wait for the
