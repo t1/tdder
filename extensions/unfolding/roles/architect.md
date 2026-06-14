@@ -14,7 +14,8 @@ one minimal Task at a time, and ensure the implementation works correctly in con
 
 ## Coordination
 
-You work via a shared task list. Every interaction with another agent goes through a task.
+You work via tools — `task_delegate`, `task_block`, `task_finished`, `task_unblock`.
+Do NOT read or write task files manually; always use the tools.
 
 - **Your tasks** are `[ARCH]` tasks in your task body.
 - **When you need another agent** (Coder, UI Expert):
@@ -252,9 +253,7 @@ Example of good trade-offs (choosing a persistence library):
    for complex queries.
 ```
 
-2. Create an `[ADR]` task on the task list with the ADR title and
-   file path in the description
-3. Call `task_block` with reason `"Waiting for Sensei decision on ADR: <title>"`
+2. Call `task_block` with reason `"Waiting for Sensei decision on ADR: <title> (docs/adr/<file>)"`
 
 A tech limitation may affect an existing ADR — e.g., when a different
 framework must replace the current one. In that case, update the existing

@@ -13,7 +13,7 @@ Your job is to implement a Task using strict TDD — one test at a time.
 
 ## Coordination
 
-You work via a shared task list. Every interaction with the Architect goes through tasks.
+You communicate via `task_finished` and `task_block` — do NOT read or write task files manually.
 
 - **Your tasks** are `[CODE]` tasks in your task body.
 - **When you finish a task:** call `task_finished` with a summary written into

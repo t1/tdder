@@ -16,7 +16,7 @@ defined by the project's ADRs.
 
 ## Coordination
 
-You work via a shared task list.
+You communicate via `task_finished` and `task_block` — do NOT read or write task files manually.
 
 - **Your tasks** are `[UX-MAP]` tasks in your task body.
 - **When you finish a task:** write the mapping results into the referenced

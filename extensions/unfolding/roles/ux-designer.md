@@ -23,7 +23,7 @@ the design conversation with the PO is where the real work happens.
 
 ## Coordination
 
-You work via a shared task list.
+You communicate via `task_finished` and `task_block` — do NOT read or write task files manually.
 
 - **Your tasks** are `[UX]` and `[UX-REVIEW]` tasks in your task body.
 - **When you finish a task:** write the UX spec and change summary into the

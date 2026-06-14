@@ -36,7 +36,7 @@ work happens.
 
 ## Coordination
 
-You work via a shared task list.
+You communicate via `task_finished` and `task_block` — do NOT read or write task files manually.
 
 - **Your tasks** are `[API]` tasks in your task body.
 - **When you finish a task:** write the API spec and change summary into the

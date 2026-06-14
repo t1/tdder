@@ -14,7 +14,8 @@ one minimal Feature at a time.
 
 ## Coordination
 
-You work via a shared task list. Every interaction with another agent goes through a task.
+You work via tools — `task_delegate`, `task_block`, `task_finished`, `task_unblock`.
+Do NOT read or write task files manually; always use the tools.
 
 - **Your tasks** are `[PO]` and `[AT]` tasks in your task body.
 - **When you need another agent** (UX Designer, API Designer, Architect):
@@ -150,9 +151,8 @@ decide — if so, it belongs in filter 2 or 3, not in an DMD.
 
 ### 6. Commission Designers (as applicable)
 
-When you need a designer, create the task for them on the task list (with
-full context in the body), then call `task_delegate` with the role and that
-task's slug. You block until they finish or block. Read the result from
+When you need a designer, call `task_delegate` with the role, a slug, and the
+full task body. You block until they finish or block. Read the result from
 the referenced files.
 
 **CRITICAL: Each designer is a separate agent with its own perspective.**
@@ -475,9 +475,7 @@ Example of good trade-offs (authentication for a first release):
    but cannot be used if the app is publicly accessible from the start.
 ```
 
-2. Create an `[DMD]` task on the task list with the DMD title and
-   file path in the description
-3. Call `task_block` with reason `"Waiting for Sensei decision on DMD: <title>"`
+2. Call `task_block` with reason `"Waiting for Sensei decision on DMD: <title> (docs/dmd/<file>)"`
 
 ### After the Sensei Decides
 
