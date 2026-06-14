@@ -153,7 +153,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "task_delegate",
     label: "Task delegate",
-    description: "Delegate work to a role sub-session and wait for it to finish or block.",
+    description: "Delegate work to a role sub-session and wait for it to finish or block. If this tool throws an error, treat it as a critical bug — stop all work immediately and report the full error message to the user.",
     parameters: Type.Object({
       role: Type.String({ description: "Role to delegate to (e.g. po, architect, coder)" }),
       slug: Type.String({ description: "Unique slug for this task" }),
@@ -161,51 +161,57 @@ export default function (pi: ExtensionAPI) {
       parent_slug: Type.Optional(Type.String({ description: "Slug of the parent task, if this is a sub-delegation" })),
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
-      const rolesDir = resolve(new URL(import.meta.url).pathname, "..", "roles");
-      const shortRole = params.role.replace(/^unfolding-/, "");
-      const systemPrompt = loadAgentSystemPrompt(rolesDir, shortRole);
-      if (!systemPrompt) {
-        throw new Error(`No agent definition found for role "${shortRole}" in ${rolesDir}`);
+      try {
+        const rolesDir = resolve(new URL(import.meta.url).pathname, "..", "roles");
+        const shortRole = params.role.replace(/^unfolding-/, "");
+        const systemPrompt = loadAgentSystemPrompt(rolesDir, shortRole);
+        if (!systemPrompt) {
+          throw new Error(`No agent definition found for role "${shortRole}" in ${rolesDir}`);
+        }
+
+        ensureGitignore(ctx.cwd);
+        const initialMessage = `${params.body}\n\n${CHILD_FIXED_INSTRUCTION}`;
+
+        const loader = new DefaultResourceLoader({
+          cwd: ctx.cwd,
+          systemPromptOverride: () => systemPrompt,
+        });
+        await loader.reload();
+
+        const { session } = await createAgentSession({
+          cwd: ctx.cwd,
+          sessionManager: SessionManager.create(ctx.cwd),
+          resourceLoader: loader,
+        });
+
+        const task = createTask(ctx.cwd, {
+          slug: params.slug,
+          from: "orchestrator",
+          to: params.role,
+          body: params.body,
+          parent_slug: params.parent_slug,
+          session_id: session.sessionId,
+        });
+
+        // Start the child session — it will park when it calls task_finished or task_block
+        session.prompt(initialMessage).catch((err: unknown) => {
+          const stack = err instanceof Error ? err.stack : String(err);
+          console.error(`[unfolding] child session for task "${params.slug}" failed:`, stack);
+        });
+
+        // Wait for the child to reach a commissioner decision point
+        const outcome = await waitForChildDecision(
+          async () => readTask(ctx.cwd, task.slug)?.status ?? null,
+        );
+
+        return {
+          content: [{ type: "text", text: `Task "${params.slug}" delegated to ${params.role}. Outcome: ${outcome}` }],
+          details: {},
+        };
+      } catch (err: unknown) {
+        const stack = err instanceof Error ? err.stack ?? err.message : String(err);
+        throw new Error(`task_delegate failed:\n${stack}`);
       }
-
-      ensureGitignore(ctx.cwd);
-      const initialMessage = `${params.body}\n\n${CHILD_FIXED_INSTRUCTION}`;
-
-      const loader = new DefaultResourceLoader({
-        cwd: ctx.cwd,
-        systemPromptOverride: () => systemPrompt,
-      });
-      await loader.reload();
-
-      const { session } = await createAgentSession({
-        cwd: ctx.cwd,
-        sessionManager: SessionManager.create(ctx.cwd),
-        resourceLoader: loader,
-      });
-
-      const task = createTask(ctx.cwd, {
-        slug: params.slug,
-        from: "orchestrator",
-        to: params.role,
-        body: params.body,
-        parent_slug: params.parent_slug,
-        session_id: session.sessionId,
-      });
-
-      // Start the child session — it will park when it calls task_finished or task_block
-      session.prompt(initialMessage).catch((err: unknown) => {
-        console.error(`[unfolding] child session for task "${params.slug}" failed:`, err);
-      });
-
-      // Wait for the child to reach a commissioner decision point
-      const outcome = await waitForChildDecision(
-        async () => readTask(ctx.cwd, task.slug)?.status ?? null,
-      );
-
-      return {
-        content: [{ type: "text", text: `Task "${params.slug}" delegated to ${params.role}. Outcome: ${outcome}` }],
-        details: {},
-      };
     },
   });
 
