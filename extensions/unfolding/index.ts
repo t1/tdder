@@ -199,7 +199,7 @@ export default function (pi: ExtensionAPI) {
           sessionManager: SessionManager.create(ctx.cwd),
           resourceLoader: loader,
         });
- — it will park when it calls task_finished or task_block
+        // Start the child session — it will park when it calls task_finished or task_block
         session.prompt(initialMessage).catch((err: unknown) => {
           const stack = err instanceof Error ? err.stack : String(err);
           console.error(`[unfolding] child session for task "${params.slug}" failed:`, stack);
