@@ -21,10 +21,19 @@ export function loadAgentSystemPrompt(rolesDir: string, role: string): string | 
 // streamChildSession
 // ---------------------------------------------------------------------------
 
-/**
- * Subscribe to a child session and stream a running log via onUpdate.
- * Returns an unsubscribe function.
- */
+function toolSummary(toolName: string, args: Record<string, unknown>): string {
+  switch (toolName) {
+    case "write":    return `${toolName} ${args.path ?? ""}`;
+    case "edit":     return `${toolName} ${args.path ?? ""}`;
+    case "read":     return `${toolName} ${args.path ?? ""}`;
+    case "bash":     return `${toolName} ${String(args.command ?? "").slice(0, 60)}`;
+    case "task_delegate": return `${toolName} ${args.role ?? ""} / ${args.slug ?? ""}`;
+    case "task_block":    return `${toolName} ${args.slug ?? ""}`;
+    case "task_finished": return `${toolName} ${args.slug ?? ""}`;
+    default:         return toolName;
+  }
+}
+
 export function streamChildSession(
   session: AgentSession,
   role: string,
@@ -38,7 +47,7 @@ export function streamChildSession(
 
   const handleEvent = (event: AgentSessionEvent) => {
     if (event.type === "tool_execution_start") {
-      lines.push(`  ⚙ ${event.toolName}`);
+      lines.push(`  ⚙ ${toolSummary(event.toolName, event.args ?? {})}`);
       flush();
     } else if (
       event.type === "message_update" &&
