@@ -172,16 +172,6 @@ export default function (pi: ExtensionAPI) {
         ensureGitignore(ctx.cwd);
 
         const existing = readTask(ctx.cwd, params.slug);
-        const task = existing
-          ? (updateTaskStatus(ctx.cwd, params.slug, "in_progress"), existing)
-          : createTask(ctx.cwd, {
-              slug: params.slug,
-              from: "orchestrator",
-              to: params.role,
-              body: params.body,
-              parent_slug: params.parent_slug,
-              session_id: session.sessionId,
-            });
 
         const initialMessage = existing?.resume_message
           ? `${existing.resume_message}\n\n${CHILD_FIXED_INSTRUCTION}`
@@ -199,6 +189,19 @@ export default function (pi: ExtensionAPI) {
           sessionManager: SessionManager.create(ctx.cwd),
           resourceLoader: loader,
         });
+
+        if (existing) {
+          updateTaskStatus(ctx.cwd, params.slug, "in_progress");
+        } else {
+          createTask(ctx.cwd, {
+            slug: params.slug,
+            from: "orchestrator",
+            to: params.role,
+            body: params.body,
+            parent_slug: params.parent_slug,
+            session_id: session.sessionId,
+          });
+        }
         // Start the child session — it will park when it calls task_finished or task_block
         session.prompt(initialMessage).catch((err: unknown) => {
           const stack = err instanceof Error ? err.stack : String(err);
@@ -212,7 +215,7 @@ export default function (pi: ExtensionAPI) {
 
         // Wait for the child to reach a commissioner decision point
         const outcome = await waitForChildDecision(
-          async () => readTask(ctx.cwd, task.slug)?.status ?? null,
+          async () => readTask(ctx.cwd, params.slug)?.status ?? null,
         );
         unsubscribe?.();
 
