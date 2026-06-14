@@ -59,7 +59,7 @@ describe("streamChildSession", () => {
     streamChildSession(fakeSession, "architect", "slug", (u: any) => updates.push(u.content[0].text));
     captured!({ type: "tool_execution_start", toolCallId: "x", toolName: "read", args: {} });
     const last = updates[updates.length - 1];
-    assert.ok(last.includes("⚙ read"), `expected tool line, got: ${last}`);
+    assert.ok(last.includes("[architect] ⚙ read"), `expected tool line, got: ${last}`);
   });
 
   it("accumulates text_delta onto a single line", () => {
@@ -70,7 +70,7 @@ describe("streamChildSession", () => {
     captured!({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "Hello" } });
     captured!({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: " world" } });
     const last = updates[updates.length - 1];
-    assert.ok(last.includes("💬 Hello world"), `expected accumulated text, got: ${last}`);
+    assert.ok(last.includes("[coder] 💬 Hello world"), `expected accumulated text, got: ${last}`);
   });
 
   it("returns unsubscribe function that removes the listener", () => {

@@ -52,17 +52,17 @@ export function streamChildSession(
 
   const handleEvent = (event: AgentSessionEvent) => {
     if (event.type === "tool_execution_start") {
-      lines.push(`  ⚙ ${toolSummary(event.toolName, event.args ?? {})}`);
+      lines.push(`  [${role}] ⚙ ${toolSummary(event.toolName, event.args ?? {})}`);
       flush();
     } else if (
       event.type === "message_update" &&
       event.assistantMessageEvent.type === "text_delta"
     ) {
       const last = lines[lines.length - 1];
-      if (last?.startsWith("  💬 ")) {
+      if (last?.startsWith(`  [${role}] 💬 `)) {
         lines[lines.length - 1] = last + event.assistantMessageEvent.delta;
       } else {
-        lines.push("  💬 " + event.assistantMessageEvent.delta);
+        lines.push(`  [${role}] 💬 ` + event.assistantMessageEvent.delta);
       }
       flush();
     } else if (event.type === "turn_end") {
