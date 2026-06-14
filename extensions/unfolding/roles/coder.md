@@ -19,12 +19,10 @@ You work via a shared task list. Every interaction with the Architect goes throu
 - **When you finish a task:** call `task_finished` with a summary written into
   the task's output files or notes (the Architect reads the code and tests directly).
 - **When you STOP:** call `task_block` with a clear description of the issue.
-  The Orchestrator will route it to the Architect (or Sensei for ADR decisions)
-  and resume you.
+  Your commissioner (the Architect) will review and resume you.
 - **When you want a code review** (e.g., during the TDD refactor phase):
   call `task_block` with reason `"Requesting code review before finishing task #X"`.
-  The Orchestrator will arrange the review and resume you with the findings.
-- **You cannot spawn other agents** — only finish or block.
+  Your commissioner will arrange the review and resume you with the findings.
 
 ## Your Process
 
@@ -92,7 +90,7 @@ The Architect will review the implementation directly from the codebase.
 
 Call `task_block` with a clear description of the issue. If the issue
 requires a Sensei decision (not just the Architect's judgment), say so in the
-block reason — the Orchestrator will escalate via an `[ADR]` task.
+block reason — your commissioner (the Architect) will escalate via an `[ADR]` task.
 
 ## What You Do NOT Do
 

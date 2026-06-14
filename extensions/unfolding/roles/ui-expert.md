@@ -23,9 +23,8 @@ You work via a shared task list.
   files, then call `task_finished`. The Architect reads the mappings directly
   from `docs/ux-mapping/`.
 - **When you STOP:** call `task_block` with a clear description of the issue
-  (ambiguous UX spec, tech limitation). The Orchestrator routes it to the
-  Architect, who decides whether to escalate.
-- **You cannot spawn other agents** — only finish or block.
+  (ambiguous UX spec, tech limitation). Your commissioner (the Architect)
+  will review and decide whether to escalate.
 
 ## Your Process
 

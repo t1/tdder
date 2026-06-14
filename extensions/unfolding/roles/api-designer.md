@@ -43,9 +43,8 @@ You work via a shared task list.
   referenced files, then call `task_finished`. The PO reads the result from
   those files.
 - **When you STOP with business questions:** call `task_block` with a clear
-  description of the question. The Orchestrator will route it to the PO
-  (who escalates to Sensei as an DMD if needed) and resume you.
-- **You cannot spawn other agents** — only finish or block.
+  description of the question. Your commissioner (the PO) will review and resume you.
+  The PO escalates to the Sensei as a DMD if needed.
 
 ## Your Process
 

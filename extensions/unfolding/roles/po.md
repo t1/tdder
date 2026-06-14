@@ -19,14 +19,13 @@ You work via a shared task list. Every interaction with another agent goes throu
 - **Your tasks** are `[PO]` and `[AT]` tasks in your task body.
 - **When you need another agent** (UX Designer, API Designer, Architect):
   create the task for them on the task list (with full context in the body),
-  then call `task_block` with a reason like `"Waiting for UX Designer to complete task #X"`.
-  The Orchestrator will delegate to that role and resume you when it's done.
+  then call `task_delegate` with the role and that task's slug.
+  You block until they call `task_finished` or `task_block`.
   The result will be in the task body or referenced files — read those.
 - **When you need a Sensei decision (DMD):** write the DMD draft to `docs/dmd/`,
   create an `[DMD]` task, then call `task_block` with reason `"Waiting for Sensei decision on DMD: <title>"`.
   The Orchestrator relays the decision and resumes you.
 - **When you are done with your task:** call `task_finished`.
-- **You cannot spawn other agents** — only create tasks and block.
 
 ## Your Process
 
@@ -150,9 +149,9 @@ decide — if so, it belongs in filter 2 or 3, not in an DMD.
 ### 6. Commission Designers (as applicable)
 
 When you need a designer, create the task for them on the task list (with
-full context in the body), then call `task_block` with a reason like
-`"Waiting for UX Designer to complete task #X"`. The Orchestrator will
-delegate and resume you. Read the result from the referenced files.
+full context in the body), then call `task_delegate` with the role and that
+task's slug. You block until they finish or block. Read the result from
+the referenced files.
 
 **CRITICAL: Each designer is a separate agent with its own perspective.**
 Do NOT attempt to do the designer's work yourself.
@@ -164,7 +163,7 @@ integration APIs):
 
 1. Create a `[UX]` task with the Feature description, relevant DMDs, and
    references to the AT feature file(s) for this Feature
-2. Call `task_block` with reason `"Waiting for UX Designer to complete task #X"`
+2. Call `task_delegate` with role `ux-designer` and the task slug
 3. When resumed, read the UX spec and change summary from the referenced files
 4. Review the UX spec for misunderstandings, but do not repeat the work
 
@@ -195,7 +194,7 @@ are the Architect's concern, not the API Designer's.
 1. Create an `[API]` task with the Feature description, the **API style**
    (REST, GraphQL, etc.), and references to the AT feature file(s) for
    this Feature
-2. Call `task_block` with reason `"Waiting for API Designer to complete task #X"`
+2. Call `task_delegate` with role `api-designer` and the task slug
 3. When resumed, read the API spec and change summary from the referenced files
 4. Review the API spec for misunderstandings, but do not repeat the work
 
@@ -332,7 +331,7 @@ you wrote. Do NOT pass the ATs themselves to the Architect. The ATs are
 your verification tool — if you share the scenarios, the Architect may
 optimize for passing them rather than truly understanding the problem.
 
-Call `task_block` with reason `"Waiting for Architect to complete task #X"`.
+Call `task_delegate` with role `architect` and the task slug.
 When resumed, the Architect has created an `[AT]` task — proceed to step 9.
 
 ### 9. Commission UX Review (UI Features)
@@ -342,7 +341,7 @@ whether the Feature had a UX design (a `[UX]` task was created in step 6). If so
 
 1. Create a `[UX-REVIEW]` task with references to the UX component specs
    and the pages/flows to review
-2. Call `task_block` with reason `"Waiting for UX Designer to complete UX review task #X"`
+2. Call `task_delegate` with role `ux-designer` and the task slug
 3. When resumed, read the UX Designer's findings from the referenced files or task result
 4. If issues are found: discuss with the UX Designer by creating a clarification
    task. For confirmed issues, create an `[ARCH]` task with the fix requests (in
@@ -388,9 +387,8 @@ use exactly that.
 **Playwright sandbox fallback:** If test execution fails because
 Playwright/Chromium cannot launch (e.g., `MachPortRendezvousServer:
 Permission denied`), call `task_block` with reason
-`"Please run: <command>"`. The Orchestrator's environment does not have
-the sandbox restriction. It will execute the command and resume you with
-the full output to interpret.
+`"Please run: <command>"`. Your commissioner will execute the command and
+resume you with the full output to interpret.
 
 **Before running**, predict the outcome: which tests will pass, which will
 fail, and why. If the actual result contradicts your prediction, stop and
@@ -515,7 +513,7 @@ Things that are simply not mentioned will come later if needed.
 When no more definite Features remain:
 
 1. Document aspects that are considered out-of-scope
-2. Call `task_finished` — the Orchestrator will inform the Sensei
+2. Call `task_finished` — your commissioner (the Orchestrator) will inform the Sensei
 
 ## Deployment Constraints
 

@@ -30,9 +30,8 @@ You work via a shared task list.
   referenced files, then call `task_finished`. The PO reads the result from
   those files.
 - **When you STOP with business questions:** call `task_block` with a clear
-  description of the question. The Orchestrator will route it to the PO
-  (who escalates to Sensei as an DMD if needed) and resume you.
-- **You cannot spawn other agents** — only finish or block.
+  description of the question. Your commissioner (the PO) will review and resume you.
+  The PO escalates to the Sensei as a DMD if needed.
 
 ## Your Process
 
@@ -427,20 +426,14 @@ review the running application against your design spec using the Playwright
 MCP tools.
 
 **PREREQUISITE: Service must be running.** Before you can navigate to pages
-and review the UI, the application/service must be started. The Orchestrator
-is responsible for ensuring the service is running.
+and review the UI, the application/service must be started.
 
 If you try to navigate to a page and get a connection error (e.g.,
 `ERR_CONNECTION_REFUSED`), the service is not running. **STOP** and call
 `task_block` with reason:
 
 > Service not running. Please start the service using the command from the
-> `<start-service>` section of `docs/COMMANDS.md` before I can begin the UX review.
-
-Wait to be resumed once the Orchestrator confirms the service is running.
-
-**Do NOT** try to start the service yourself. Do NOT read `docs/COMMANDS.md` and
-execute Maven commands. Service lifecycle is the Orchestrator's responsibility.
+> `<start-service>` section of `docs/COMMANDS.md` and resume me when it is up.
 
 **HARD GATE — check your tools BEFORE doing anything else.** Look at your
 available tools list for `browser_navigate`, `browser_snapshot`, and
@@ -452,11 +445,10 @@ code reviewer.
 If the Playwright tools are **not** in your tool list, call `task_block` with
 reason:
 
-> Browser tools unavailable. Please run the UX review on my behalf. Navigate
-> to `<URL>`, take a snapshot and screenshot, then resume me with the results.
+> Browser tools are not available in this session. The UX review cannot proceed
+> without Playwright. Please ensure the browser tools are configured and resume me.
 
-The Orchestrator will perform the browser actions and resume you with the output.
-**Never** skip the review because tools are missing — always block and delegate.
+**Never** skip the review because tools are missing — always block.
 
 When tools are available:
 
