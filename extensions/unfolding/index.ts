@@ -161,7 +161,7 @@ export default function (pi: ExtensionAPI) {
       parent_slug: Type.Optional(Type.String({ description: "Slug of the parent task, if this is a sub-delegation" })),
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
-      const rolesDir = resolve(new URL(import.meta.url).pathname, "../..", "roles");
+      const rolesDir = resolve(new URL(import.meta.url).pathname, "..", "roles");
       const shortRole = params.role.replace(/^unfolding-/, "");
       const systemPrompt = loadAgentSystemPrompt(rolesDir, shortRole);
       if (!systemPrompt) {
