@@ -170,7 +170,22 @@ export default function (pi: ExtensionAPI) {
         }
 
         ensureGitignore(ctx.cwd);
-        const initialMessage = `${params.body}\n\n${CHILD_FIXED_INSTRUCTION}`;
+
+        const existing = readTask(ctx.cwd, params.slug);
+        const task = existing
+          ? (updateTaskStatus(ctx.cwd, params.slug, "in_progress"), existing)
+          : createTask(ctx.cwd, {
+              slug: params.slug,
+              from: "orchestrator",
+              to: params.role,
+              body: params.body,
+              parent_slug: params.parent_slug,
+              session_id: session.sessionId,
+            });
+
+        const initialMessage = existing?.resume_message
+          ? `${existing.resume_message}\n\n${CHILD_FIXED_INSTRUCTION}`
+          : `${params.body}\n\n${CHILD_FIXED_INSTRUCTION}`;
 
         const loader = new DefaultResourceLoader({
           cwd: ctx.cwd,
@@ -184,17 +199,7 @@ export default function (pi: ExtensionAPI) {
           sessionManager: SessionManager.create(ctx.cwd),
           resourceLoader: loader,
         });
-
-        const task = createTask(ctx.cwd, {
-          slug: params.slug,
-          from: "orchestrator",
-          to: params.role,
-          body: params.body,
-          parent_slug: params.parent_slug,
-          session_id: session.sessionId,
-        });
-
-        // Start the child session — it will park when it calls task_finished or task_block
+ — it will park when it calls task_finished or task_block
         session.prompt(initialMessage).catch((err: unknown) => {
           const stack = err instanceof Error ? err.stack : String(err);
           console.error(`[unfolding] child session for task "${params.slug}" failed:`, stack);

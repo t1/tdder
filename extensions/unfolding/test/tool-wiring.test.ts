@@ -16,6 +16,14 @@ function blockAfter(src: string, marker: string, len = 600): string {
   return src.slice(idx, idx + len);
 }
 
+/** Extract the full tool registration block starting at marker, up to the next pi.registerTool call. */
+function toolBlock(src: string, marker: string): string {
+  const idx = src.indexOf(marker);
+  assert.ok(idx >= 0, `marker not found: ${marker}`);
+  const next = src.indexOf("pi.registerTool", idx + marker.length);
+  return next >= 0 ? src.slice(idx, next) : src.slice(idx);
+}
+
 // ---------------------------------------------------------------------------
 // Structural wiring
 // ---------------------------------------------------------------------------
@@ -71,7 +79,7 @@ describe("structural wiring", () => {
 
 describe("task_delegate wiring", () => {
   it("errors when role agent file not found", () => {
-    const block = blockAfter(loadSrc(), 'name: "task_delegate"', 2000);
+    const block = toolBlock(loadSrc(), 'name: "task_delegate"');
     assert.ok(block.includes("loadAgentSystemPrompt"), "must call loadAgentSystemPrompt");
     assert.ok(
       block.includes("throw") || block.includes("isError"),
@@ -80,23 +88,23 @@ describe("task_delegate wiring", () => {
   });
 
   it("passes body + CHILD_FIXED_INSTRUCTION as initial message", () => {
-    const block = blockAfter(loadSrc(), 'name: "task_delegate"', 2000);
+    const block = toolBlock(loadSrc(), 'name: "task_delegate"');
     assert.ok(block.includes("CHILD_FIXED_INSTRUCTION"), "must append CHILD_FIXED_INSTRUCTION");
   });
 
   it("creates task after obtaining child session id", () => {
-    const block = blockAfter(loadSrc(), 'name: "task_delegate"', 2000);
+    const block = toolBlock(loadSrc(), 'name: "task_delegate"');
     assert.ok(block.includes("createTask"), "must call createTask");
     assert.ok(block.includes("session_id"), "must write session_id into task");
   });
 
   it("waits for child decision via waitForChildDecision", () => {
-    const block = blockAfter(loadSrc(), 'name: "task_delegate"', 2600);
+    const block = toolBlock(loadSrc(), 'name: "task_delegate"');
     assert.ok(block.includes("waitForChildDecision"), "must call waitForChildDecision");
   });
 
   it("accepts optional parent_slug and passes it to createTask", () => {
-    const block = blockAfter(loadSrc(), 'name: "task_delegate"', 2000);
+    const block = toolBlock(loadSrc(), 'name: "task_delegate"');
     assert.ok(block.includes("parent_slug"), "must accept and forward parent_slug");
   });
 });
