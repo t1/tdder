@@ -99,8 +99,7 @@ Notes:
 
 - `from` / `to` are role names, e.g. `po`, `architect`, `coder`.
 - `parent_slug` is included in v1 for delegated child tasks.
-- `session_id` stores the current session handling the task thread. This is
-  useful for debugging and may be used for session restoration.
+- `session_id` is stored in the task file for ad-hoc debugging only. It is not used by the v1 runtime.
 
 ## Task statuses
 
@@ -162,7 +161,7 @@ Task tools are the normal interface for task mutation.
 
 ### Tool intent
 
-- `task_read` -> orchestrator reads authoritative current delegated task state for invocation/recovery
+- `task_read` -> orchestrator reads authoritative current delegated task state for invocation
 - `task_finished` -> set task to `finished` and wait for commissioner decision
 - `task_block` -> set task to `blocked` and wait for commissioner decision
 - `task_unblock` -> commissioner moves a blocked child task back to `in_progress` and resumes it
@@ -205,12 +204,6 @@ for a new unrelated delegated thread.
 
 These messages are fixed by the runtime and not customizable.
 
-### Fresh restart of an interrupted `in_progress` session
-
-- `restarted after interruption. determine where you left off and continue.`
-
-### Exact restore / parked-session resume
-
 For `task_unblock`:
 
 - `unblocked`
@@ -224,16 +217,6 @@ For `task_accept`:
 
 - `accepted. you can close your session now`
 
-### Fresh restart after failed parked-session restore
-
-These use a fixed prefix plus the normal commissioner message:
-
-- `restarted after interruption. determine where you left off and continue. unblocked`
-- `restarted after interruption. determine where you left off and continue. unblocked: <reason>`
-- `restarted after interruption. determine where you left off and continue. reopened: <reason>`
-
-`task_accept` does not restart the child session.
-
 ## Commissioner notes
 
 - `task_reopen` requires a reason.
@@ -243,88 +226,6 @@ Rationale:
 
 - reopening always needs an explanation
 - unblocking sometimes just means “continue”, and sometimes carries new information
-
-## Session lifecycle
-
-- Session replacement is allowed if it is truly equivalent to starting fresh.
-- Compaction is not sufficient.
-- On acceptance, the runtime should ideally resolve the child wait normally, not just kill the child session externally.
-- Top-level phase-driven orchestration remains in the main pi session unless the human explicitly starts a new one.
-
-## Restore workflow policy
-
-The restore model has three distinct cases in v1:
-
-### 1. Session restore for active work
-
-For `in_progress` tasks, the runtime should prefer exact session restore.
-
-Preferred behavior:
-
-1. if the task has a `session_id`, try to restore that exact session
-2. if restore is unavailable or fails, start a fresh session for the same task thread
-
-This is policy, not yet a guaranteed pi capability in every case.
-
-### 2. Parked child-session recovery
-
-Delegated child sessions that are parked after `task_finished` or `task_block`
-are a separate recovery category.
-
-- they remain part of the same active thread
-- they are waiting for commissioner action
-- they must not be treated as if the parent thread were free for unrelated new work
-
-Parked child sessions are therefore not just another task-status case. They are
-an internal runtime/session-state concern and the main technical complexity in
-restore behavior.
-
-### Recovery cases considered so far
-
-- `in_progress`: restore exact session if possible; otherwise restart the same task thread fresh
-- `finished`: commissioner can review/accept/reopen
-- `blocked`: commissioner can inspect reason and unblock
-- parked child session: separate recovery category; see "Failed parked-session restoration" below
-
-### Important recovery linkage
-
-Delegated child tasks must store:
-
-- `parent_slug`
-- `session_id`
-
-This is needed for recovery/debugging, even in v1.
-
-### Failed parked-session restoration
-
-If a parked child session cannot be restored by `session_id`, v1 resolves it as
-follows:
-
-- `task_accept` finalizes directly without restarting the child session
-- `task_reopen` starts a fresh child session and moves the task back to `in_progress`
-- `task_unblock` starts a fresh child session and moves the task back to `in_progress`
-
-The fresh child session receives the normal fixed commissioner message, prefixed
-with the fixed restart notice:
-
-- `restarted after interruption. determine where you left off and continue. reopened: <reason>`
-- `restarted after interruption. determine where you left off and continue. unblocked`
-- `restarted after interruption. determine where you left off and continue. unblocked: <reason>`
-
-Rationale:
-
-- `task_accept` means the child does not need to continue working
-- `task_reopen` and `task_unblock` both require the child to continue, but the
-  restarted session must be told both that continuity was lost and that it must
-  reconstruct where the thread left off
-
-This is reconstructive recovery, not exact continuity.
-
-### Implementation note: exact use of restored sessions in pi
-
-The design prefers restoring by `session_id`, but the exact mechanics must be
-validated against pi's actual session/runtime capabilities during
-implementation.
 
 ## Implementation notes
 
@@ -409,3 +310,71 @@ Potential later additions, intentionally deferred:
 - agent file frontmatter interpretation:
     - model selection (needs local mapping, e.g. `opus` to an available model)
     - tool name mapping
+- session restore (see v2 plan below)
+
+## v2: session restore plan
+
+### Failure modes in scope
+
+v1 coordination is purely file-based. Both sides hold blocking tool calls that
+poll the task file. If either process dies while polling, the handshake stalls:
+
+- **Child dies** (e.g. crash, manual kill, laptop sleep): task file is stuck at
+  `finished` or `blocked`. Commissioner can still act on the file, but no child
+  is polling `waitForResume`. `task_accept` is safe (nothing to resume). For
+  `task_reopen` and `task_unblock` the runtime must spawn a fresh child session.
+
+- **Parent dies**: task file may be stuck at any status. The child may still be
+  alive and polling `waitForResume`. Recovery means the parent reconnects to the
+  child's existing session before acting.
+
+- **Both die**: restart everything from the task file.
+
+### What `session_id` enables
+
+The `session_id` in the task file identifies the child's pi session. The pi SDK
+exposes `SessionManager.list(cwd)` which returns all sessions for a project.
+A session has a `sessionId` (UUID) and a `sessionFile` (`.jsonl` path).
+`SessionManager.open(path)` then loads a specific session so it can be passed
+to `createAgentSession`.
+
+This means session restore by `session_id` is feasible: find the `.jsonl` whose
+header UUID matches, open it, pass it to `createAgentSession`. The session
+resumes from where it left off (paused inside `waitForResume`).
+
+### Open question
+
+It is not yet confirmed whether a session restored via `SessionManager.open`
+and `createAgentSession` will correctly resume a tool call that was interrupted
+mid-execution (i.e. inside `waitForResume`'s polling loop). This must be
+validated against pi's actual session/runtime capabilities before implementing
+restore.
+
+### Recovery matrix (v2 target)
+
+| Task status  | Child alive? | Action          | Strategy                                      |
+|--------------|-------------|-----------------|-----------------------------------------------|
+| `finished`   | yes (parked) | `task_accept`   | write file; child's poll detects deletion     |
+| `finished`   | yes (parked) | `task_reopen`   | write file; child's poll detects `in_progress`|
+| `finished`   | no           | `task_accept`   | delete file; no child to notify               |
+| `finished`   | no           | `task_reopen`   | spawn fresh child with `"reopened: <reason>"`  |
+| `blocked`    | yes (parked) | `task_unblock`  | write file; child's poll detects `in_progress`|
+| `blocked`    | no           | `task_unblock`  | spawn fresh child with `"unblocked[: <reason>]"`|
+| `in_progress`| yes          | (recover parent)| restore parent; reconnect to child session    |
+| `in_progress`| no           | (recover parent)| restore parent; spawn fresh child             |
+
+"Child alive" = child pi process is still running and polling `waitForResume`.
+Detecting liveness is not trivial; a pragmatic v2 heuristic: try
+`SessionManager.open` + `createAgentSession`; if it fails or times out, fall
+back to spawning fresh.
+
+### Fixed restart messages (v2)
+
+When a fresh child session is spawned as a fallback, the resume message is
+prefixed with a fixed restart notice so the child knows continuity was lost:
+
+- `restarted after interruption. determine where you left off and continue. reopened: <reason>`
+- `restarted after interruption. determine where you left off and continue. unblocked`
+- `restarted after interruption. determine where you left off and continue. unblocked: <reason>`
+
+`task_accept` never restarts the child — the child does not need to continue.
