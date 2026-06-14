@@ -209,15 +209,18 @@ export default function (pi: ExtensionAPI) {
         });
 
         // Stream child progress into this tool's output panel (if the TUI supports it)
-        const unsubscribe = onUpdate
+        const stream = onUpdate
           ? streamChildSession(session, params.role, params.slug, onUpdate)
           : undefined;
 
         // Wait for the child to reach a commissioner decision point
         const outcome = await waitForChildDecision(
-          async () => readTask(ctx.cwd, params.slug)?.status ?? null,
+          async () => readTask(ctx.cwd, params.slug),
+          (_status, blocked_reason) => {
+            stream?.append(`  ⏸ blocked: ${blocked_reason ?? "(no reason given)"}`);
+          },
         );
-        unsubscribe?.();
+        stream?.unsubscribe();
 
         return {
           content: [{ type: "text", text: `Task "${params.slug}" delegated to ${params.role}. Outcome: ${outcome}` }],

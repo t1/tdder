@@ -76,9 +76,18 @@ describe("streamChildSession", () => {
   it("returns unsubscribe function that removes the listener", () => {
     let unsubscribeCalled = false;
     const fakeSession = { subscribe: (_h: any) => () => { unsubscribeCalled = true; } } as any;
-    const unsub = streamChildSession(fakeSession, "po", "slug", () => {});
-    unsub();
+    const { unsubscribe } = streamChildSession(fakeSession, "po", "slug", () => {});
+    unsubscribe();
     assert.ok(unsubscribeCalled);
+  });
+
+  it("append adds a line and flushes", () => {
+    const updates: string[] = [];
+    const fakeSession = { subscribe: (_h: any) => () => {} } as any;
+    const { append } = streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text));
+    append("  ⏸ blocked: need help");
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("⏸ blocked: need help"), `expected blocked line, got: ${last}`);
   });
 });
 
@@ -90,17 +99,28 @@ describe("waitForChildDecision", () => {
   it("resolves 'finished' when task status becomes finished", async () => {
     const sequence = ["in_progress", "in_progress", "finished"];
     let i = 0;
-    const readStatus = async () => sequence[Math.min(i++, sequence.length - 1)];
-    const result = await waitForChildDecision(readStatus, 0);
+    const readStatus = async () => ({ status: sequence[Math.min(i++, sequence.length - 1)] });
+    const result = await waitForChildDecision(readStatus, undefined, 0);
     assert.equal(result, "finished");
   });
 
   it("resolves 'blocked' when task status becomes blocked", async () => {
     const sequence = ["in_progress", "blocked"];
     let i = 0;
-    const readStatus = async () => sequence[Math.min(i++, sequence.length - 1)];
-    const result = await waitForChildDecision(readStatus, 0);
+    const readStatus = async () => ({ status: sequence[Math.min(i++, sequence.length - 1)] });
+    const result = await waitForChildDecision(readStatus, undefined, 0);
     assert.equal(result, "blocked");
+  });
+
+  it("calls onPoll with status and blocked_reason when blocked", async () => {
+    const polls: Array<{ status: string; reason?: string }> = [];
+    const sequence = [{ status: "in_progress" }, { status: "blocked", blocked_reason: "need help" }];
+    let i = 0;
+    const readStatus = async () => sequence[Math.min(i++, sequence.length - 1)];
+    await waitForChildDecision(readStatus, (s, r) => polls.push({ status: s, reason: r }), 0);
+    assert.equal(polls.length, 1);
+    assert.equal(polls[0].status, "blocked");
+    assert.equal(polls[0].reason, "need help");
   });
 });
 

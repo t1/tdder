@@ -39,11 +39,16 @@ export function streamChildSession(
   role: string,
   slug: string,
   onUpdate: AgentToolUpdateCallback<unknown>,
-): () => void {
+): { unsubscribe: () => void; append: (line: string) => void } {
   const lines: string[] = [`[${role}/${slug}]`];
 
   const flush = () =>
     onUpdate({ content: [{ type: "text", text: lines.join("\n") }], details: undefined });
+
+  const append = (line: string) => {
+    lines.push(line);
+    flush();
+  };
 
   const handleEvent = (event: AgentSessionEvent) => {
     if (event.type === "tool_execution_start") {
@@ -67,20 +72,26 @@ export function streamChildSession(
   };
 
   flush();
-  return session.subscribe(handleEvent);
+  const unsubscribe = session.subscribe(handleEvent);
+  return { unsubscribe, append };
 }
 
 
 const POLL_INTERVAL_MS = 500;
 
 export async function waitForChildDecision(
-  readStatus: () => Promise<string | null>,
+  readStatus: () => Promise<{ status: string; blocked_reason?: string } | null>,
+  onPoll?: (status: string, blocked_reason?: string) => void,
   pollIntervalMs = POLL_INTERVAL_MS,
 ): Promise<"finished" | "blocked"> {
   while (true) {
-    const status = await readStatus();
+    const task = await readStatus();
+    const status = task?.status ?? null;
     if (status === "finished") return "finished";
-    if (status === "blocked") return "blocked";
+    if (status === "blocked") {
+      onPoll?.(status, task?.blocked_reason);
+      return "blocked";
+    }
     await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
   }
 }
