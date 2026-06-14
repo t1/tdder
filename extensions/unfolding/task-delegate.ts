@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { AgentSession, AgentSessionEvent, AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
 import { stripFrontmatter } from "./unfold-helpers.ts";
 
 export const CHILD_FIXED_INSTRUCTION =
@@ -17,8 +18,49 @@ export function loadAgentSystemPrompt(rolesDir: string, role: string): string | 
 }
 
 // ---------------------------------------------------------------------------
-// waitForChildDecision
+// streamChildSession
 // ---------------------------------------------------------------------------
+
+/**
+ * Subscribe to a child session and stream a running log via onUpdate.
+ * Returns an unsubscribe function.
+ */
+export function streamChildSession(
+  session: AgentSession,
+  role: string,
+  slug: string,
+  onUpdate: AgentToolUpdateCallback<unknown>,
+): () => void {
+  const lines: string[] = [`[${role}/${slug}]`];
+
+  const flush = () =>
+    onUpdate({ content: [{ type: "text", text: lines.join("\n") }], details: undefined });
+
+  const handleEvent = (event: AgentSessionEvent) => {
+    if (event.type === "tool_execution_start") {
+      lines.push(`  ⚙ ${event.toolName}`);
+      flush();
+    } else if (
+      event.type === "message_update" &&
+      event.assistantMessageEvent.type === "text_delta"
+    ) {
+      const last = lines[lines.length - 1];
+      if (last?.startsWith("  💬 ")) {
+        lines[lines.length - 1] = last + event.assistantMessageEvent.delta;
+      } else {
+        lines.push("  💬 " + event.assistantMessageEvent.delta);
+      }
+      flush();
+    } else if (event.type === "turn_end") {
+      lines.push("");
+      flush();
+    }
+  };
+
+  flush();
+  return session.subscribe(handleEvent);
+}
+
 
 const POLL_INTERVAL_MS = 500;
 

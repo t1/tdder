@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   loadAgentSystemPrompt,
+  streamChildSession,
   waitForChildDecision,
   waitForResume,
 } from "../task-delegate.ts";
@@ -31,6 +32,53 @@ describe("loadAgentSystemPrompt", () => {
 
   it("returns null for an unknown role", () => {
     assert.equal(loadAgentSystemPrompt(rolesDir, "nonexistent-role"), null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// streamChildSession
+// ---------------------------------------------------------------------------
+
+describe("streamChildSession", () => {
+  it("emits initial flush immediately on subscribe", () => {
+    const updates: string[] = [];
+    const fakeSession = {
+      subscribe: (_handler: unknown) => () => {},
+    } as any;
+    streamChildSession(fakeSession, "po", "test-slug", (update: any) => {
+      updates.push(update.content[0].text);
+    });
+    assert.equal(updates.length, 1);
+    assert.ok(updates[0].includes("[po/test-slug]"));
+  });
+
+  it("appends tool name on tool_execution_start", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = { subscribe: (h: any) => { captured = h; return () => {}; } } as any;
+    streamChildSession(fakeSession, "architect", "slug", (u: any) => updates.push(u.content[0].text));
+    captured!({ type: "tool_execution_start", toolCallId: "x", toolName: "read", args: {} });
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("⚙ read"), `expected tool line, got: ${last}`);
+  });
+
+  it("accumulates text_delta onto a single line", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = { subscribe: (h: any) => { captured = h; return () => {}; } } as any;
+    streamChildSession(fakeSession, "coder", "slug", (u: any) => updates.push(u.content[0].text));
+    captured!({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "Hello" } });
+    captured!({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: " world" } });
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("💬 Hello world"), `expected accumulated text, got: ${last}`);
+  });
+
+  it("returns unsubscribe function that removes the listener", () => {
+    let unsubscribeCalled = false;
+    const fakeSession = { subscribe: (_h: any) => () => { unsubscribeCalled = true; } } as any;
+    const unsub = streamChildSession(fakeSession, "po", "slug", () => {});
+    unsub();
+    assert.ok(unsubscribeCalled);
   });
 });
 

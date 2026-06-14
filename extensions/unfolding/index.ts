@@ -15,7 +15,7 @@ import { Type } from "typebox";
 import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
 import { ensureGitignore, createTask, readTask, listTasks, updateTaskStatus, deleteTask } from "./task-store.ts";
 import { taskList, taskRead, taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock } from "./task-tools.ts";
-import { loadAgentSystemPrompt, waitForChildDecision, waitForResume, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
+import { loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -160,7 +160,7 @@ export default function (pi: ExtensionAPI) {
       body: Type.String({ description: "Task description for the role" }),
       parent_slug: Type.Optional(Type.String({ description: "Slug of the parent task, if this is a sub-delegation" })),
     }),
-    async execute(_id, params, _signal, _onUpdate, ctx) {
+    async execute(_id, params, _signal, onUpdate, ctx) {
       try {
         const rolesDir = resolve(new URL(import.meta.url).pathname, "..", "roles");
         const shortRole = params.role.replace(/^unfolding-/, "");
@@ -200,10 +200,16 @@ export default function (pi: ExtensionAPI) {
           console.error(`[unfolding] child session for task "${params.slug}" failed:`, stack);
         });
 
+        // Stream child progress into this tool's output panel (if the TUI supports it)
+        const unsubscribe = onUpdate
+          ? streamChildSession(session, params.role, params.slug, onUpdate)
+          : undefined;
+
         // Wait for the child to reach a commissioner decision point
         const outcome = await waitForChildDecision(
           async () => readTask(ctx.cwd, task.slug)?.status ?? null,
         );
+        unsubscribe?.();
 
         return {
           content: [{ type: "text", text: `Task "${params.slug}" delegated to ${params.role}. Outcome: ${outcome}` }],
