@@ -9,6 +9,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { toolBlock } from "./src-helpers.ts";
 import {
   loadAgentSystemPrompt,
   streamChildSession,
@@ -158,11 +159,8 @@ describe("waitForResume", () => {
 describe("structural invariants", () => {
   it("task_delegate tool calls ensureGitignore before creating the task", () => {
     const src = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
-    const delegateIdx = src.indexOf('name: "task_delegate"');
-    assert.ok(delegateIdx >= 0, 'task_delegate tool must be registered');
-    const executeIdx = src.indexOf("async execute", delegateIdx);
-    const executeBlock = src.slice(executeIdx, executeIdx + 600);
-    assert.ok(executeBlock.includes("ensureGitignore"), "task_delegate execute must call ensureGitignore");
+    const block = toolBlock(src, 'name: "task_delegate"');
+    assert.ok(block.includes("ensureGitignore"), "task_delegate execute must call ensureGitignore");
   });
 
   it("task_delegate appends a fixed instruction to the child's initial message", () => {

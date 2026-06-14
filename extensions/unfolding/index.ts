@@ -169,6 +169,13 @@ export default function (pi: ExtensionAPI) {
           throw new Error(`No agent definition found for role "${shortRole}" in ${rolesDir}`);
         }
 
+        const systemPromptOptions = ctx.getSystemPromptOptions();
+        const toolSnippets = systemPromptOptions.toolSnippets ?? {};
+        const toolsSection = Object.entries(toolSnippets).length > 0
+          ? "\n\nAvailable tools:\n" + Object.entries(toolSnippets).map(([n, s]) => `- ${n}: ${s}`).join("\n")
+          : "";
+        const fullSystemPrompt = systemPrompt + toolsSection;
+
         ensureGitignore(ctx.cwd);
 
         const existing = readTask(ctx.cwd, params.slug);
@@ -180,7 +187,9 @@ export default function (pi: ExtensionAPI) {
         const loader = new DefaultResourceLoader({
           cwd: ctx.cwd,
           agentDir: getAgentDir(),
-          systemPromptOverride: () => systemPrompt,
+          noSkills: true,
+          noContextFiles: true,
+          systemPromptOverride: () => fullSystemPrompt,
         });
         await loader.reload();
 
