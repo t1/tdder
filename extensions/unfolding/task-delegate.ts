@@ -100,8 +100,10 @@ export async function waitForChildDecision(
   readStatus: () => Promise<{ status: string; blocked_reason?: string } | null>,
   onPoll?: (status: string, blocked_reason?: string) => void,
   pollIntervalMs = POLL_INTERVAL_MS,
-): Promise<"finished" | "blocked"> {
+  signal?: AbortSignal,
+): Promise<"finished" | "blocked" | "aborted"> {
   while (true) {
+    if (signal?.aborted) return "aborted";
     const task = await readStatus();
     const status = task?.status ?? null;
     if (status === "finished") return "finished";

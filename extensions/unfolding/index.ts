@@ -160,7 +160,7 @@ export default function (pi: ExtensionAPI) {
       body: Type.String({ description: "Task description for the role" }),
       parent_slug: Type.Optional(Type.String({ description: "Slug of the parent task, if this is a sub-delegation" })),
     }),
-    async execute(_id, params, _signal, onUpdate, ctx) {
+    async execute(_id, params, signal, onUpdate, ctx) {
       try {
         const rolesDir = resolve(new URL(import.meta.url).pathname, "..", "roles");
         const shortRole = params.role.replace(/^unfolding-/, "");
@@ -209,6 +209,9 @@ export default function (pi: ExtensionAPI) {
             session_id: session.sessionId,
           });
         }
+        // Forward parent abort (Esc) to the child session
+        signal?.addEventListener("abort", () => { session.abort().catch(() => {}); });
+
         // Start the child session — it will park when it calls task_finished or task_block
         session.prompt(initialMessage).catch((err: unknown) => {
           const stack = err instanceof Error ? err.stack : String(err);
@@ -226,8 +229,14 @@ export default function (pi: ExtensionAPI) {
           (_status, blocked_reason) => {
             stream?.append(`  ⏸ blocked: ${blocked_reason ?? "(no reason given)"}`);
           },
+          undefined,
+          signal,
         );
         stream?.unsubscribe();
+
+        if (outcome === "aborted") {
+          return { content: [{ type: "text", text: `Task "${params.slug}" aborted.` }], details: {} };
+        }
 
         return {
           content: [{ type: "text", text: `Task "${params.slug}" delegated to ${params.role}. Outcome: ${outcome}` }],

@@ -140,6 +140,14 @@ describe("waitForChildDecision", () => {
     assert.equal(polls[0].status, "blocked");
     assert.equal(polls[0].reason, "need help");
   });
+
+  it("resolves 'aborted' immediately when signal is already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const readStatus = async () => ({ status: "in_progress" });
+    const result = await waitForChildDecision(readStatus, undefined, 0, controller.signal);
+    assert.equal(result, "aborted");
+  });
 });
 
 // ---------------------------------------------------------------------------
