@@ -66,10 +66,7 @@ function makeTaskDelegateDefinition(from: string, activeSessions: Map<string, Ag
           throw new Error(`No agent definition found for role "${shortRole}" in ${rolesDir}`);
         }
 
-        const parentPrompt = ctx.getSystemPrompt();
-        const toolsMatch = parentPrompt.match(/^Available tools:\n((?:- .+\n?)+)/m);
-        const toolsSection = toolsMatch ? `\n\nAvailable tools:\n${toolsMatch[1].trimEnd()}` : "";
-        const fullSystemPrompt = systemPrompt + toolsSection;
+        const fullSystemPrompt = systemPrompt;
 
         ensureGitignore(ctx.cwd);
 
