@@ -163,7 +163,10 @@ function makeTaskDelegateDefinition(from: string, activeSessions: Map<string, Ag
           signal,
         );
         stream?.unsubscribe();
-        if (stream) postOutput(stream.getLines());
+        const stats = session.getSessionStats();
+        const costLine = `  💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`;
+        if (stream) postOutput(stream.getLines() + "\n" + costLine);
+        else postOutput(costLine);
 
         if (outcome === "aborted") {
           activeSessions.delete(params.slug);
@@ -315,7 +318,10 @@ export default function (pi: ExtensionAPI) {
         signal,
       );
       stream?.unsubscribe();
-      if (stream) postOutput(stream.getLines());
+      const reopenStats = session.getSessionStats();
+      const reopenCostLine = `  💰 $${reopenStats.cost.toFixed(4)} (↑${reopenStats.tokens.input} ↓${reopenStats.tokens.output})`;
+      if (stream) postOutput(stream.getLines() + "\n" + reopenCostLine);
+      else postOutput(reopenCostLine);
 
       if (outcome === "aborted") {
         activeSessions.delete(params.slug);
@@ -360,7 +366,10 @@ export default function (pi: ExtensionAPI) {
         signal,
       );
       stream?.unsubscribe();
-      if (stream) postOutput(stream.getLines());
+      const unblockStats = session.getSessionStats();
+      const unblockCostLine = `  💰 $${unblockStats.cost.toFixed(4)} (↑${unblockStats.tokens.input} ↓${unblockStats.tokens.output})`;
+      if (stream) postOutput(stream.getLines() + "\n" + unblockCostLine);
+      else postOutput(unblockCostLine);
 
       if (outcome === "aborted") {
         activeSessions.delete(params.slug);
