@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, appendFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+
 
 const GITIGNORE_RULE = ".pi/unfolding/tasks/";
 
@@ -117,7 +117,9 @@ export function createTask(cwd: string, input: TaskInput): Task {
   }
   const task: Task = { ...input, status: "in_progress" };
   const dir = ensureTasksDir(cwd);
-  const filename = join(dir, randomUUID() + ".yaml");
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const rand = Math.random().toString(36).slice(2, 6);
+  const filename = join(dir, `${ts}-${rand}.yaml`);
   writeFileSync(filename, serialize(task));
   return task;
 }
