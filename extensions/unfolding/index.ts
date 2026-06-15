@@ -11,12 +11,15 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentSession, createAgentSession, DefaultResourceLoader, SessionManager, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { Box, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
 import { ensureGitignore, createTask, readTask, updateTaskStatus } from "./task-store.ts";
 import { taskList, taskRead, taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock } from "./task-tools.ts";
 import type { SessionLike } from "./task-tools.ts";
 import { loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
+import { resumeDelegatedTask } from "./task-resume.ts";
+import { filterDisplayOnlyMessages } from "./display-only.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -190,12 +193,25 @@ function makeTaskDelegateDefinition(from: string, activeSessions: Map<string, Ag
 // Extension
 // ---------------------------------------------------------------------------
 
+const UNFOLDING_CHILD_OUTPUT_TYPE = "unfolding-child-output";
+
 function makePostOutput(pi: ExtensionAPI) {
   return (lines: string) =>
-    pi.sendMessage({ customType: "unfolding-child-output", content: lines, display: true, details: {} });
+    pi.sendMessage({ customType: UNFOLDING_CHILD_OUTPUT_TYPE, content: "", display: true, details: { lines } });
 }
 
 export default function (pi: ExtensionAPI) {
+  pi.on("context", async (event) =>
+    filterDisplayOnlyMessages(event, UNFOLDING_CHILD_OUTPUT_TYPE) as { messages?: any[] } | undefined,
+  );
+
+  pi.registerMessageRenderer<{ lines?: string }>(UNFOLDING_CHILD_OUTPUT_TYPE, (message, _options, theme) => {
+    const box = new Box(1, 1, (t) => theme.bg("customMessageBg", t));
+    const lines = message.details?.lines ?? message.content ?? "";
+    box.addChild(new Text(lines, 0, 0));
+    return box;
+  });
+
   /** Set when /unfold is invoked; cleared after the next before_agent_start fires. */
   let pendingSkillInjection: string | null = null;
 
@@ -305,37 +321,17 @@ export default function (pi: ExtensionAPI) {
     }),
     async execute(_id, params, signal, onUpdate, ctx) {
       postOutput(`  🔄 task_reopen: ${params.slug} — ${params.reason}`);
-      taskReopen(ctx.cwd, params.slug, params.reason);
-
-      const session = activeSessions.get(params.slug);
-      if (!session) {
-        throw new Error(
-          `task_reopen: no live session found for slug "${params.slug}". ` +
-          `This is likely a bug in the unfolding extension — if you don't fully understand the cause, ` +
-          `print out the current situation and stop working.`
-        );
-      }
-
-      const task = readTask(ctx.cwd, params.slug);
-      const shortRole = task?.to.replace(/^unfolding-/, "") ?? params.slug;
-
-      const stream = onUpdate
-        ? streamChildSession(session, shortRole, params.slug, onUpdate)
-        : undefined;
-
-      const outcome = await waitForChildDecision(
-        async () => readTask(ctx.cwd, params.slug),
-        (_status: string, blocked_reason?: string) => {
-          stream?.append(`  ⏸ blocked: ${blocked_reason ?? "(no reason given)"}`);
-        },
-        undefined,
+      const outcome = await resumeDelegatedTask({
+        action: "reopen",
+        cwd: ctx.cwd,
+        slug: params.slug,
+        reason: params.reason,
+        activeSessions,
         signal,
-      );
-      stream?.unsubscribe();
-      const reopenStats = session.getSessionStats();
-      const reopenCostLine = `  💰 $${reopenStats.cost.toFixed(4)} (↑${reopenStats.tokens.input} ↓${reopenStats.tokens.output})`;
-      if (stream) postOutput(stream.getLines() + "\n" + reopenCostLine);
-      else postOutput(reopenCostLine);
+        onUpdate,
+        postOutput,
+        mutateTask: taskReopen,
+      });
 
       if (outcome === "aborted") {
         activeSessions.delete(params.slug);
@@ -358,37 +354,17 @@ export default function (pi: ExtensionAPI) {
     }),
     async execute(_id, params, signal, onUpdate, ctx) {
       postOutput(`  🔓 task_unblock: ${params.slug}${params.reason ? ` — ${params.reason}` : ""}`);
-      taskUnblock(ctx.cwd, params.slug, params.reason);
-
-      const session = activeSessions.get(params.slug);
-      if (!session) {
-        throw new Error(
-          `task_unblock: no live session found for slug "${params.slug}". ` +
-          `This is likely a bug in the unfolding extension — if you don't fully understand the cause, ` +
-          `print out the current situation and stop working.`
-        );
-      }
-
-      const task = readTask(ctx.cwd, params.slug);
-      const shortRole = task?.to.replace(/^unfolding-/, "") ?? params.slug;
-
-      const stream = onUpdate
-        ? streamChildSession(session, shortRole, params.slug, onUpdate)
-        : undefined;
-
-      const outcome = await waitForChildDecision(
-        async () => readTask(ctx.cwd, params.slug),
-        (_status: string, blocked_reason?: string) => {
-          stream?.append(`  ⏸ blocked: ${blocked_reason ?? "(no reason given)"}`);
-        },
-        undefined,
+      const outcome = await resumeDelegatedTask({
+        action: "unblock",
+        cwd: ctx.cwd,
+        slug: params.slug,
+        reason: params.reason,
+        activeSessions,
         signal,
-      );
-      stream?.unsubscribe();
-      const unblockStats = session.getSessionStats();
-      const unblockCostLine = `  💰 $${unblockStats.cost.toFixed(4)} (↑${unblockStats.tokens.input} ↓${unblockStats.tokens.output})`;
-      if (stream) postOutput(stream.getLines() + "\n" + unblockCostLine);
-      else postOutput(unblockCostLine);
+        onUpdate,
+        postOutput,
+        mutateTask: taskUnblock,
+      });
 
       if (outcome === "aborted") {
         activeSessions.delete(params.slug);

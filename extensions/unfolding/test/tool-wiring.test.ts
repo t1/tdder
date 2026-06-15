@@ -50,10 +50,9 @@ describe("structural wiring", () => {
     assert.ok(block.includes("taskReopen"), "must delegate to taskReopen which applies the 'reopened:' prefix");
   });
 
-  it("task_reopen tool streams child output and waits for next decision", () => {
-    const block = blockAfter(loadSrc(), 'name: "task_reopen"', 1600);
-    assert.ok(block.includes("streamChildSession"), "must stream child output");
-    assert.ok(block.includes("waitForChildDecision"), "must wait for next decision point");
+  it("task_reopen tool delegates resume flow to resumeDelegatedTask", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_reopen"', 1200);
+    assert.ok(block.includes("resumeDelegatedTask"), "must delegate resume flow to resumeDelegatedTask");
   });
 
   it("task_unblock tool calls taskUnblock", () => {
@@ -67,10 +66,9 @@ describe("structural wiring", () => {
     assert.ok(block.includes("taskUnblock"), "must delegate to taskUnblock which applies the 'unblocked' prefix");
   });
 
-  it("task_unblock tool streams child output and waits for next decision", () => {
-    const block = blockAfter(loadSrc(), 'name: "task_unblock"', 1600);
-    assert.ok(block.includes("streamChildSession"), "must stream child output");
-    assert.ok(block.includes("waitForChildDecision"), "must wait for next decision point");
+  it("task_unblock tool delegates resume flow to resumeDelegatedTask", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_unblock"', 1200);
+    assert.ok(block.includes("resumeDelegatedTask"), "must delegate resume flow to resumeDelegatedTask");
   });
 
   it("task_unblock posts args to postOutput", () => {
@@ -78,9 +76,9 @@ describe("structural wiring", () => {
     assert.ok(block.includes("postOutput"), "must post args via postOutput for human visibility");
   });
 
-  it("task_unblock throws when no live session found", () => {
-    const block = blockAfter(loadSrc(), 'name: "task_unblock"', 1600);
-    assert.ok(block.includes("throw"), "must throw when session not found, not silently succeed");
+  it("task_unblock delegates missing-session failure handling to resumeDelegatedTask", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_unblock"', 1200);
+    assert.ok(block.includes("resumeDelegatedTask"), "must delegate missing-session failure handling to resumeDelegatedTask");
   });
 
   it("task_reopen posts args to postOutput", () => {
@@ -88,9 +86,9 @@ describe("structural wiring", () => {
     assert.ok(block.includes("postOutput"), "must post args via postOutput for human visibility");
   });
 
-  it("task_reopen throws when no live session found", () => {
-    const block = blockAfter(loadSrc(), 'name: "task_reopen"', 1600);
-    assert.ok(block.includes("throw"), "must throw when session not found, not silently succeed");
+  it("task_reopen delegates missing-session failure handling to resumeDelegatedTask", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_reopen"', 1200);
+    assert.ok(block.includes("resumeDelegatedTask"), "must delegate missing-session failure handling to resumeDelegatedTask");
   });
 
   it("task_accept posts args to postOutput", () => {

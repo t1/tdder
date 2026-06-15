@@ -104,4 +104,18 @@ describe("structural invariants", () => {
       "index.ts must check ctx.isIdle() before calling sendUserMessage",
     );
   });
+
+  it("registers a display-only context filter for unfolding child output", () => {
+    assert.ok(
+      src.includes('filterDisplayOnlyMessages(event, UNFOLDING_CHILD_OUTPUT_TYPE)'),
+      "index.ts must filter unfolding child output messages from LLM context",
+    );
+  });
+
+  it("registers a message renderer for unfolding child output", () => {
+    assert.ok(
+      src.includes('registerMessageRenderer<{ lines?: string }>(UNFOLDING_CHILD_OUTPUT_TYPE'),
+      "index.ts must register a renderer for unfolding child output messages",
+    );
+  });
 });
