@@ -90,7 +90,7 @@ export function streamChildSession(
 
   flush();
   const unsubscribe = session.subscribe(handleEvent);
-  return { unsubscribe, append };
+  return { unsubscribe, append, getLines: () => lines.join("\n") };
 }
 
 

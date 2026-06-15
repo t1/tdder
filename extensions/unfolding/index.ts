@@ -46,7 +46,7 @@ function loadStateYaml(cwd: string): string | null {
 // Task tool factory
 // ---------------------------------------------------------------------------
 
-function makeTaskDelegateDefinition(from: string, activeSessions: Map<string, AgentSession>): any {
+function makeTaskDelegateDefinition(from: string, activeSessions: Map<string, AgentSession>, pi: ExtensionAPI, postOutput: (lines: string) => void): any {
   return {
     name: "task_delegate",
     label: "Task delegate",
@@ -121,7 +121,7 @@ function makeTaskDelegateDefinition(from: string, activeSessions: Map<string, Ag
                 return { content: [{ type: "text", text: result.message }], details: {} };
               },
             },
-            makeTaskDelegateDefinition(shortRole, activeSessions),
+            makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput),
           ],
         });
 
@@ -163,6 +163,7 @@ function makeTaskDelegateDefinition(from: string, activeSessions: Map<string, Ag
           signal,
         );
         stream?.unsubscribe();
+        if (stream) postOutput(stream.getLines());
 
         if (outcome === "aborted") {
           activeSessions.delete(params.slug);
@@ -186,12 +187,18 @@ function makeTaskDelegateDefinition(from: string, activeSessions: Map<string, Ag
 // Extension
 // ---------------------------------------------------------------------------
 
+function makePostOutput(pi: ExtensionAPI) {
+  return (lines: string) =>
+    pi.sendMessage({ customType: "unfolding-child-output", content: lines, display: true, details: {} });
+}
+
 export default function (pi: ExtensionAPI) {
   /** Set when /unfold is invoked; cleared after the next before_agent_start fires. */
   let pendingSkillInjection: string | null = null;
 
   /** Live child sessions keyed by task slug, for re-attaching after unblock/reopen. */
   const activeSessions = new Map<string, AgentSession>();
+  const postOutput = makePostOutput(pi);
 
   // Inject the orchestrator skill into the system prompt for the turn that
   // follows an /unfold invocation.
@@ -256,7 +263,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerTool(makeTaskDelegateDefinition("orchestrator", activeSessions));
+  pi.registerTool(makeTaskDelegateDefinition("orchestrator", activeSessions, pi, postOutput));
 
   pi.registerTool({
     name: "task_accept",
@@ -302,6 +309,7 @@ export default function (pi: ExtensionAPI) {
         signal,
       );
       stream?.unsubscribe();
+      if (stream) postOutput(stream.getLines());
 
       if (outcome === "aborted") {
         activeSessions.delete(params.slug);
@@ -346,6 +354,7 @@ export default function (pi: ExtensionAPI) {
         signal,
       );
       stream?.unsubscribe();
+      if (stream) postOutput(stream.getLines());
 
       if (outcome === "aborted") {
         activeSessions.delete(params.slug);
