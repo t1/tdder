@@ -339,7 +339,8 @@ and a body containing:
 The step catalog is just a vocabulary — do NOT pass the ATs themselves to the Architect.
 - **If it returns `finished`:** the Architect has created an `[AT]` task — proceed to step 9.
 - **If it returns `blocked` with an ADR reason:** do NOT attempt to resolve it —
-  pass the block reason up unchanged by calling `task_block` yourself.
+  call `task_block` yourself with a reason that describes what decision is needed
+  **in your own words**, without referencing internal task slugs.
   You must not answer technical decisions.
 
 ### 9. Commission UX Review (UI Features)

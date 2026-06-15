@@ -247,9 +247,13 @@ export default function (pi: ExtensionAPI) {
     name: "task_list",
     label: "Task list",
     description: "List all delegated tasks (root session only).",
-    parameters: Type.Object({}),
-    async execute(_id, _params, _signal, _onUpdate, ctx) {
-      return { content: [{ type: "text", text: taskList(ctx.cwd) }], details: {} };
+    parameters: Type.Object({
+      from: Type.Optional(Type.String({ description: "Filter by delegating role. Default: 'orchestrator' (your own tasks). Use '*' to see all tasks across all roles — only do this when explicitly investigating the full task tree." })),
+    }),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      const text = taskList(ctx.cwd, params.from ?? "orchestrator");
+      console.log(`[task_list] from=${params.from ?? "orchestrator"}: ${text.slice(0, 200)}`);
+      return { content: [{ type: "text", text }], details: {} };
     },
   });
 
@@ -259,7 +263,9 @@ export default function (pi: ExtensionAPI) {
     description: "Read full details of a delegated task by slug (root session only).",
     parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
-      return { content: [{ type: "text", text: taskRead(ctx.cwd, params.slug) }], details: {} };
+      const text = taskRead(ctx.cwd, params.slug);
+      console.log(`[task_read] slug=${params.slug}`);
+      return { content: [{ type: "text", text }], details: {} };
     },
   });
 

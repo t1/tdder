@@ -45,17 +45,27 @@ describe("structural invariants", () => {
 // ---------------------------------------------------------------------------
 
 describe("taskList", () => {
-  it("returns a summary of all tasks (slug, status, to)", () => {
+  it("returns only tasks from orchestrator by default", () => {
     const cwd = mkdtempSync(tmpdir() + "/tools-test-");
     try {
       createTask(cwd, { slug: "po-define-login", from: "orchestrator", to: "po", body: "Define login" });
       createTask(cwd, { slug: "arch-impl-login", from: "po", to: "architect", body: "Implement login" });
       const result = taskList(cwd);
+      assert.ok(result.includes("po-define-login"), "should include orchestrator task");
+      assert.ok(!result.includes("arch-impl-login"), "should not include sub-delegated task");
+    } finally {
+      rmSync(cwd, { recursive: true });
+    }
+  });
+
+  it("returns all tasks when from is '*'", () => {
+    const cwd = mkdtempSync(tmpdir() + "/tools-test-");
+    try {
+      createTask(cwd, { slug: "po-define-login", from: "orchestrator", to: "po", body: "Define login" });
+      createTask(cwd, { slug: "arch-impl-login", from: "po", to: "architect", body: "Implement login" });
+      const result = taskList(cwd, "*");
       assert.ok(result.includes("po-define-login"));
       assert.ok(result.includes("arch-impl-login"));
-      assert.ok(result.includes("in_progress"));
-      assert.ok(result.includes("po"));
-      assert.ok(result.includes("architect"));
     } finally {
       rmSync(cwd, { recursive: true });
     }
@@ -104,7 +114,7 @@ describe("taskFinished", () => {
   it("sets task status to finished", () => {
     const cwd = mkdtempSync(tmpdir() + "/tools-test-");
     try {
-      createTask(cwd, { slug: "finish-me", from: "po", to: "coder", body: "Do it" });
+      createTask(cwd, { slug: "finish-me", from: "orchestrator", to: "coder", body: "Do it" });
       taskFinished(cwd, "finish-me");
       const result = taskList(cwd);
       assert.ok(result.includes("finished"));

@@ -5,8 +5,9 @@ function formatTask(task: Task): string {
   return `- [${task.status}] ${task.slug} → ${task.to}`;
 }
 
-export function taskList(cwd: string): string {
-  const tasks = listTasks(cwd);
+export function taskList(cwd: string, from = "orchestrator"): string {
+  const all = listTasks(cwd);
+  const tasks = from === "*" ? all : all.filter(t => t.from === from);
   if (tasks.length === 0) return "No delegated tasks.";
   return tasks.map(formatTask).join("\n");
 }
