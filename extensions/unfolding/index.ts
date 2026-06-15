@@ -15,6 +15,7 @@ import { Type } from "typebox";
 import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
 import { ensureGitignore, createTask, readTask, updateTaskStatus } from "./task-store.ts";
 import { taskList, taskRead, taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock } from "./task-tools.ts";
+import type { SessionLike } from "./task-tools.ts";
 import { loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
 
 // ---------------------------------------------------------------------------
@@ -239,6 +240,14 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
+  pi.registerCommand("tasks", {
+    description: "Show all delegated tasks with status, blocked reason, and live session cost",
+    handler: async (_args, ctx) => {
+      const text = taskList(ctx.cwd, "*", activeSessions as Map<string, SessionLike>);
+      ctx.ui.notify(text, "info");
+    },
+  });
+
   // -------------------------------------------------------------------------
   // Task tools
   // -------------------------------------------------------------------------
@@ -251,7 +260,7 @@ export default function (pi: ExtensionAPI) {
       from: Type.Optional(Type.String({ description: "Filter by delegating role. Default: 'orchestrator' (your own tasks). Use '*' to see all tasks across all roles — only do this when explicitly investigating the full task tree." })),
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
-      const text = taskList(ctx.cwd, params.from ?? "orchestrator");
+      const text = taskList(ctx.cwd, params.from ?? "orchestrator", activeSessions as Map<string, SessionLike>);
       console.log(`[task_list] from=${params.from ?? "orchestrator"}: ${text.slice(0, 200)}`);
       return { content: [{ type: "text", text }], details: {} };
     },

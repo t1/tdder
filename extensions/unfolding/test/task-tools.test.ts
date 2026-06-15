@@ -71,6 +71,43 @@ describe("taskList", () => {
     }
   });
 
+  it("shows blocked_reason when task is blocked", () => {
+    const cwd = mkdtempSync(tmpdir() + "/tools-test-");
+    try {
+      createTask(cwd, { slug: "blocked-task", from: "orchestrator", to: "po", body: "Do it" });
+      taskBlock(cwd, "blocked-task", "waiting for DMD: naming");
+      const result = taskList(cwd);
+      assert.ok(result.includes("waiting for DMD: naming"), "should include blocked_reason");
+    } finally {
+      rmSync(cwd, { recursive: true });
+    }
+  });
+
+  it("shows live indicator when session is active", () => {
+    const cwd = mkdtempSync(tmpdir() + "/tools-test-");
+    try {
+      createTask(cwd, { slug: "live-task", from: "orchestrator", to: "po", body: "Do it" });
+      const fakeSessions = new Map([["live-task", { getSessionStats: () => ({ cost: 0, tokens: { input: 0, output: 0 } }) } as any]]);
+      const result = taskList(cwd, "orchestrator", fakeSessions);
+      assert.ok(result.includes("live"), "should include live indicator");
+    } finally {
+      rmSync(cwd, { recursive: true });
+    }
+  });
+
+  it("shows cost when session provides stats", () => {
+    const cwd = mkdtempSync(tmpdir() + "/tools-test-");
+    try {
+      createTask(cwd, { slug: "costed-task", from: "orchestrator", to: "po", body: "Do it" });
+      const fakeSession = { getSessionStats: () => ({ cost: 0.0123, tokens: { input: 100, output: 50 } }) } as any;
+      const fakeSessions = new Map([["costed-task", fakeSession]]);
+      const result = taskList(cwd, "orchestrator", fakeSessions);
+      assert.ok(result.includes("0.0123") || result.includes("0.01"), "should include cost");
+    } finally {
+      rmSync(cwd, { recursive: true });
+    }
+  });
+
   it("returns a message when no tasks exist", () => {
     const cwd = mkdtempSync(tmpdir() + "/tools-test-");
     try {

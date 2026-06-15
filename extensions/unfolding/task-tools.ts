@@ -1,15 +1,25 @@
 import { readTask, listTasks, updateTaskStatus, deleteTask } from "./task-store.ts";
 import type { Task } from "./task-store.ts";
 
-function formatTask(task: Task): string {
-  return `- [${task.status}] ${task.slug} → ${task.to}`;
+export interface SessionLike {
+  getSessionStats(): { cost: number; tokens: { input: number; output: number } };
 }
 
-export function taskList(cwd: string, from = "orchestrator"): string {
+function formatTask(task: Task, session?: SessionLike): string {
+  const parts = [`- [${task.status}] ${task.slug} → ${task.to}`];
+  if (task.blocked_reason) parts.push(`  blocked: ${task.blocked_reason}`);
+  if (session) {
+    const stats = session.getSessionStats();
+    parts.push(`  live 💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`);
+  }
+  return parts.join("\n");
+}
+
+export function taskList(cwd: string, from = "orchestrator", activeSessions?: Map<string, SessionLike>): string {
   const all = listTasks(cwd);
   const tasks = from === "*" ? all : all.filter(t => t.from === from);
   if (tasks.length === 0) return "No delegated tasks.";
-  return tasks.map(formatTask).join("\n");
+  return tasks.map(t => formatTask(t, activeSessions?.get(t.slug))).join("\n");
 }
 
 export function taskRead(cwd: string, slug: string): string {
