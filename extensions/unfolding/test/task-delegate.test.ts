@@ -82,6 +82,23 @@ describe("streamChildSession", () => {
     assert.ok(unsubscribeCalled);
   });
 
+  it("forwards tool_execution_update for task_delegate as indented nested output", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = { subscribe: (h: any) => { captured = h; return () => {}; } } as any;
+    streamChildSession(fakeSession, "po", "po-slug", (u: any) => updates.push(u.content[0].text));
+    // task_delegate starts
+    captured!({ type: "tool_execution_start", toolCallId: "d1", toolName: "task_delegate", args: { role: "ux-designer", slug: "ux-slug" } });
+    // grandchild streams two updates
+    captured!({ type: "tool_execution_update", toolCallId: "d1", toolName: "task_delegate", partialResult: { content: [{ type: "text", text: "[ux-designer/ux-slug]\n  [ux-designer] ⚙ read" }] } });
+    captured!({ type: "tool_execution_update", toolCallId: "d1", toolName: "task_delegate", partialResult: { content: [{ type: "text", text: "[ux-designer/ux-slug]\n  [ux-designer] ⚙ read\n  [ux-designer] ⚙ write" }] } });
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("    [ux-designer/ux-slug]"), `expected indented grandchild header, got: ${last}`);
+    assert.ok(last.includes("    [ux-designer] ⚙ write"), `expected indented grandchild tool line, got: ${last}`);
+    // the grandchild block should not appear twice
+    assert.equal((last.match(/\[ux-designer\/ux-slug\]/g) ?? []).length, 1, "grandchild header should appear only once");
+  });
+
   it("append adds a line and flushes", () => {
     const updates: string[] = [];
     const fakeSession = { subscribe: (_h: any) => () => {} } as any;

@@ -53,10 +53,24 @@ export function streamChildSession(
   };
 
   const prefixLen = `  [${role}] ⚙ `.length;
+  // Maps toolCallId -> index in `lines` where that tool's nested output starts
+  const delegateLineStart = new Map<string, number>();
+
   const handleEvent = (event: AgentSessionEvent) => {
     if (event.type === "tool_execution_start") {
       lines.push(`  [${role}] ⚙ ${toolSummary(event.toolName, event.args ?? {}, prefixLen)}`);
+      if (event.toolName === "task_delegate") {
+        delegateLineStart.set(event.toolCallId, lines.length);
+      }
       flush();
+    } else if (event.type === "tool_execution_update" && event.toolName === "task_delegate") {
+      const text: string = event.partialResult?.content?.[0]?.text ?? "";
+      if (text) {
+        const start = delegateLineStart.get(event.toolCallId) ?? lines.length;
+        lines.splice(start);
+        for (const line of text.split("\n")) lines.push("    " + line);
+        flush();
+      }
     } else if (
       event.type === "message_update" &&
       event.assistantMessageEvent.type === "text_delta"
