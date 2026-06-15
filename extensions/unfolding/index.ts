@@ -185,7 +185,6 @@ export default function (pi: ExtensionAPI) {
         const loader = new DefaultResourceLoader({
           cwd: ctx.cwd,
           agentDir: getAgentDir(),
-          noSkills: true,
           noContextFiles: true,
           systemPromptOverride: () => fullSystemPrompt,
         });
@@ -217,7 +216,7 @@ export default function (pi: ExtensionAPI) {
 
         // Stream child progress into this tool's output panel (if the TUI supports it)
         const stream = onUpdate
-          ? streamChildSession(session, params.role, params.slug, onUpdate)
+          ? streamChildSession(session, shortRole, params.slug, onUpdate)
           : undefined;
 
         // Wait for the child to reach a commissioner decision point

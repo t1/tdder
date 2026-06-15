@@ -21,12 +21,14 @@ export function loadAgentSystemPrompt(rolesDir: string, role: string): string | 
 // streamChildSession
 // ---------------------------------------------------------------------------
 
-function toolSummary(toolName: string, args: Record<string, unknown>): string {
+function toolSummary(toolName: string, args: Record<string, unknown>, prefixLen: number): string {
+  const termWidth = process.stdout.columns ?? 120;
+  const maxCmd = Math.max(20, termWidth - prefixLen - toolName.length - 1);
   switch (toolName) {
     case "write":    return `${toolName} ${args.path ?? ""}`;
     case "edit":     return `${toolName} ${args.path ?? ""}`;
     case "read":     return `${toolName} ${args.path ?? ""}`;
-    case "bash":     return `${toolName} ${String(args.command ?? "").slice(0, 60)}`;
+    case "bash":     return `${toolName} ${String(args.command ?? "").slice(0, maxCmd)}`;
     case "task_delegate": return `${toolName} ${args.role ?? ""} / ${args.slug ?? ""}`;
     case "task_block":    return `${toolName} ${args.slug ?? ""}`;
     case "task_finished": return `${toolName} ${args.slug ?? ""}`;
@@ -50,9 +52,10 @@ export function streamChildSession(
     flush();
   };
 
+  const prefixLen = `  [${role}] ⚙ `.length;
   const handleEvent = (event: AgentSessionEvent) => {
     if (event.type === "tool_execution_start") {
-      lines.push(`  [${role}] ⚙ ${toolSummary(event.toolName, event.args ?? {})}`);
+      lines.push(`  [${role}] ⚙ ${toolSummary(event.toolName, event.args ?? {}, prefixLen)}`);
       flush();
     } else if (
       event.type === "message_update" &&
