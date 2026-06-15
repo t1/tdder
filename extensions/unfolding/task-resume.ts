@@ -1,6 +1,8 @@
-import type { AgentSession, AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
+import type { AgentSession, AgentToolUpdateCallback, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readTask } from "./task-store.ts";
-import { streamChildSession, waitForChildDecision } from "./task-delegate.ts";
+import { streamChildSession, waitForChildDecision, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
+import { restoreChildSession } from "./session-restore.ts";
+import { makeTaskDelegateDefinition } from "./task-delegate-tool.ts";
 
 export interface ResumeDelegatedTaskParams {
   action: "reopen" | "unblock";
@@ -12,11 +14,12 @@ export interface ResumeDelegatedTaskParams {
   onUpdate?: AgentToolUpdateCallback<unknown>;
   postOutput: (lines: string) => void;
   mutateTask: (cwd: string, slug: string, reason?: string) => void;
+  pi: ExtensionAPI;
 }
 
 function missingSessionMessage(action: "reopen" | "unblock", slug: string): string {
   return (
-    `task_${action}: no live session found for slug "${slug}". ` +
+    `task_${action}: no live session found for slug "${slug}", and the session could not be restored. ` +
     `This is likely a bug in the unfolding extension — if you don't fully understand the cause, ` +
     `print out the current situation and stop working.`
   );
@@ -32,8 +35,19 @@ export async function resumeDelegatedTask({
   onUpdate,
   postOutput,
   mutateTask,
+  pi,
 }: ResumeDelegatedTaskParams): Promise<"finished" | "blocked" | "aborted"> {
-  const session = activeSessions.get(slug);
+  let session = activeSessions.get(slug);
+  if (!session) {
+    session = await restoreChildSession(
+      cwd,
+      slug,
+      activeSessions,
+      pi,
+      postOutput,
+      (shortRole: string) => makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput),
+    );
+  }
   if (!session) {
     const message = missingSessionMessage(action, slug);
     postOutput(`  ⚠ ${message}`);
@@ -44,6 +58,11 @@ export async function resumeDelegatedTask({
 
   const task = readTask(cwd, slug);
   const shortRole = task?.to.replace(/^unfolding-/, "") ?? slug;
+
+  session.prompt(`${task?.resume_message ?? action}\n\n${CHILD_FIXED_INSTRUCTION}`).catch((err: unknown) => {
+    const stack = err instanceof Error ? err.stack : String(err);
+    console.error(`[unfolding] resumed child session for task "${slug}" failed:`, stack);
+  });
 
   const stream = onUpdate
     ? streamChildSession(session, shortRole, slug, onUpdate)

@@ -187,6 +187,7 @@ export default function (pi: ExtensionAPI) {
         onUpdate,
         postOutput,
         mutateTask: taskReopen,
+        pi,
       });
 
       if (outcome === "aborted") {
@@ -220,6 +221,7 @@ export default function (pi: ExtensionAPI) {
         onUpdate,
         postOutput,
         mutateTask: taskUnblock,
+        pi,
       });
 
       if (outcome === "aborted") {

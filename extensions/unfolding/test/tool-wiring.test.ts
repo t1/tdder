@@ -76,9 +76,9 @@ describe("structural wiring", () => {
     assert.ok(block.includes("postOutput"), "must post args via postOutput for human visibility");
   });
 
-  it("task_unblock delegates restore-or-resume handling to resumeDelegatedTask", () => {
+  it("task_unblock delegates resume handling to resumeDelegatedTask", () => {
     const block = blockAfter(loadSrc(), 'name: "task_unblock"', 1200);
-    assert.ok(block.includes("resumeDelegatedTask"), "must delegate restore-or-resume handling to resumeDelegatedTask");
+    assert.ok(block.includes("resumeDelegatedTask"), "must delegate resume handling to resumeDelegatedTask");
   });
 
   it("task_reopen posts args to postOutput", () => {
@@ -86,9 +86,9 @@ describe("structural wiring", () => {
     assert.ok(block.includes("postOutput"), "must post args via postOutput for human visibility");
   });
 
-  it("task_reopen delegates restore-or-resume handling to resumeDelegatedTask", () => {
+  it("task_reopen delegates resume handling to resumeDelegatedTask", () => {
     const block = blockAfter(loadSrc(), 'name: "task_reopen"', 1200);
-    assert.ok(block.includes("resumeDelegatedTask"), "must delegate restore-or-resume handling to resumeDelegatedTask");
+    assert.ok(block.includes("resumeDelegatedTask"), "must delegate resume handling to resumeDelegatedTask");
   });
 
   it("task_accept posts args to postOutput", () => {
@@ -103,56 +103,47 @@ describe("structural wiring", () => {
 
 describe("task_delegate wiring", () => {
   const src = readFileSync(new URL("../task-delegate-tool.ts", import.meta.url).pathname, "utf8");
+  const factorySrc = readFileSync(new URL("../session-factory.ts", import.meta.url).pathname, "utf8");
+  const commonSrc = readFileSync(new URL("../session-common.ts", import.meta.url).pathname, "utf8");
 
   it("errors when role agent file not found", () => {
-    const block = toolBlock(src, 'name: "task_delegate"');
-    assert.ok(block.includes("loadAgentSystemPrompt"), "must call loadAgentSystemPrompt");
-    assert.ok(
-      block.includes("throw") || block.includes("isError"),
-      "must throw or return error when agent file not found",
-    );
+    assert.ok(commonSrc.includes("loadAgentSystemPrompt"), "must call loadAgentSystemPrompt");
+    assert.ok(commonSrc.includes("throw") || commonSrc.includes("No agent definition found"), "must fail when agent file not found");
   });
 
   it("passes body + CHILD_FIXED_INSTRUCTION as initial message", () => {
-    const block = toolBlock(src, 'name: "task_delegate"');
-    assert.ok(block.includes("CHILD_FIXED_INSTRUCTION"), "must append CHILD_FIXED_INSTRUCTION");
+    assert.ok(factorySrc.includes("buildChildInitialMessage") || commonSrc.includes("CHILD_FIXED_INSTRUCTION"), "must append CHILD_FIXED_INSTRUCTION");
   });
 
   it("task_delegate uses extracted child task tools", () => {
-    const block = toolBlock(src, 'name: "task_delegate"');
-    assert.ok(block.includes("createChildTaskTools"), "must use extracted child task tools");
+    assert.ok(commonSrc.includes("createChildTaskTools"), "must use extracted child task tools");
   });
 
   it("creates task after obtaining child session id", () => {
-    const block = toolBlock(src, 'name: "task_delegate"');
-    assert.ok(block.includes("createTask"), "must call createTask");
-    assert.ok(block.includes("session_id"), "must write session_id into task");
-    assert.ok(block.includes("session_file"), "must write session_file into task");
+    assert.ok(factorySrc.includes("createTask"), "must call createTask");
+    assert.ok(factorySrc.includes("session_id"), "must write session_id into task");
+    assert.ok(factorySrc.includes("session_file"), "must write session_file into task");
   });
 
   it("waits for child decision via waitForChildDecision", () => {
-    const block = toolBlock(src, 'name: "task_delegate"');
-    assert.ok(block.includes("waitForChildDecision"), "must call waitForChildDecision");
+    assert.ok(factorySrc.includes("waitForChildDecision"), "must call waitForChildDecision");
   });
 
   it("accepts optional parent_slug and passes it to createTask", () => {
-    const block = toolBlock(src, 'name: "task_delegate"');
-    assert.ok(block.includes("parent_slug"), "must accept and forward parent_slug");
+    assert.ok(src.includes("parent_slug"), "must accept and forward parent_slug");
   });
 
   it("uses shortRole as 'from' when creating a task (not hardcoded 'orchestrator')", () => {
-    const block = toolBlock(src, 'name: "task_delegate"');
-    assert.ok(block.includes("from,"), "createTask must use the 'from' closure variable, not a literal");
-    assert.ok(!block.includes('from: "orchestrator"'), "'from' must not be hardcoded in the factory body");
+    assert.ok(src.includes("from,"), "createTask must use the 'from' closure variable, not a literal");
+    assert.ok(!src.includes('from: "orchestrator"'), "'from' must not be hardcoded in the factory body");
   });
 
   it("registers the session in activeSessions after creating the child session", () => {
-    const block = toolBlock(src, 'name: "task_delegate"');
-    assert.ok(block.includes("activeSessions.set"), "must store session in activeSessions map");
+    assert.ok(commonSrc.includes("activeSessions.set"), "must store session in activeSessions map");
   });
 
   it("removes the session from activeSessions on abort or error", () => {
-    const block = toolBlock(src, 'name: "task_delegate"');
-    assert.ok(block.includes("activeSessions.delete"), "must remove session from activeSessions on abort/error");
+    const delegateSrc = readFileSync(new URL("../task-delegate-tool.ts", import.meta.url).pathname, "utf8");
+    assert.ok(delegateSrc.includes("activeSessions.delete"), "must remove session from activeSessions on abort/error");
   });
 });

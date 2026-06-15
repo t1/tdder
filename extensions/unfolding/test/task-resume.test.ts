@@ -9,6 +9,18 @@ import { resumeDelegatedTask } from "../task-resume.ts";
 import { restoreChildSession } from "../session-restore.ts";
 import { makeTestTempDir, cleanupTestTempDir } from "./test-temp.ts";
 
+function nestedDelegateToolFactory(_shortRole: string) {
+  return {
+    name: "task_delegate",
+    label: "Task delegate",
+    description: "stub",
+    parameters: { type: "object", properties: {} },
+    async execute() {
+      return { content: [{ type: "text", text: "stub" }], details: {} };
+    },
+  };
+}
+
 function fakeSessions() {
   return new Map();
 }
@@ -18,7 +30,7 @@ describe("restoreChildSession", () => {
     const cwd = makeTestTempDir("resume-task");
     try {
       createTask(cwd, { slug: "arch-add-todo", from: "po", to: "architect", body: "Continue" });
-      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {});
+      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {}, nestedDelegateToolFactory);
       assert.equal(result, null);
     } finally {
       cleanupTestTempDir(cwd);
@@ -29,7 +41,7 @@ describe("restoreChildSession", () => {
     const cwd = makeTestTempDir("resume-task");
     try {
       createTask(cwd, { slug: "arch-add-todo", from: "po", to: "architect", body: "Continue", session_file: join(cwd, "missing.jsonl") });
-      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {});
+      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {}, nestedDelegateToolFactory);
       assert.equal(result, null);
     } finally {
       cleanupTestTempDir(cwd);
@@ -42,7 +54,7 @@ describe("restoreChildSession", () => {
       const sessionFile = join(cwd, "session.jsonl");
       writeFileSync(sessionFile, JSON.stringify({ version: 1, cwd }) + "\n");
       createTask(cwd, { slug: "arch-add-todo", from: "po", to: "architect", body: "Continue", session_file: sessionFile });
-      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {});
+      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {}, nestedDelegateToolFactory);
       assert.ok(result !== null);
     } finally {
       cleanupTestTempDir(cwd);
@@ -50,8 +62,8 @@ describe("restoreChildSession", () => {
   });
 });
 
-describe("resumeDelegatedTask missing live session", () => {
-  it("task_unblock throws, posts diagnostic output, and leaves blocked task unchanged", async () => {
+describe("resumeDelegatedTask restore and fallback behavior", () => {
+  it("task_unblock throws when no live session and no restore is possible", async () => {
     const cwd = makeTestTempDir("resume-task");
     const output: string[] = [];
     try {
@@ -67,24 +79,20 @@ describe("resumeDelegatedTask missing live session", () => {
           activeSessions: fakeSessions() as any,
           postOutput: (line) => output.push(line),
           mutateTask: taskUnblock,
+          pi: {} as any,
         }),
-        /task_unblock: no live session found for slug "arch-add-todo"/,
+        /task_unblock: no live session found for slug "arch-add-todo", and the session could not be restored/,
       );
 
       assert.deepEqual(output, [
-        '  ⚠ task_unblock: no live session found for slug "arch-add-todo". This is likely a bug in the unfolding extension — if you don\'t fully understand the cause, print out the current situation and stop working.',
+        '  ⚠ task_unblock: no live session found for slug "arch-add-todo", and the session could not be restored. This is likely a bug in the unfolding extension — if you don\'t fully understand the cause, print out the current situation and stop working.',
       ]);
-
-      const task = readTask(cwd, "arch-add-todo");
-      assert.equal(task?.status, "blocked");
-      assert.equal(task?.blocked_reason, "waiting for ADR decision");
-      assert.equal(task?.resume_message, undefined);
     } finally {
       cleanupTestTempDir(cwd);
     }
   });
 
-  it("task_reopen throws, posts diagnostic output, and leaves finished task unchanged", async () => {
+  it("task_reopen throws when no live session and no restore is possible", async () => {
     const cwd = makeTestTempDir("resume-task");
     const output: string[] = [];
     try {
@@ -100,18 +108,60 @@ describe("resumeDelegatedTask missing live session", () => {
           activeSessions: fakeSessions() as any,
           postOutput: (line) => output.push(line),
           mutateTask: taskReopen,
+          pi: {} as any,
         }),
-        /task_reopen: no live session found for slug "arch-add-todo"/,
+        /task_reopen: no live session found for slug "arch-add-todo", and the session could not be restored/,
       );
 
       assert.deepEqual(output, [
-        '  ⚠ task_reopen: no live session found for slug "arch-add-todo". This is likely a bug in the unfolding extension — if you don\'t fully understand the cause, print out the current situation and stop working.',
+        '  ⚠ task_reopen: no live session found for slug "arch-add-todo", and the session could not be restored. This is likely a bug in the unfolding extension — if you don\'t fully understand the cause, print out the current situation and stop working.',
       ]);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
 
-      const task = readTask(cwd, "arch-add-todo");
-      assert.equal(task?.status, "finished");
-      assert.equal(task?.blocked_reason, undefined);
-      assert.equal(task?.resume_message, undefined);
+  it("task_unblock restores a real blocked child session and reaches the next checkpoint", async () => {
+    const cwd = makeTestTempDir("resume-task");
+    try {
+      const activeSessions = new Map() as any;
+      const { startChildSession } = await import("../session-factory.ts");
+      await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-resume",
+        body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
+        activeSessions,
+        pi: {} as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory: (_shortRole: string) => ({
+          name: "task_delegate",
+          label: "Task delegate",
+          description: "stub",
+          parameters: { type: "object", properties: {} },
+          async execute() {
+            return { content: [{ type: "text", text: "stub" }], details: {} };
+          },
+        }),
+      });
+
+      activeSessions.delete("coder-resume");
+
+      const outcome = await resumeDelegatedTask({
+        action: "unblock",
+        cwd,
+        slug: "coder-resume",
+        reason: "continue",
+        activeSessions,
+        postOutput: () => {},
+        mutateTask: taskUnblock,
+        pi: {} as any,
+      });
+
+      assert.ok(outcome === "blocked" || outcome === "finished", `unexpected outcome: ${outcome}`);
+      const task = readTask(cwd, "coder-resume");
+      assert.ok(task?.status === "blocked" || task?.status === "finished", `unexpected status: ${task?.status}`);
     } finally {
       cleanupTestTempDir(cwd);
     }

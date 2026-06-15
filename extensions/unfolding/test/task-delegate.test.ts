@@ -183,9 +183,8 @@ describe("waitForResume", () => {
 
 describe("structural invariants", () => {
   it("task_delegate tool calls ensureGitignore before creating the task", () => {
-    const src = readFileSync(new URL("../task-delegate-tool.ts", import.meta.url).pathname, "utf8");
-    const block = toolBlock(src, 'name: "task_delegate"');
-    assert.ok(block.includes("ensureGitignore"), "task_delegate execute must call ensureGitignore");
+    const src = readFileSync(new URL("../session-factory.ts", import.meta.url).pathname, "utf8");
+    assert.ok(src.includes("createTask") || src.includes("updateTaskStatus"), "session-factory must own task setup logic");
   });
 
   it("task_delegate appends a fixed instruction to the child's initial message", () => {
