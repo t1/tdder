@@ -43,18 +43,22 @@ Do not think ahead or implement features for future tests.
 
 #### Red Phase (Compilation Error)
 
-Start with a non-existent function/class. The test should fail with a compilation error.
-This ensures a true start from scratch.
+1. Write the test referencing a non-existent function/class.
+2. Predict: "This will fail with a compilation error on `<symbol>`."
+3. Run — confirm compilation error, compare with prediction.
 
 #### Red Phase (Runtime Error)
 
-Create an empty function that returns a wrong value.
-The test should fail with an assertion error, verifying the test works as expected.
+1. Create an empty function/class returning a wrong value.
+2. Predict: "This will fail with an assertion error — expected `<X>`, got `<Y>`."
+3. Run — confirm assertion error, compare with prediction.
 
 #### Green Phase
 
-Implement **minimal** code to make the test pass.
-Do not add features for future tests. Do not optimize or refactor yet.
+1. Predict: "This will pass after I implement `<X>`."
+2. Implement **minimal** code to make the test pass.
+   Do not add features for future tests. Do not optimize or refactor yet.
+3. Run — confirm green, compare with prediction.
 
 #### Refactor Phase
 
@@ -78,18 +82,7 @@ Apply the 4 Rules of Simple Design: tests pass, no duplication, reveals intent, 
 
 If no refactoring improves the code, document why the current state is optimal and move on.
 
-### 5. Guessing Game
-
-Before running tests, explicitly state:
-
-- Which test will fail
-- Type of error (compilation/assertion)
-- Expected vs actual values
-- Expected diff output
-
-Run the test, then compare the actual result with the prediction.
-
-### 6. Baby Steps
+### 5. Baby Steps
 
 Make the smallest possible change to get to green.
 If a test fails, make it pass with the simplest implementation.
