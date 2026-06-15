@@ -29,8 +29,8 @@ If you need information, spawn the appropriate agent to get it.
 
 **Read your platform file before doing anything else.**
 
-- If `task_delegate` is in your tool list: read `pi.md` (in the same directory as this file)
-- Otherwise: read `claude.md` (in the same directory as this file)
+- If `task_delegate` is in your tool list: read `skills/unfolding-orchestrator/pi.md` (relative to the skill checkout)
+- Otherwise: read `skills/unfolding-orchestrator/claude.md` (relative to the skill checkout)
 
 All tool names, spawn syntax, and interaction patterns are defined there.
 The rest of this file uses abstract terms (`spawn`, `send`, `ask Sensei`)
