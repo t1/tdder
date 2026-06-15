@@ -83,10 +83,6 @@ function makeTaskDelegateDefinition(from: string, activeSessions: Map<string, Ag
           agentDir: getAgentDir(),
           noContextFiles: true,
           additionalExtensionPaths: [join(tdderRoot, "extensions")],
-          extensionsOverride: (base) => ({
-            ...base,
-            extensions: base.extensions.filter(ext => !ext.path?.includes("unfolding")),
-          }),
           systemPromptOverride: () => fullSystemPrompt,
         });
         await loader.reload();
