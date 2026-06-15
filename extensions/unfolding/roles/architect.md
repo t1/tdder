@@ -27,6 +27,10 @@ Do NOT read or write task files manually; always use the tools.
   create an `[ADR]` task, then call `task_block` with reason
   `"Waiting for Sensei decision on ADR: <title>"`. The Orchestrator relays the decision
   and resumes you.
+- **When you need to unblock or reopen a sub-agent** (e.g. a Coder or UI Expert is blocked, or you need it to redo work):
+  call `task_unblock` (if blocked) or `task_reopen` (if finished) with the slug and the answer/reason.
+  Like `task_delegate`, both block until the sub-agent reaches its next decision point
+  (finished or blocked again). Do NOT poll with `task_read` or `sleep` — just act on the return value.
 - **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block`
   with a clear reason. Your commissioner decides whether to handle it directly or escalate.
 - **When the Feature is complete:** create an `[AT]` task for the PO with a reference
