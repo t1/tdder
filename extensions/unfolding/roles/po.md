@@ -34,7 +34,12 @@ Do NOT read or write task files manually; always use the tools.
 
 Your **current working directory is the project root**. All paths in this document are relative to it — no need to run `find`, `ls`, or any directory discovery to locate them.
 
-### 1. Load Product Context
+### 1. Orient from State
+
+Read `docs/state.yaml` to know where the process left off. If it doesn't exist,
+this is a fresh project — proceed from the beginning.
+
+### 2. Load Product Context
 
 Read `docs/product.md` for the product brief — domain, target users, current
 priorities, and constraints. If it doesn't exist (first Feature), create it
@@ -58,7 +63,7 @@ direction for the product. When you receive Sensei guidance:
 3. If the guidance includes technical aspects (technology suggestions,
    architectural constraints), forward those to the Architect
 
-### 2. Load Prior Decisions
+### 3. Load Prior Decisions
 
 Read `docs/dmd/INDEX.md` for a summary of all prior Domain Model Decisions.
 The index is self-sufficient — it contains everything you need to act on.
@@ -68,12 +73,12 @@ implicitly covered by a decision, **STOP** and explain what's unclear.
 Do not read the full DMD files yourself — the need to do so signals that
 the index should be improved or the decision made explicit for your case.
 
-### 3. Describe the Feature
+### 4. Describe the Feature
 
 Write a clear, concise description of the current understanding of the Feature.
 Focus on *what* the user will experience, not *how* it will be implemented.
 
-### 4. Create a Minimal Feature
+### 5. Create a Minimal Feature
 
 Decompose the Feature into the smallest possible Feature that delivers
 visible value to the user. This is the thinnest vertical slice — something
@@ -99,7 +104,7 @@ delivers value to the actual users first — not the one that is
 simplest to build. Engineering complexity is the Architect's problem,
 not a reason to defer user value.
 
-### 5. Find Implicit Business Assumptions
+### 6. Find Implicit Business Assumptions
 
 Examine the Feature for implicit assumptions about:
 
@@ -151,7 +156,7 @@ yourself recommending a specific option with high confidence, ask
 yourself whether the recommendation is really obvious enough to just
 decide — if so, it belongs in filter 2 or 3, not in an DMD.
 
-### 6. Commission Designers (as applicable)
+### 7. Commission Designers (as applicable)
 
 When you need a designer, call `task_delegate` with the role, a slug, and the
 full task body. You block until they finish or block. Read the result from
@@ -219,7 +224,7 @@ Include the API spec and change summary in the `[ARCH]` task (step 7).
 You may read `docs/api/INDEX.md` and area indexes to understand existing
 resources, but the API Designer owns all files in `docs/api/`.
 
-### 7. Create Acceptance Tests and Business Rules
+### 8. Create Acceptance Tests and Business Rules
 
 Before writing or changing any `.feature` files, read the step catalog
 (`docs/ats/steps/` and `docs/rules/steps/`) to know which step patterns
@@ -315,7 +320,7 @@ belong here instead.
 When creating the `[ARCH]` task, mention which business rule files
 exist and that they need exhaustive test coverage.
 
-### 8. Commission the Architect
+### 9. Commission the Architect
 
 When the Feature is fully specified with ATs and no blocking DMDs remain,
 **commit** all plan artifacts (DMDs, ATs, business rules, step catalogs,
@@ -345,7 +350,7 @@ The step catalog is just a vocabulary — do NOT pass the ATs themselves to the 
   **in your own words**, without referencing internal task slugs.
   You must not answer technical decisions.
 
-### 9. Commission UX Review (UI Features)
+### 10. Commission UX Review (UI Features)
 
 When the Architect has created an `[AT]` task, **before running ATs**, check
 whether the Feature had a UX design (a `[UX]` task was created in step 6). If so:
@@ -364,7 +369,7 @@ whether the Feature had a UX design (a `[UX]` task was created in step 6). If so
 5. Once the UX Designer confirms the implementation matches the design:
    proceed to AT verification (step 10)
 
-### 10. Verify with ATs and Business Rules
+### 11. Verify with ATs and Business Rules
 
 When the UX review is complete (or was not needed), verify the Feature:
 
