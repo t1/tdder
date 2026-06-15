@@ -6,7 +6,7 @@
 |---|---|
 | Spawn an agent | `task_delegate(role, slug, body)` |
 | Resume a blocked agent | `task_unblock(slug, resume_message)` |
-| Block waiting for Sensei | `task_block(slug, reason)` — on your own orchestrator task |
+| Block waiting for Sensei | `task_block(reason)` — on your own orchestrator task |
 | Read task state | `task_list` / `task_read` |
 
 There is no team, no shutdown, no idle notification. When a `task_delegate`

@@ -4,8 +4,8 @@ import type { AgentSession, AgentSessionEvent, AgentToolUpdateCallback } from "@
 import { stripFrontmatter } from "./unfold-helpers.ts";
 
 export const CHILD_FIXED_INSTRUCTION =
-  "When you have completed your work, call `task_finished` with your task slug. " +
-  "If you cannot continue and need commissioner action, call `task_block` with your task slug and a reason.";
+  "When you have completed your work, call `task_finished`. " +
+  "If you cannot continue and need commissioner action, call `task_block` with a reason.";
 
 // ---------------------------------------------------------------------------
 // loadAgentSystemPrompt
@@ -30,8 +30,8 @@ function toolSummary(toolName: string, args: Record<string, unknown>, prefixLen:
     case "read":     return `${toolName} ${args.path ?? ""}`;
     case "bash":     return `${toolName} ${String(args.command ?? "").slice(0, maxCmd)}`;
     case "task_delegate": return `${toolName} ${args.role ?? ""} / ${args.slug ?? ""}`;
-    case "task_block":    return `${toolName} ${args.slug ?? ""}`;
-    case "task_finished": return `${toolName} ${args.slug ?? ""}`;
+    case "task_block":    return toolName;
+    case "task_finished": return toolName;
     default:         return toolName;
   }
 }
