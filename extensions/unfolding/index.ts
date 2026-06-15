@@ -77,10 +77,16 @@ function makeTaskDelegateDefinition(from: string, activeSessions: Map<string, Ag
           ? `${existing.resume_message}\n\n${CHILD_FIXED_INSTRUCTION}`
           : `${params.body}\n\n${CHILD_FIXED_INSTRUCTION}`;
 
+        const tdderRoot = resolve(new URL(import.meta.url).pathname, "../../..");
         const loader = new DefaultResourceLoader({
           cwd: ctx.cwd,
           agentDir: getAgentDir(),
           noContextFiles: true,
+          additionalExtensionPaths: [join(tdderRoot, "extensions")],
+          extensionsOverride: (base) => ({
+            ...base,
+            extensions: base.extensions.filter(ext => !ext.path?.includes("unfolding")),
+          }),
           systemPromptOverride: () => fullSystemPrompt,
         });
         await loader.reload();
