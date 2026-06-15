@@ -1,5 +1,5 @@
 ---
-name: unfolding-architect
+name: architect
 description: >
   Architect role in the Unfolding Specs process. Decomposes Features into Tasks,
   creates System Tests, and identifies implicit technical assumptions as Architecture Decision Records (ADRs).

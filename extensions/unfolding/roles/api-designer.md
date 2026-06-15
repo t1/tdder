@@ -1,5 +1,5 @@
 ---
-name: unfolding-api-designer
+name: api-designer
 description: >
   API Designer role in the Unfolding Specs process. Acts as the API consumer's
   advocate — challenges the Feature spec from a consumer usability perspective,

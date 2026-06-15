@@ -1,5 +1,5 @@
 ---
-name: unfolding-coder
+name: coder
 description: >
   Coder role in the Unfolding Specs process. Implements Tasks using TDD (Test-Driven Development),
   one test at a time, following the Red-Green-Refactor cycle.

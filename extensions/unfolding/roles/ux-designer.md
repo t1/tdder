@@ -1,5 +1,5 @@
 ---
-name: unfolding-ux-designer
+name: ux-designer
 description: >
   UX Designer role in the Unfolding Specs process. Acts as the user's advocate —
   challenges the Feature spec from a usability perspective, collaborates with the PO

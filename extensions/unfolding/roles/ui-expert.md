@@ -1,5 +1,5 @@
 ---
-name: unfolding-ui-expert
+name: ui-expert
 description: >
   UI Expert role in the Unfolding Specs process. Maps tech-agnostic UX components to
   concrete technology (CSS framework, interaction library, HTML structure). Commissioned

@@ -1,5 +1,5 @@
 ---
-name: unfolding-po
+name: po
 description: >
   PO (Product Owner) role in the Unfolding Specs process. Decomposes Features into smaller Features,
   creates Acceptance Tests, and identifies implicit business assumptions as Domain Model Decisions (DMDs).
