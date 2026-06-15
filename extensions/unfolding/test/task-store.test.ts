@@ -4,9 +4,8 @@
 
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, readFileSync, existsSync, writeFileSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import {
   ensureGitignore,
   createTask,
@@ -15,10 +14,11 @@ import {
   updateTaskStatus,
   deleteTask,
 } from "../task-store.ts";
+import { makeTestTempDir, cleanupTestTempDir } from "./test-temp.ts";
 
 let dir: string;
-before(() => { dir = mkdtempSync(tmpdir() + "/unfolding-test-"); });
-after(() => { rmSync(dir, { recursive: true }); });
+before(() => { dir = makeTestTempDir("unfolding-test"); });
+after(() => { cleanupTestTempDir(dir); });
 
 // ---------------------------------------------------------------------------
 // ensureGitignore
@@ -26,17 +26,17 @@ after(() => { rmSync(dir, { recursive: true }); });
 
 describe("ensureGitignore", () => {
   it("adds the rule when .gitignore does not exist", () => {
-    const cwd = mkdtempSync(tmpdir() + "/gitignore-test-");
+    const cwd = makeTestTempDir("gitignore-test");
     try {
       ensureGitignore(cwd);
       const content = readFileSync(join(cwd, ".gitignore"), "utf8");
       assert.ok(content.includes(".pi/unfolding/tasks/"));
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
   it("adds the rule when .gitignore exists but lacks the rule", () => {
-    const cwd = mkdtempSync(tmpdir() + "/gitignore-test-");
+    const cwd = makeTestTempDir("gitignore-test");
     try {
       writeFileSync(join(cwd, ".gitignore"), "node_modules/\n");
       ensureGitignore(cwd);
@@ -44,11 +44,11 @@ describe("ensureGitignore", () => {
       assert.ok(content.includes(".pi/unfolding/tasks/"));
       assert.ok(content.includes("node_modules/"), "existing content must be preserved");
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
   it("leaves .gitignore unchanged when rule already present", () => {
-    const cwd = mkdtempSync(tmpdir() + "/gitignore-test-");
+    const cwd = makeTestTempDir("gitignore-test");
     try {
       const original = "node_modules/\n.pi/unfolding/tasks/\n";
       writeFileSync(join(cwd, ".gitignore"), original);
@@ -56,7 +56,7 @@ describe("ensureGitignore", () => {
       const content = readFileSync(join(cwd, ".gitignore"), "utf8");
       assert.equal(content, original);
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
 });
@@ -80,19 +80,19 @@ describe("createTask", () => {
     assert.equal(task.body, "Define the login feature.");
   });
   it("uses an opaque filename, not the slug", () => {
-    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    const cwd = makeTestTempDir("task-test");
     try {
       createTask(cwd, { slug: "arch-impl-login", from: "po", to: "architect", body: "Implement login" });
       const files = readdirSync(join(cwd, ".pi/unfolding/tasks"));
       assert.equal(files.length, 1);
       assert.ok(!files[0].includes("arch-impl-login"), `filename must not contain slug, got: ${files[0]}`);
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
 
-  it("throws when a non-accepted task with the same slug already exists", () => {
-    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+  it("throws when a task with the same slug already exists", () => {
+    const cwd = makeTestTempDir("task-test");
     try {
       createTask(cwd, { slug: "duplicate-slug", from: "po", to: "architect", body: "First" });
       assert.throws(
@@ -100,7 +100,7 @@ describe("createTask", () => {
         /duplicate-slug/,
       );
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
 });
@@ -111,7 +111,7 @@ describe("createTask", () => {
 
 describe("readTask", () => {
   it("returns the task by slug", () => {
-    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    const cwd = makeTestTempDir("task-test");
     try {
       createTask(cwd, { slug: "po-read-me", from: "orchestrator", to: "po", body: "Do this" });
       const task = readTask(cwd, "po-read-me");
@@ -119,7 +119,18 @@ describe("readTask", () => {
       assert.equal(task.slug, "po-read-me");
       assert.equal(task.to, "po");
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("round-trips session_file", () => {
+    const cwd = makeTestTempDir("task-test");
+    try {
+      createTask(cwd, { slug: "po-session-file", from: "orchestrator", to: "po", body: "Do this", session_file: "/tmp/session.jsonl" });
+      const task = readTask(cwd, "po-session-file");
+      assert.equal(task?.session_file, "/tmp/session.jsonl");
+    } finally {
+      cleanupTestTempDir(cwd);
     }
   });
 
@@ -134,7 +145,7 @@ describe("readTask", () => {
 
 describe("listTasks", () => {
   it("returns all tasks", () => {
-    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    const cwd = makeTestTempDir("task-test");
     try {
       createTask(cwd, { slug: "task-a", from: "orchestrator", to: "po", body: "A" });
       createTask(cwd, { slug: "task-b", from: "po", to: "architect", body: "B" });
@@ -143,16 +154,16 @@ describe("listTasks", () => {
       const slugs = tasks.map(t => t.slug).sort();
       assert.deepEqual(slugs, ["task-a", "task-b"]);
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
 
   it("returns empty array when no tasks exist", () => {
-    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    const cwd = makeTestTempDir("task-test");
     try {
       assert.deepEqual(listTasks(cwd), []);
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
 });
@@ -163,63 +174,63 @@ describe("listTasks", () => {
 
 describe("updateTaskStatus", () => {
   it("updates status to finished", () => {
-    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    const cwd = makeTestTempDir("task-test");
     try {
       createTask(cwd, { slug: "finish-me", from: "po", to: "coder", body: "Do it" });
       updateTaskStatus(cwd, "finish-me", "finished");
       assert.equal(readTask(cwd, "finish-me")?.status, "finished");
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
 
   it("writes resume_message when provided", () => {
-    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    const cwd = makeTestTempDir("task-test");
     try {
       createTask(cwd, { slug: "msg-me", from: "po", to: "coder", body: "Do it" });
       updateTaskStatus(cwd, "msg-me", "in_progress", undefined, "reopened: try again");
       assert.equal(readTask(cwd, "msg-me")?.resume_message, "reopened: try again");
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
 
   it("round-trips multi-line resume_message", () => {
-    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    const cwd = makeTestTempDir("task-test");
     try {
       createTask(cwd, { slug: "ml-msg", from: "po", to: "coder", body: "Do it" });
       updateTaskStatus(cwd, "ml-msg", "in_progress", undefined, "reopened: line one\nline two\nline three");
       assert.equal(readTask(cwd, "ml-msg")?.resume_message, "reopened: line one\nline two\nline three");
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
 
   it("round-trips multi-line blocked_reason", () => {
-    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    const cwd = makeTestTempDir("task-test");
     try {
       createTask(cwd, { slug: "ml-block", from: "po", to: "coder", body: "Do it" });
       updateTaskStatus(cwd, "ml-block", "blocked", "waiting for:\n- decision A\n- decision B");
       assert.equal(readTask(cwd, "ml-block")?.blocked_reason, "waiting for:\n- decision A\n- decision B");
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
 
   it("clears resume_message when not provided", () => {
-    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    const cwd = makeTestTempDir("task-test");
     try {
       createTask(cwd, { slug: "clear-msg", from: "po", to: "coder", body: "Do it" });
       updateTaskStatus(cwd, "clear-msg", "in_progress", undefined, "old message");
       updateTaskStatus(cwd, "clear-msg", "finished");
       assert.equal(readTask(cwd, "clear-msg")?.resume_message, undefined);
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
 
   it("updates status to blocked and sets blocked_reason", () => {
-    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    const cwd = makeTestTempDir("task-test");
     try {
       createTask(cwd, { slug: "block-me", from: "po", to: "coder", body: "Do it" });
       updateTaskStatus(cwd, "block-me", "blocked", "waiting for ADR decision");
@@ -227,12 +238,12 @@ describe("updateTaskStatus", () => {
       assert.equal(task?.status, "blocked");
       assert.equal(task?.blocked_reason, "waiting for ADR decision");
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
 
   it("updates status back to in_progress", () => {
-    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    const cwd = makeTestTempDir("task-test");
     try {
       createTask(cwd, { slug: "reopen-me", from: "po", to: "coder", body: "Do it" });
       updateTaskStatus(cwd, "reopen-me", "blocked", "a reason");
@@ -241,7 +252,7 @@ describe("updateTaskStatus", () => {
       assert.equal(task?.status, "in_progress");
       assert.equal(task?.blocked_reason, undefined);
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
 });
@@ -252,13 +263,13 @@ describe("updateTaskStatus", () => {
 
 describe("deleteTask", () => {
   it("removes the task file", () => {
-    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    const cwd = makeTestTempDir("task-test");
     try {
       createTask(cwd, { slug: "delete-me", from: "po", to: "coder", body: "Gone" });
       deleteTask(cwd, "delete-me");
       assert.equal(readTask(cwd, "delete-me"), null);
     } finally {
-      rmSync(cwd, { recursive: true });
+      cleanupTestTempDir(cwd);
     }
   });
 });

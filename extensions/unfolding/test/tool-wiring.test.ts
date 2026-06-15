@@ -122,6 +122,7 @@ describe("task_delegate wiring", () => {
     const block = toolBlock(src, 'name: "task_delegate"');
     assert.ok(block.includes("createTask"), "must call createTask");
     assert.ok(block.includes("session_id"), "must write session_id into task");
+    assert.ok(block.includes("session_file"), "must write session_file into task");
   });
 
   it("waits for child decision via waitForChildDecision", () => {

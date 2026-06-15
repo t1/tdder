@@ -1,11 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 
 import { createTask, readTask } from "../task-store.ts";
 import { taskBlock, taskFinished, taskReopen, taskUnblock } from "../task-tools.ts";
 import { resumeDelegatedTask } from "../task-resume.ts";
+import { makeTestTempDir, cleanupTestTempDir } from "./test-temp.ts";
 
 function fakeSessions() {
   return new Map();
@@ -13,7 +12,7 @@ function fakeSessions() {
 
 describe("resumeDelegatedTask missing live session", () => {
   it("task_unblock throws, posts diagnostic output, and leaves blocked task unchanged", async () => {
-    const cwd = mkdtempSync(tmpdir() + "/resume-task-");
+    const cwd = makeTestTempDir("resume-task");
     const output: string[] = [];
     try {
       createTask(cwd, { slug: "arch-add-todo", from: "po", to: "architect", body: "Continue" });
@@ -41,12 +40,12 @@ describe("resumeDelegatedTask missing live session", () => {
       assert.equal(task?.blocked_reason, "waiting for ADR decision");
       assert.equal(task?.resume_message, undefined);
     } finally {
-      rmSync(cwd, { recursive: true, force: true });
+      cleanupTestTempDir(cwd);
     }
   });
 
   it("task_reopen throws, posts diagnostic output, and leaves finished task unchanged", async () => {
-    const cwd = mkdtempSync(tmpdir() + "/resume-task-");
+    const cwd = makeTestTempDir("resume-task");
     const output: string[] = [];
     try {
       createTask(cwd, { slug: "arch-add-todo", from: "po", to: "architect", body: "Continue" });
@@ -74,7 +73,7 @@ describe("resumeDelegatedTask missing live session", () => {
       assert.equal(task?.blocked_reason, undefined);
       assert.equal(task?.resume_message, undefined);
     } finally {
-      rmSync(cwd, { recursive: true, force: true });
+      cleanupTestTempDir(cwd);
     }
   });
 });

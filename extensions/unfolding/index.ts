@@ -140,6 +140,7 @@ function makeTaskDelegateDefinition(from: string, activeSessions: Map<string, Ag
             body: params.body,
             parent_slug: params.parent_slug,
             session_id: session.sessionId,
+            session_file: session.sessionFile,
           });
         }
         // Forward parent abort (Esc) to the child session
