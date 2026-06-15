@@ -90,7 +90,8 @@ Watch for blocked tasks with `[DMD]` or `[ADR]` task prefixes. When you see one:
 3. Add only brief context about what the agent was working on (Feature/Task name)
 4. Do not rephrase or summarize the agent's questions — use them as-is
 5. Wait for the Sensei's answer
-6. Resume the blocked agent with the answer verbatim. Do not interpret,
+6. Resume the **PO** (not the Architect) with the answer verbatim — the PO will
+   relay it to the Architect via `task_unblock`. Do not interpret,
    summarize, or add implications. If the answer feels incomplete, the agent
    will ask follow-up questions — never fill in gaps yourself.
 

@@ -33,7 +33,9 @@ When the PO's `task_delegate` returns `blocked` and the reason references a
 2. Present the question using `ctx.ui.select()` for multiple-choice options,
    `ctx.ui.input()` for free-text, or both in sequence if the DMD/ADR has
    options plus a free-text override
-3. Call `task_unblock(slug, answer)` with the Sensei's answer verbatim
+3. Call `task_unblock(slug, answer)` on the **PO task** (not the Architect or
+   any deeper task) with the Sensei's answer verbatim. The PO relays it down
+   the chain via its own `task_unblock` call.
 
 If the blocked reason is not a DMD/ADR (e.g. a service not running, a
 Playwright issue), handle it directly — start the service, fix the
