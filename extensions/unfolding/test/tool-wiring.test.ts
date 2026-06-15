@@ -45,8 +45,9 @@ describe("structural wiring", () => {
   });
 
   it("task_reopen tool passes resume_message with 'reopened:' prefix", () => {
+    // The 'reopened:' prefix is applied by taskReopen in task-tools.ts
     const block = blockAfter(loadSrc(), 'name: "task_reopen"', 1600);
-    assert.ok(block.includes("reopened:"), "must set resume_message to 'reopened: <reason>'");
+    assert.ok(block.includes("taskReopen"), "must delegate to taskReopen which applies the 'reopened:' prefix");
   });
 
   it("task_reopen tool streams child output and waits for next decision", () => {
@@ -61,14 +62,40 @@ describe("structural wiring", () => {
   });
 
   it("task_unblock tool passes resume_message with 'unblocked' prefix", () => {
+    // The 'unblocked' prefix is applied by taskUnblock in task-tools.ts
     const block = blockAfter(loadSrc(), 'name: "task_unblock"', 1600);
-    assert.ok(block.includes("unblocked"), "must set resume_message to 'unblocked...'");
+    assert.ok(block.includes("taskUnblock"), "must delegate to taskUnblock which applies the 'unblocked' prefix");
   });
 
   it("task_unblock tool streams child output and waits for next decision", () => {
     const block = blockAfter(loadSrc(), 'name: "task_unblock"', 1600);
     assert.ok(block.includes("streamChildSession"), "must stream child output");
     assert.ok(block.includes("waitForChildDecision"), "must wait for next decision point");
+  });
+
+  it("task_unblock posts args to postOutput", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_unblock"', 1600);
+    assert.ok(block.includes("postOutput"), "must post args via postOutput for human visibility");
+  });
+
+  it("task_unblock throws when no live session found", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_unblock"', 1600);
+    assert.ok(block.includes("throw"), "must throw when session not found, not silently succeed");
+  });
+
+  it("task_reopen posts args to postOutput", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_reopen"', 1600);
+    assert.ok(block.includes("postOutput"), "must post args via postOutput for human visibility");
+  });
+
+  it("task_reopen throws when no live session found", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_reopen"', 1600);
+    assert.ok(block.includes("throw"), "must throw when session not found, not silently succeed");
+  });
+
+  it("task_accept posts args to postOutput", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_accept"');
+    assert.ok(block.includes("postOutput"), "must post args via postOutput for human visibility");
   });
 });
 

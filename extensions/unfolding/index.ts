@@ -288,6 +288,7 @@ export default function (pi: ExtensionAPI) {
     description: "Accept a finished delegated task (commissioner).",
     parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
+      postOutput(`  ✅ task_accept: ${params.slug}`);
       taskAccept(ctx.cwd, params.slug);
       activeSessions.delete(params.slug);
       return { content: [{ type: "text", text: `Task "${params.slug}" accepted.` }], details: {} };
@@ -303,11 +304,16 @@ export default function (pi: ExtensionAPI) {
       reason: Type.String({ description: "Why the task is being reopened" }),
     }),
     async execute(_id, params, signal, onUpdate, ctx) {
+      postOutput(`  🔄 task_reopen: ${params.slug} — ${params.reason}`);
       taskReopen(ctx.cwd, params.slug, params.reason);
 
       const session = activeSessions.get(params.slug);
       if (!session) {
-        return { content: [{ type: "text", text: `Task "${params.slug}" reopened: ${params.reason}` }], details: {} };
+        throw new Error(
+          `task_reopen: no live session found for slug "${params.slug}". ` +
+          `This is likely a bug in the unfolding extension — if you don't fully understand the cause, ` +
+          `print out the current situation and stop working.`
+        );
       }
 
       const task = readTask(ctx.cwd, params.slug);
@@ -351,11 +357,16 @@ export default function (pi: ExtensionAPI) {
       reason: Type.Optional(Type.String({ description: "Optional context for the unblock" })),
     }),
     async execute(_id, params, signal, onUpdate, ctx) {
+      postOutput(`  🔓 task_unblock: ${params.slug}${params.reason ? ` — ${params.reason}` : ""}`);
       taskUnblock(ctx.cwd, params.slug, params.reason);
 
       const session = activeSessions.get(params.slug);
       if (!session) {
-        return { content: [{ type: "text", text: `Task "${params.slug}" unblocked.` }], details: {} };
+        throw new Error(
+          `task_unblock: no live session found for slug "${params.slug}". ` +
+          `This is likely a bug in the unfolding extension — if you don't fully understand the cause, ` +
+          `print out the current situation and stop working.`
+        );
       }
 
       const task = readTask(ctx.cwd, params.slug);
