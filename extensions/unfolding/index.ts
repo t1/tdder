@@ -96,7 +96,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "task_list",
     label: "Task list",
-    description: "List all delegated tasks (orchestrator only).",
+    description: "List all delegated tasks (root session only).",
     parameters: Type.Object({}),
     async execute(_id, _params, _signal, _onUpdate, ctx) {
       return { content: [{ type: "text", text: taskList(ctx.cwd) }], details: {} };
@@ -106,7 +106,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "task_read",
     label: "Task read",
-    description: "Read full details of a delegated task by slug (orchestrator only).",
+    description: "Read full details of a delegated task by slug (root session only).",
     parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       return { content: [{ type: "text", text: taskRead(ctx.cwd, params.slug) }], details: {} };
@@ -194,6 +194,7 @@ export default function (pi: ExtensionAPI) {
           cwd: ctx.cwd,
           sessionManager: SessionManager.create(ctx.cwd),
           resourceLoader: loader,
+          excludeTools: ["task_list", "task_read"],
         });
 
         if (existing) {
