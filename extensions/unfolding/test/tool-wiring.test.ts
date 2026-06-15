@@ -14,23 +14,23 @@ function loadSrc() { return loadIndexSrc(); }
 // ---------------------------------------------------------------------------
 
 describe("structural wiring", () => {
-  it("task_finished tool waits for resume after writing finished status", () => {
-    const block = toolBlock(loadSrc(), 'name: "task_delegate"');
-    assert.ok(block.includes("task_finished"), "task_delegate must inject task_finished");
-    assert.ok(block.includes("taskFinished"), "must call taskFinished");
-    assert.ok(block.includes("waitForResume"), "must call waitForResume");
+  it("task_finished tool wiring is extracted to createChildTaskTools", () => {
+    const src = readFileSync(new URL("../child-task-tools.ts", import.meta.url).pathname, "utf8");
+    assert.ok(src.includes("task_finished"), "child-task-tools must inject task_finished");
+    assert.ok(src.includes("taskFinished"), "must call taskFinished");
+    assert.ok(!src.includes("waitForResume"), "must not wait for resume anymore");
   });
 
-  it("task_finished returns the resume message from waitForResume", () => {
-    const block = toolBlock(loadSrc(), 'name: "task_delegate"');
-    assert.ok(block.includes(".message"), "must return result.message from waitForResume");
+  it("task_finished aborts the current child run after checkpointing", () => {
+    const src = readFileSync(new URL("../child-task-tools.ts", import.meta.url).pathname, "utf8");
+    assert.ok(src.includes("ctx.abort()"), "must abort the current child run after checkpointing");
   });
 
-  it("task_block tool waits for resume after writing blocked status", () => {
-    const block = toolBlock(loadSrc(), 'name: "task_delegate"');
-    assert.ok(block.includes("task_block"), "task_delegate must inject task_block");
-    assert.ok(block.includes("taskBlock"), "must call taskBlock");
-    assert.ok(block.includes("waitForResume"), "must call waitForResume");
+  it("task_block tool wiring is extracted to createChildTaskTools", () => {
+    const src = readFileSync(new URL("../child-task-tools.ts", import.meta.url).pathname, "utf8");
+    assert.ok(src.includes("task_block"), "child-task-tools must inject task_block");
+    assert.ok(src.includes("taskBlock"), "must call taskBlock");
+    assert.ok(!src.includes("waitForResume"), "must not wait for resume anymore");
   });
 
   it("task_accept tool deletes the task file", () => {
@@ -76,9 +76,9 @@ describe("structural wiring", () => {
     assert.ok(block.includes("postOutput"), "must post args via postOutput for human visibility");
   });
 
-  it("task_unblock delegates missing-session failure handling to resumeDelegatedTask", () => {
+  it("task_unblock delegates restore-or-resume handling to resumeDelegatedTask", () => {
     const block = blockAfter(loadSrc(), 'name: "task_unblock"', 1200);
-    assert.ok(block.includes("resumeDelegatedTask"), "must delegate missing-session failure handling to resumeDelegatedTask");
+    assert.ok(block.includes("resumeDelegatedTask"), "must delegate restore-or-resume handling to resumeDelegatedTask");
   });
 
   it("task_reopen posts args to postOutput", () => {
@@ -86,9 +86,9 @@ describe("structural wiring", () => {
     assert.ok(block.includes("postOutput"), "must post args via postOutput for human visibility");
   });
 
-  it("task_reopen delegates missing-session failure handling to resumeDelegatedTask", () => {
+  it("task_reopen delegates restore-or-resume handling to resumeDelegatedTask", () => {
     const block = blockAfter(loadSrc(), 'name: "task_reopen"', 1200);
-    assert.ok(block.includes("resumeDelegatedTask"), "must delegate missing-session failure handling to resumeDelegatedTask");
+    assert.ok(block.includes("resumeDelegatedTask"), "must delegate restore-or-resume handling to resumeDelegatedTask");
   });
 
   it("task_accept posts args to postOutput", () => {
@@ -102,7 +102,7 @@ describe("structural wiring", () => {
 // ---------------------------------------------------------------------------
 
 describe("task_delegate wiring", () => {
-  const src = loadSrc();
+  const src = readFileSync(new URL("../task-delegate-tool.ts", import.meta.url).pathname, "utf8");
 
   it("errors when role agent file not found", () => {
     const block = toolBlock(src, 'name: "task_delegate"');
@@ -116,6 +116,11 @@ describe("task_delegate wiring", () => {
   it("passes body + CHILD_FIXED_INSTRUCTION as initial message", () => {
     const block = toolBlock(src, 'name: "task_delegate"');
     assert.ok(block.includes("CHILD_FIXED_INSTRUCTION"), "must append CHILD_FIXED_INSTRUCTION");
+  });
+
+  it("task_delegate uses extracted child task tools", () => {
+    const block = toolBlock(src, 'name: "task_delegate"');
+    assert.ok(block.includes("createChildTaskTools"), "must use extracted child task tools");
   });
 
   it("creates task after obtaining child session id", () => {

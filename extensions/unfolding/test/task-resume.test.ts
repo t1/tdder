@@ -1,14 +1,54 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { createTask, readTask } from "../task-store.ts";
 import { taskBlock, taskFinished, taskReopen, taskUnblock } from "../task-tools.ts";
 import { resumeDelegatedTask } from "../task-resume.ts";
+import { restoreChildSession } from "../session-restore.ts";
 import { makeTestTempDir, cleanupTestTempDir } from "./test-temp.ts";
 
 function fakeSessions() {
   return new Map();
 }
+
+describe("restoreChildSession", () => {
+  it("returns null when session_file is missing", async () => {
+    const cwd = makeTestTempDir("resume-task");
+    try {
+      createTask(cwd, { slug: "arch-add-todo", from: "po", to: "architect", body: "Continue" });
+      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {});
+      assert.equal(result, null);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("returns null when session_file does not exist", async () => {
+    const cwd = makeTestTempDir("resume-task");
+    try {
+      createTask(cwd, { slug: "arch-add-todo", from: "po", to: "architect", body: "Continue", session_file: join(cwd, "missing.jsonl") });
+      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {});
+      assert.equal(result, null);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("restores a session when session_file exists", async () => {
+    const cwd = makeTestTempDir("resume-task");
+    try {
+      const sessionFile = join(cwd, "session.jsonl");
+      writeFileSync(sessionFile, JSON.stringify({ version: 1, cwd }) + "\n");
+      createTask(cwd, { slug: "arch-add-todo", from: "po", to: "architect", body: "Continue", session_file: sessionFile });
+      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {});
+      assert.ok(result !== null);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+});
 
 describe("resumeDelegatedTask missing live session", () => {
   it("task_unblock throws, posts diagnostic output, and leaves blocked task unchanged", async () => {

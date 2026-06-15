@@ -26,15 +26,16 @@ after(() => { cleanupTestTempDir(dir); });
 // ---------------------------------------------------------------------------
 
 describe("structural invariants", () => {
-  it("all 8 task tool names are registered in index.ts", () => {
-    const src = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
-    const tools = [
-      "task_list", "task_read",
-      "task_finished", "task_block",
-      "task_delegate", "task_accept", "task_reopen", "task_unblock",
-    ];
-    for (const name of tools) {
-      assert.ok(src.includes(`"${name}"`), `index.ts must register tool "${name}"`);
+  it("registers the commissioner tools in index.ts, delegate tool in task-delegate-tool.ts, and child tools in child-task-tools.ts", () => {
+    const indexSrc = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
+    const delegateSrc = readFileSync(new URL("../task-delegate-tool.ts", import.meta.url).pathname, "utf8");
+    const childSrc = readFileSync(new URL("../child-task-tools.ts", import.meta.url).pathname, "utf8");
+    for (const name of ["task_list", "task_read", "task_accept", "task_reopen", "task_unblock"]) {
+      assert.ok(indexSrc.includes(`"${name}"`), `index.ts must register tool "${name}"`);
+    }
+    assert.ok(delegateSrc.includes('name: "task_delegate"'), "task-delegate-tool.ts must define task_delegate");
+    for (const name of ["task_finished", "task_block"]) {
+      assert.ok(childSrc.includes(`"${name}"`), `child-task-tools.ts must define tool "${name}"`);
     }
   });
 });

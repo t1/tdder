@@ -183,7 +183,7 @@ describe("waitForResume", () => {
 
 describe("structural invariants", () => {
   it("task_delegate tool calls ensureGitignore before creating the task", () => {
-    const src = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
+    const src = readFileSync(new URL("../task-delegate-tool.ts", import.meta.url).pathname, "utf8");
     const block = toolBlock(src, 'name: "task_delegate"');
     assert.ok(block.includes("ensureGitignore"), "task_delegate execute must call ensureGitignore");
   });
