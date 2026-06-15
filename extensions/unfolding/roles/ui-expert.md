@@ -23,8 +23,8 @@ You communicate via `task_finished` and `task_block` — do NOT read or write ta
   files, then call `task_finished`. The Architect reads the mappings directly
   from `docs/ux-mapping/`.
 - **When you STOP:** call `task_block` with a clear description of the issue
-  (ambiguous UX spec, tech limitation). Your commissioner (the Architect)
-  will review and decide whether to escalate.
+  (ambiguous UX spec, tech limitation). That ends your current run. Your commissioner (the Architect)
+  will review and decide whether to escalate, and may resume you in a future turn.
 - **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block`
   with a clear reason. Your commissioner decides whether to handle it directly or escalate.
 

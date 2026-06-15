@@ -18,8 +18,9 @@ You communicate via `task_finished` and `task_block` — do NOT read or write ta
 - **Your tasks** are `[CODE]` tasks in your task body.
 - **When you finish a task:** call `task_finished` with a summary written into
   the task's output files or notes (the Architect reads the code and tests directly).
+  That ends your current run — do NOT poll or wait.
 - **When you STOP:** call `task_block` with a clear description of the issue.
-  Your commissioner (the Architect) will review and resume you.
+  That ends your current run. Your commissioner (the Architect) will review and resume you in a future turn.
 - **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block`
   with a clear reason. Your commissioner decides whether to handle it directly or escalate.
 - **When you want a code review** (e.g., during the TDD refactor phase):

@@ -32,9 +32,9 @@ Do NOT read or write task files manually; always use the tools.
   Like `task_delegate`, both block until the sub-agent reaches its next decision point
   (finished or blocked again). Do NOT poll with `task_read` or `sleep` — just act on the return value.
 - **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block`
-  with a clear reason. Your commissioner decides whether to handle it directly or escalate.
+  with a clear reason. That ends your current run. Your commissioner decides whether to handle it directly or escalate, and may resume you in a future turn.
 - **When the Feature is complete:** create an `[AT]` task for the PO with a reference
-  to `docs/COMMANDS.md`, then call `task_finished`.
+  to `docs/COMMANDS.md`, then call `task_finished`. That ends your current run — do NOT poll or wait.
 
 ## Test Separation
 

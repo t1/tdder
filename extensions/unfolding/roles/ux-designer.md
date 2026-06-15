@@ -28,9 +28,9 @@ You communicate via `task_finished` and `task_block` — do NOT read or write ta
 - **Your tasks** are `[UX]` and `[UX-REVIEW]` tasks in your task body.
 - **When you finish a task:** write the UX spec and change summary into the
   referenced files, then call `task_finished`. The PO reads the result from
-  those files.
+  those files. That ends your current run — do NOT poll or wait.
 - **When you STOP with business questions:** call `task_block` with a clear
-  description of the question. Your commissioner (the PO) will review and resume you.
+  description of the question. That ends your current run. Your commissioner (the PO) will review and resume you in a future turn.
   The PO escalates to the Sensei as a DMD if needed.
 - **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block`
   with a clear reason. Your commissioner decides whether to handle it directly or escalate.
