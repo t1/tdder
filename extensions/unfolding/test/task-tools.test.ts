@@ -240,7 +240,7 @@ describe("taskUnblock resume_message", () => {
       taskBlock(cwd, "unblock-noreason", "waiting");
       taskUnblock(cwd, "unblock-noreason");
       const result = taskRead(cwd, "unblock-noreason");
-      assert.ok(result.includes("resume_message: unblocked"), "resume_message must be 'unblocked'");
+      assert.ok(result.includes("resume_message: |\n  unblocked"), "resume_message must be 'unblocked'");
     } finally {
       rmSync(cwd, { recursive: true });
     }

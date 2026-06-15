@@ -184,6 +184,28 @@ describe("updateTaskStatus", () => {
     }
   });
 
+  it("round-trips multi-line resume_message", () => {
+    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    try {
+      createTask(cwd, { slug: "ml-msg", from: "po", to: "coder", body: "Do it" });
+      updateTaskStatus(cwd, "ml-msg", "in_progress", undefined, "reopened: line one\nline two\nline three");
+      assert.equal(readTask(cwd, "ml-msg")?.resume_message, "reopened: line one\nline two\nline three");
+    } finally {
+      rmSync(cwd, { recursive: true });
+    }
+  });
+
+  it("round-trips multi-line blocked_reason", () => {
+    const cwd = mkdtempSync(tmpdir() + "/task-test-");
+    try {
+      createTask(cwd, { slug: "ml-block", from: "po", to: "coder", body: "Do it" });
+      updateTaskStatus(cwd, "ml-block", "blocked", "waiting for:\n- decision A\n- decision B");
+      assert.equal(readTask(cwd, "ml-block")?.blocked_reason, "waiting for:\n- decision A\n- decision B");
+    } finally {
+      rmSync(cwd, { recursive: true });
+    }
+  });
+
   it("clears resume_message when not provided", () => {
     const cwd = mkdtempSync(tmpdir() + "/task-test-");
     try {

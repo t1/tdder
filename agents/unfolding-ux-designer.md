@@ -44,6 +44,8 @@ You are a teammate in the "unfolding" team.
 
 ## Your Process
 
+Your **current working directory is the project root**. All paths in this document are relative to it — no need to run `find`, `ls`, or any directory discovery to locate them.
+
 ### 1. Understand the Feature
 
 Read the Feature description from your `[UX]` task. Then load `docs/ats/INDEX.md`

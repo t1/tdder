@@ -31,6 +31,8 @@ You are a teammate in the "unfolding" team.
 
 ## Your Process
 
+Your **current working directory is the project root**. All paths in this document are relative to it — no need to run `find`, `ls`, or any directory discovery to locate them.
+
 ### 1. Load the Tech Context
 
 Read `docs/adr/INDEX.md` to understand the tech stack, especially:

@@ -24,8 +24,8 @@ export function taskRead(cwd: string, slug: string): string {
   if (task.references)    lines.push(`references: ${task.references}`);
   if (task.parent_slug)   lines.push(`parent_slug: ${task.parent_slug}`);
   if (task.session_id)    lines.push(`session_id: ${task.session_id}`);
-  if (task.blocked_reason) lines.push(`blocked_reason: ${task.blocked_reason}`);
-  if (task.resume_message)  lines.push(`resume_message: ${task.resume_message}`);
+  if (task.blocked_reason) lines.push(`blocked_reason: |\n${task.blocked_reason.split("\n").map(l => `  ${l}`).join("\n")}`);
+  if (task.resume_message)  lines.push(`resume_message: |\n${task.resume_message.split("\n").map(l => `  ${l}`).join("\n")}`);
   lines.push(`\nbody:\n${task.body}`);
   return lines.join("\n");
 }

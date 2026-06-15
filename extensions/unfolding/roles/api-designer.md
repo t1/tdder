@@ -50,6 +50,8 @@ You communicate via `task_finished` and `task_block` — do NOT read or write ta
 
 ## Your Process
 
+Your **current working directory is the project root**. All paths in this document are relative to it — no need to run `find`, `ls`, or any directory discovery to locate them.
+
 ### 1. Understand the Feature
 
 Read the Feature description from your `[API]` task. Then load `docs/ats/INDEX.md`

@@ -66,26 +66,31 @@ function serialize(task: Task): string {
   if (task.references)    lines.push(`references: ${task.references}`);
   if (task.parent_slug)   lines.push(`parent_slug: ${task.parent_slug}`);
   if (task.session_id)    lines.push(`session_id: ${task.session_id}`);
-  if (task.blocked_reason) lines.push(`blocked_reason: ${task.blocked_reason}`);
-  if (task.resume_message) lines.push(`resume_message: ${task.resume_message}`);
-  lines.push(`body: |`);
-  for (const line of task.body.split("\n")) {
-    lines.push(`  ${line}`);
-  }
+  if (task.blocked_reason) lines.push(...blockScalar("blocked_reason", task.blocked_reason));
+  if (task.resume_message)  lines.push(...blockScalar("resume_message",  task.resume_message));
+  lines.push(...blockScalar("body", task.body));
   return lines.join("\n") + "\n";
+}
+
+function blockScalar(key: string, value: string): string[] {
+  return [`${key}: |`, ...value.split("\n").map(l => `  ${l}`)];
 }
 
 function deserialize(rawContent: string): Task {
   const task: Partial<Task> = {};
-  // Extract body block (multi-line literal)
-  const bodyMatch = rawContent.match(/^body: \|\n([\s\S]*)$/m);
-  const header = bodyMatch ? rawContent.slice(0, rawContent.indexOf("body: |")) : rawContent;
-  task.body = bodyMatch ? bodyMatch[1].replace(/^  /gm, "").trimEnd() : "";
-  for (const line of header.split("\n")) {
+  // Parse scalar fields and block scalars (key: |\n  indented lines)
+  const blockRe = /^(\w+): \|\n((?:  [^\n]*\n?)*)/gm;
+  const consumed = new Set<string>();
+  for (const m of rawContent.matchAll(blockRe)) {
+    const [, key, indented] = m;
+    (task as Record<string, string>)[key] = indented.replace(/^  /gm, "").trimEnd();
+    consumed.add(key);
+  }
+  for (const line of rawContent.split("\n")) {
     const m = line.match(/^(\w+): (.+)$/);
     if (!m) continue;
     const [, key, value] = m;
-    (task as Record<string, string>)[key] = value;
+    if (!consumed.has(key)) (task as Record<string, string>)[key] = value;
   }
   return task as Task;
 }

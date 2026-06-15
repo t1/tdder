@@ -28,6 +28,8 @@ You communicate via `task_finished` and `task_block` — do NOT read or write ta
 
 ## Your Process
 
+Your **current working directory is the project root**. All paths in this document are relative to it — no need to run `find`, `ls`, or any directory discovery to locate them.
+
 ### 1. Load Prior Decisions
 
 Read `docs/adr/INDEX.md` for a summary of all prior Architecture Decision Records.

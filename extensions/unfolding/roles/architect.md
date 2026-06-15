@@ -58,6 +58,8 @@ Strict separation of test types is a core architectural constraint.
 
 ## Your Process
 
+Your **current working directory is the project root**. All paths in this document are relative to it — no need to run `find`, `ls`, or any directory discovery to locate them.
+
 ### 1. Follow Loaded Skills
 
 Skills for architecture, programming language, framework, and build tool

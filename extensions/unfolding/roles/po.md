@@ -32,6 +32,8 @@ Do NOT read or write task files manually; always use the tools.
 
 ## Your Process
 
+Your **current working directory is the project root**. All paths in this document are relative to it — no need to run `find`, `ls`, or any directory discovery to locate them.
+
 ### 1. Load Product Context
 
 Read `docs/product.md` for the product brief — domain, target users, current
