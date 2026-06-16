@@ -58,10 +58,12 @@ describe("streamChildSession", () => {
         };
       }
     } as any;
-    streamChildSession(fakeSession, "architect", "slug", (u: any) => updates.push(u.content[0].text));
+    streamChildSession(fakeSession, "architect", "slug", (u: any) => updates.push(u.content[0].text), {
+      now: () => 0,
+    });
     captured!({type: "tool_execution_start", toolCallId: "x", toolName: "read", args: {}});
     const last = updates[updates.length - 1];
-    assert.ok(last.includes("[architect] ⚙ read"), `expected tool line, got: ${last}`);
+    assert.ok(last.includes("[architect] ⚙ read — 0s"), `expected timed tool line, got: ${last}`);
   });
 
   it("accumulates text_delta onto a single line", () => {
@@ -119,6 +121,66 @@ describe("streamChildSession", () => {
     assert.ok(last.includes("[po] 💬 Hello"), `expected first visible text without leading whitespace, got: ${last}`);
   });
 
+  it("forwards thinking_delta onto a separate line", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text));
+
+    captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "plan"}});
+    captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: " first"}});
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] 🤔 plan first"), `expected accumulated thinking text, got: ${last}`);
+  });
+
+  it("keeps thinking and text on separate lines when deltas interleave", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text));
+
+    captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "think"}});
+    captured!({type: "message_update", assistantMessageEvent: {type: "text_delta", contentIndex: 1, delta: "say"}});
+    captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: " more"}});
+    captured!({type: "message_update", assistantMessageEvent: {type: "text_delta", contentIndex: 1, delta: " more"}});
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] 🤔 think more"), `expected thinking line, got: ${last}`);
+    assert.ok(last.includes("[po] 💬 say more"), `expected text line, got: ${last}`);
+  });
+
+  it("ignores whitespace-only initial thinking_delta updates", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text));
+
+    captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "\n\n"}});
+    captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "  "}});
+
+    assert.equal(updates.length, 1, `expected no extra flush for whitespace-only thinking deltas, got: ${updates.length}`);
+    assert.equal(updates[0], "[po/slug]");
+  });
+
   it("does not append an empty line on turn_end", () => {
     const updates: string[] = [];
     let captured: ((e: any) => void) | undefined;
@@ -131,7 +193,7 @@ describe("streamChildSession", () => {
     } as any;
     const stream = streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text));
 
-    captured!({type: "message_update", assistantMessageEvent: {type: "text_delta", delta: "Hello"}});
+    captured!({type: "message_update", assistantMessageEvent: {type: "text_delta", contentIndex: 0, delta: "Hello"}});
     const beforeTurnEnd = stream.getLines();
     captured!({type: "turn_end"});
 
@@ -139,17 +201,198 @@ describe("streamChildSession", () => {
     assert.equal(updates[updates.length - 1], beforeTurnEnd);
   });
 
-  it("returns unsubscribe function that removes the listener", () => {
+  it("updates failed tool executions in place", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    let nowMs = 0;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text), {
+      now: () => nowMs,
+    });
+
+    captured!({
+      type: "tool_execution_start",
+      toolCallId: "r1",
+      toolName: "read",
+      args: { path: "foo.txt" },
+    });
+    nowMs = 3000;
+    captured!({
+      type: "tool_execution_end",
+      toolCallId: "r1",
+      toolName: "read",
+      isError: true,
+      result: { content: [{ type: "text", text: "file not found\nmore detail" }] },
+    });
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] ⚙ read foo.txt — 3s ✗ — file not found"), `expected in-place tool failure summary, got: ${last}`);
+    assert.equal((last.match(/\[po] ⚙ read foo.txt/g) ?? []).length, 1, `expected one tool row, got: ${last}`);
+  });
+
+  it("shows assistant stream errors", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text));
+
+    captured!({
+      type: "message_update",
+      assistantMessageEvent: { type: "error", errorMessage: "provider exploded" },
+    });
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] ❌ provider exploded"), `expected assistant error line, got: ${last}`);
+  });
+
+  it("warns on unexpected child events", () => {
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (message?: any) => {
+      warnings.push(String(message));
+    };
+
+    try {
+      streamChildSession(fakeSession, "po", "slug", () => {
+      });
+      captured!({ type: "queue_update", steering: [], followUp: [] });
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    assert.equal(warnings.length, 1, `expected one warning, got: ${warnings.length}`);
+    assert.ok(warnings[0].includes("unexpected child event for po/slug"), `expected warning prefix, got: ${warnings[0]}`);
+    assert.ok(warnings[0].includes("\"type\":\"queue_update\""), `expected serialized event payload, got: ${warnings[0]}`);
+  });
+
+  it("shows successful tool executions with a trailing checkmark", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    let nowMs = 0;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text), {
+      now: () => nowMs,
+    });
+
+    captured!({
+      type: "tool_execution_start",
+      toolCallId: "r1",
+      toolName: "read",
+      args: { path: "foo.txt" },
+    });
+    nowMs = 2000;
+    captured!({
+      type: "tool_execution_end",
+      toolCallId: "r1",
+      toolName: "read",
+      isError: false,
+      result: { content: [{ type: "text", text: "ok" }] },
+    });
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] ⚙ read foo.txt — 2s ✓"), `expected successful tool row, got: ${last}`);
+  });
+
+  it("warns when thinking is truncated by the length limit", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text));
+
+    captured!({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        stopReason: "length",
+        content: [{ type: "thinking", thinking: "cut off" }],
+      },
+    });
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] ⚠ thinking truncated by length limit"), `expected truncation warning, got: ${last}`);
+  });
+
+  it("returns unsubscribe function that removes the listener and clears timers", () => {
     let unsubscribeCalled = false;
+    let intervalCallback: (() => void) | undefined;
+    let cleared = false;
+    let nextTimerId = 0;
+    let nowMs = 0;
     const fakeSession = {
       subscribe: (_h: any) => () => {
         unsubscribeCalled = true;
       }
     } as any;
     const {unsubscribe} = streamChildSession(fakeSession, "po", "slug", () => {
+    }, {
+      now: () => nowMs,
+      setIntervalFn: (callback: () => void) => {
+        intervalCallback = callback;
+        return ++nextTimerId as any;
+      },
+      clearIntervalFn: (_interval: any) => {
+        cleared = true;
+      },
     });
+
+    nowMs = 0;
+    const sessionWithTool = {
+      subscribe: (h: any) => {
+        h({ type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: { path: "foo.txt" } });
+        return () => {
+          unsubscribeCalled = true;
+        };
+      }
+    } as any;
+    const streamWithTimer = streamChildSession(sessionWithTool, "po", "slug", () => {
+    }, {
+      now: () => nowMs,
+      setIntervalFn: (callback: () => void) => {
+        intervalCallback = callback;
+        return ++nextTimerId as any;
+      },
+      clearIntervalFn: (_interval: any) => {
+        cleared = true;
+      },
+    });
+
+    assert.ok(intervalCallback, "expected timer to be scheduled for pending tool row");
+    streamWithTimer.unsubscribe();
+    assert.ok(cleared, "expected timer to be cleared on unsubscribe");
+    assert.ok(unsubscribeCalled, "expected session unsubscribe to be called");
     unsubscribe();
-    assert.ok(unsubscribeCalled);
   });
 
   it("forwards tool_execution_update for task_delegate as indented nested output", () => {
@@ -162,7 +405,9 @@ describe("streamChildSession", () => {
         };
       }
     } as any;
-    streamChildSession(fakeSession, "po", "po-slug", (u: any) => updates.push(u.content[0].text));
+    streamChildSession(fakeSession, "po", "po-slug", (u: any) => updates.push(u.content[0].text), {
+      now: () => 0,
+    });
     // task_delegate starts
     captured!({
       type: "tool_execution_start",
@@ -191,8 +436,40 @@ describe("streamChildSession", () => {
     const last = updates[updates.length - 1];
     assert.ok(last.includes("    [ux-designer/ux-slug]"), `expected indented grandchild header, got: ${last}`);
     assert.ok(last.includes("    [ux-designer] ⚙ write"), `expected indented grandchild tool line, got: ${last}`);
+    assert.ok(last.includes("[po] ⚙ task_delegate ux-designer / ux-slug — 0s"), `expected parent delegate tool row, got: ${last}`);
     // the grandchild block should not appear twice
     assert.equal((last.match(/\[ux-designer\/ux-slug]/g) ?? []).length, 1, "grandchild header should appear only once");
+  });
+
+  it("ticks elapsed time for pending tools", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    let intervalCallback: (() => void) | undefined;
+    let nowMs = 0;
+    let nextTimerId = 0;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text), {
+      now: () => nowMs,
+      setIntervalFn: (callback: () => void) => {
+        intervalCallback = callback;
+        return ++nextTimerId as any;
+      },
+      clearIntervalFn: () => {
+      },
+    });
+
+    captured!({ type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: { path: "foo.txt" } });
+    nowMs = 4000;
+    intervalCallback?.();
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] ⚙ read foo.txt — 4s"), `expected ticking timer update, got: ${last}`);
   });
 
   it("append adds a line and flushes", () => {

@@ -121,6 +121,15 @@ starts the Unfolding Specs process. Run it in any project where you want to unfo
 Parent and child sessions are separate pi processes; they rendezvous by polling the task file
 at 500 ms intervals. No shared memory or locking is used.
 
+**Child-session live output:** delegated child progress forwarded into the commissioner session includes
+live tool rows (`⚙`) with in-place elapsed timers plus terminal markers (`✓` / `✗`), nested delegated-task
+live updates, assistant text (`💬`), assistant thinking (`🤔`), assistant stream errors (`❌`), and an explicit
+warning when a thinking-bearing assistant message is truncated by the length limit (`⚠ thinking truncated by length limit`).
+It intentionally skips low-value protocol/lifecycle chatter such as `agent_start`, `agent_end`, `turn_start`,
+`message_start`, and assistant stream markers like `text_start`/`text_end`, `thinking_start`/`thinking_end`,
+`toolcall_*`, `start`, and `done`. Unexpected new child event types are logged as warnings so upstream protocol
+changes do not fail silently.
+
 **Roles:** pi-native agent definitions live in `extensions/unfolding/roles/<role>.md`.
 The orchestrator role is defined by the `unfolding-orchestrator` skill.
 When `task_delegate` receives a role name it strips any `unfolding-` prefix, so both

@@ -24,16 +24,91 @@ export function loadAgentSystemPrompt(rolesDir: string, role: string): string | 
 function toolSummary(toolName: string, args: Record<string, unknown>, prefixLen: number): string {
   const termWidth = process.stdout.columns ?? 120;
   const maxCmd = Math.max(20, termWidth - prefixLen - toolName.length - 1);
+  const withArg = (value: unknown) => {
+    const text = String(value ?? "").trim();
+    return text ? `${toolName} ${text}` : toolName;
+  };
   switch (toolName) {
-    case "write":    return `${toolName} ${args.path ?? ""}`;
-    case "edit":     return `${toolName} ${args.path ?? ""}`;
-    case "read":     return `${toolName} ${args.path ?? ""}`;
-    case "bash":     return `${toolName} ${String(args.command ?? "").slice(0, maxCmd)}`;
+    case "write": return withArg(args.path);
+    case "edit": return withArg(args.path);
+    case "read": return withArg(args.path);
+    case "bash": return withArg(String(args.command ?? "").slice(0, maxCmd));
     case "task_delegate": return `${toolName} ${args.role ?? ""} / ${args.slug ?? ""}`;
-    case "task_block":    return toolName;
+    case "task_block": return toolName;
     case "task_finished": return toolName;
-    default:         return toolName;
+    default: return toolName;
   }
+}
+
+function summarizeToolError(result: unknown): string {
+  if (!result || typeof result !== "object") return "";
+  const candidate = result as { content?: Array<{ type?: string; text?: string }> };
+  const text = candidate.content?.find(part => part?.type === "text" && typeof part.text === "string")?.text?.trim();
+  if (!text) return "";
+  return text.split("\n")[0]?.trim() ?? "";
+}
+
+function summarizeAssistantError(event: AgentSessionEvent): string {
+  if (event.type !== "message_update" || event.assistantMessageEvent.type !== "error") return "";
+  return event.assistantMessageEvent.errorMessage?.trim() || "assistant stream error";
+}
+
+const INTENTIONALLY_SKIPPED_EVENT_TYPES = new Set([
+  "agent_start",
+  "agent_end",
+  "turn_start",
+  "message_start",
+]);
+
+const INTENTIONALLY_SKIPPED_ASSISTANT_MESSAGE_EVENT_TYPES = new Set([
+  "start",
+  "text_start",
+  "text_end",
+  "thinking_start",
+  "thinking_end",
+  "toolcall_start",
+  "toolcall_delta",
+  "toolcall_end",
+  "done",
+]);
+
+type ToolRowStatus = "pending" | "success" | "error";
+
+type StreamRow =
+  | { kind: "tool"; toolCallId: string; summary: string; startedAt: number; status: ToolRowStatus; errorSummary?: string; nestedText?: string }
+  | { kind: "assistant"; rowKey: string; icon: "💬" | "🤔"; text: string }
+  | { kind: "note"; text: string };
+
+export interface StreamChildSessionOptions {
+  now?: () => number;
+  setIntervalFn?: (callback: () => void, ms: number) => ReturnType<typeof setInterval>;
+  clearIntervalFn?: (interval: ReturnType<typeof setInterval>) => void;
+  tickMs?: number;
+}
+
+/**
+ * Child-session display policy:
+ * - show all tool rows in place with elapsed time and terminal marker
+ * - show nested tool_execution_update only for task_delegate
+ * - show assistant message_update deltas for text and thinking, plus assistant stream errors
+ * - show an explicit warning when a thinking-bearing assistant message is truncated by length limit
+ * - intentionally skip protocol noise / lifecycle chatter listed above
+ * - warn on anything else so new upstream event types don't fail silently
+ */
+function logUnexpectedChildEvent(role: string, slug: string, event: AgentSessionEvent) {
+  console.warn(`[unfolding] unexpected child event for ${role}/${slug}: ${JSON.stringify(event)}`);
+}
+
+function hasThinkingContent(message: unknown): boolean {
+  if (!message || typeof message !== "object") return false;
+  const candidate = message as { content?: Array<{ type?: string }> };
+  return candidate.content?.some(part => part?.type === "thinking") ?? false;
+}
+
+function isThinkingLengthTruncation(event: AgentSessionEvent): boolean {
+  if (event.type !== "message_end") return false;
+  if (event.message.role !== "assistant") return false;
+  return event.message.stopReason === "length" && hasThinkingContent(event.message);
 }
 
 export function streamChildSession(
@@ -41,66 +116,200 @@ export function streamChildSession(
   role: string,
   slug: string,
   onUpdate: AgentToolUpdateCallback<unknown>,
+  options: StreamChildSessionOptions = {},
 ): { unsubscribe: () => void; append: (line: string) => void; getLines: () => string } {
-  const lines: string[] = [`[${role}/${slug}]`];
+  const prefixLen = `  [${role}] ⚙ `.length;
+  const rows: StreamRow[] = [];
+  const toolRows = new Map<string, Extract<StreamRow, { kind: "tool" }>>();
+  const assistantRows = new Map<string, Extract<StreamRow, { kind: "assistant" }>>();
+  const pendingBlockWhitespace = new Map<string, string>();
+  const now = options.now ?? (() => Date.now());
+  const setIntervalFn = options.setIntervalFn ?? ((callback, ms) => setInterval(callback, ms));
+  const clearIntervalFn = options.clearIntervalFn ?? ((interval) => clearInterval(interval));
+  const tickMs = options.tickMs ?? 1000;
+  let timer: ReturnType<typeof setInterval> | undefined;
 
-  const flush = () =>
-    onUpdate({ content: [{ type: "text", text: lines.join("\n") }], details: undefined });
+  const renderToolRow = (row: Extract<StreamRow, { kind: "tool" }>): string[] => {
+    const elapsedSeconds = Math.max(0, Math.floor((now() - row.startedAt) / 1000));
+    let line = `  [${role}] ⚙ ${row.summary} — ${elapsedSeconds}s`;
+    if (row.status === "success") line += " ✓";
+    if (row.status === "error") line += " ✗";
+    if (row.errorSummary) line += ` — ${row.errorSummary}`;
 
-  const append = (line: string) => {
-    lines.push(line);
-    flush();
+    const rendered = [line];
+    if (row.nestedText) {
+      for (const nestedLine of row.nestedText.split("\n")) rendered.push(`    ${nestedLine}`);
+    }
+    return rendered;
   };
 
-  const prefixLen = `  [${role}] ⚙ `.length;
-  const assistantPrefix = `  [${role}] 💬 `;
-  let pendingAssistantPrefixWhitespace = "";
-  // Maps toolCallId -> index in `lines` where that tool's nested output starts
-  const delegateLineStart = new Map<string, number>();
-
-  const handleEvent = (event: AgentSessionEvent) => {
-    if (event.type === "tool_execution_start") {
-      lines.push(`  [${role}] ⚙ ${toolSummary(event.toolName, event.args ?? {}, prefixLen)}`);
-      if (event.toolName === "task_delegate") {
-        delegateLineStart.set(event.toolCallId, lines.length);
+  const getLines = () => [
+    `[${role}/${slug}]`,
+    ...rows.flatMap(row => {
+      switch (row.kind) {
+        case "tool": return renderToolRow(row);
+        case "assistant": return [`  [${role}] ${row.icon} ${row.text}`];
+        case "note": return [row.text];
       }
-      flush();
-    } else if (event.type === "tool_execution_update" && event.toolName === "task_delegate") {
-      const text: string = event.partialResult?.content?.[0]?.text ?? "";
-      if (text) {
-        const start = delegateLineStart.get(event.toolCallId) ?? lines.length;
-        lines.splice(start);
-        for (const line of text.split("\n")) lines.push("    " + line);
-        flush();
-      }
-    } else if (
-      event.type === "message_update" &&
-      event.assistantMessageEvent.type === "text_delta"
-    ) {
-      const delta = event.assistantMessageEvent.delta;
-      const last = lines[lines.length - 1];
-      if (last?.startsWith(assistantPrefix)) {
-        lines[lines.length - 1] = last + delta;
-        flush();
-        return;
-      }
+    }),
+  ].join("\n");
 
-      pendingAssistantPrefixWhitespace += delta;
-      if (pendingAssistantPrefixWhitespace.trim().length === 0) return;
+  const flush = () =>
+    onUpdate({ content: [{ type: "text", text: getLines() }], details: undefined });
 
-      lines.push(assistantPrefix + pendingAssistantPrefixWhitespace.trimStart());
-      pendingAssistantPrefixWhitespace = "";
-      flush();
-    } else if (event.type === "turn_end") {
-      pendingAssistantPrefixWhitespace = "";
+  const syncTimer = () => {
+    const needsTimer = rows.some(row => row.kind === "tool" && row.status === "pending");
+    if (needsTimer && !timer) {
+      timer = setIntervalFn(() => flush(), tickMs);
+      (timer as { unref?: () => void }).unref?.();
+    } else if (!needsTimer && timer) {
+      clearIntervalFn(timer);
+      timer = undefined;
     }
   };
 
-  flush();
-  const unsubscribe = session.subscribe(handleEvent);
-  return { unsubscribe, append, getLines: () => lines.join("\n") };
-}
+  const append = (line: string) => {
+    rows.push({ kind: "note", text: line });
+    flush();
+  };
 
+  const appendAssistantDelta = (kind: "text" | "thinking", contentIndex: number | undefined, delta: string) => {
+    const key = `${kind}:${contentIndex ?? -1}`;
+    const existingRow = assistantRows.get(key);
+    if (existingRow) {
+      existingRow.text += delta;
+      flush();
+      return;
+    }
+
+    const pending = (pendingBlockWhitespace.get(key) ?? "") + delta;
+    if (pending.trim().length === 0) {
+      pendingBlockWhitespace.set(key, pending);
+      return;
+    }
+
+    const row: Extract<StreamRow, { kind: "assistant" }> = {
+      kind: "assistant",
+      rowKey: key,
+      icon: kind === "text" ? "💬" : "🤔",
+      text: pending.trimStart(),
+    };
+    assistantRows.set(key, row);
+    pendingBlockWhitespace.delete(key);
+    rows.push(row);
+    flush();
+  };
+
+  const resetAssistantBlocks = () => {
+    assistantRows.clear();
+    pendingBlockWhitespace.clear();
+  };
+
+  const handleEvent = (event: AgentSessionEvent) => {
+    if (event.type === "tool_execution_start") {
+      const row: Extract<StreamRow, { kind: "tool" }> = {
+        kind: "tool",
+        toolCallId: event.toolCallId,
+        summary: toolSummary(event.toolName, event.args ?? {}, prefixLen),
+        startedAt: now(),
+        status: "pending",
+      };
+      toolRows.set(event.toolCallId, row);
+      rows.push(row);
+      syncTimer();
+      flush();
+      return;
+    }
+
+    if (event.type === "tool_execution_update" && event.toolName === "task_delegate") {
+      const row = toolRows.get(event.toolCallId);
+      if (!row) {
+        logUnexpectedChildEvent(role, slug, event);
+        return;
+      }
+      const text: string = event.partialResult?.content?.[0]?.text ?? "";
+      if (!text) return;
+      row.nestedText = text;
+      flush();
+      return;
+    }
+
+    if (event.type === "tool_execution_end") {
+      const row = toolRows.get(event.toolCallId);
+      if (!row) {
+        logUnexpectedChildEvent(role, slug, event);
+        return;
+      }
+      row.status = event.isError ? "error" : "success";
+      row.errorSummary = event.isError ? summarizeToolError(event.result) : undefined;
+      syncTimer();
+      flush();
+      return;
+    }
+
+    if (
+      event.type === "message_update" &&
+      event.assistantMessageEvent.type === "text_delta"
+    ) {
+      appendAssistantDelta("text", event.assistantMessageEvent.contentIndex, event.assistantMessageEvent.delta);
+      return;
+    }
+
+    if (
+      event.type === "message_update" &&
+      event.assistantMessageEvent.type === "thinking_delta"
+    ) {
+      appendAssistantDelta("thinking", event.assistantMessageEvent.contentIndex, event.assistantMessageEvent.delta);
+      return;
+    }
+
+    if (
+      event.type === "message_update" &&
+      event.assistantMessageEvent.type === "error"
+    ) {
+      rows.push({ kind: "note", text: `  [${role}] ❌ ${summarizeAssistantError(event)}` });
+      flush();
+      return;
+    }
+
+    if (event.type === "turn_end") {
+      resetAssistantBlocks();
+      return;
+    }
+
+    if (isThinkingLengthTruncation(event)) {
+      rows.push({ kind: "note", text: `  [${role}] ⚠ thinking truncated by length limit` });
+      flush();
+      return;
+    }
+
+    if (event.type === "message_update") {
+      if (INTENTIONALLY_SKIPPED_ASSISTANT_MESSAGE_EVENT_TYPES.has(event.assistantMessageEvent.type)) return;
+      logUnexpectedChildEvent(role, slug, event);
+      return;
+    }
+
+    if (INTENTIONALLY_SKIPPED_EVENT_TYPES.has(event.type) || event.type === "message_end") {
+      return;
+    }
+
+    logUnexpectedChildEvent(role, slug, event);
+  };
+
+  flush();
+  const unsubscribeSession = session.subscribe(handleEvent);
+  return {
+    append,
+    getLines,
+    unsubscribe: () => {
+      if (timer) {
+        clearIntervalFn(timer);
+        timer = undefined;
+      }
+      unsubscribeSession();
+    },
+  };
+}
 
 const POLL_INTERVAL_MS = 500;
 
