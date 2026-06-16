@@ -41,7 +41,7 @@ export function streamChildSession(
   role: string,
   slug: string,
   onUpdate: AgentToolUpdateCallback<unknown>,
-): { unsubscribe: () => void; append: (line: string) => void } {
+): { unsubscribe: () => void; append: (line: string) => void; getLines: () => string } {
   const lines: string[] = [`[${role}/${slug}]`];
 
   const flush = () =>
@@ -53,6 +53,8 @@ export function streamChildSession(
   };
 
   const prefixLen = `  [${role}] ⚙ `.length;
+  const assistantPrefix = `  [${role}] 💬 `;
+  let pendingAssistantPrefixWhitespace = "";
   // Maps toolCallId -> index in `lines` where that tool's nested output starts
   const delegateLineStart = new Map<string, number>();
 
@@ -75,16 +77,22 @@ export function streamChildSession(
       event.type === "message_update" &&
       event.assistantMessageEvent.type === "text_delta"
     ) {
+      const delta = event.assistantMessageEvent.delta;
       const last = lines[lines.length - 1];
-      if (last?.startsWith(`  [${role}] 💬 `)) {
-        lines[lines.length - 1] = last + event.assistantMessageEvent.delta;
-      } else {
-        lines.push(`  [${role}] 💬 ` + event.assistantMessageEvent.delta);
+      if (last?.startsWith(assistantPrefix)) {
+        lines[lines.length - 1] = last + delta;
+        flush();
+        return;
       }
+
+      pendingAssistantPrefixWhitespace += delta;
+      if (pendingAssistantPrefixWhitespace.trim().length === 0) return;
+
+      lines.push(assistantPrefix + pendingAssistantPrefixWhitespace.trimStart());
+      pendingAssistantPrefixWhitespace = "";
       flush();
     } else if (event.type === "turn_end") {
-      lines.push("");
-      flush();
+      pendingAssistantPrefixWhitespace = "";
     }
   };
 
