@@ -99,7 +99,7 @@ describe("streamChildSession", () => {
     captured!({type: "message_update", assistantMessageEvent: {type: "text_delta", delta: "  "}});
 
     assert.equal(updates.length, 1, `expected no extra flush for whitespace-only deltas, got: ${updates.length}`);
-    assert.equal(updates[0], "[po/slug]\n  ⏱ total — 0s");
+    assert.equal(updates[0], "[po/slug]\n  [po] ⏱ total — 0s");
   });
 
   it("drops leading whitespace before the first visible assistant text", () => {
@@ -178,7 +178,7 @@ describe("streamChildSession", () => {
     captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "  "}});
 
     assert.equal(updates.length, 1, `expected no extra flush for whitespace-only thinking deltas, got: ${updates.length}`);
-    assert.equal(updates[0], "[po/slug]\n  ⏱ total — 0s");
+    assert.equal(updates[0], "[po/slug]\n  [po] ⏱ total — 0s");
   });
 
   it("does not append an empty line on turn_end", () => {
@@ -470,7 +470,7 @@ describe("streamChildSession", () => {
 
     const last = updates[updates.length - 1];
     assert.ok(last.includes("[po] ⚙ read foo.txt — 4s"), `expected ticking timer update, got: ${last}`);
-    assert.ok(last.includes("⏱ total — 4s"), `expected total timer update, got: ${last}`);
+    assert.ok(last.includes("[po] ⏱ total — 4s"), `expected total timer update, got: ${last}`);
   });
 
   it("freezes elapsed time for completed tools while other tools are still pending", () => {
@@ -554,7 +554,7 @@ describe("streamChildSession", () => {
     nowMs = 9000;
 
     assert.equal(stream.getLines(), beforeUnsubscribe, "total runtime should freeze after unsubscribe");
-    assert.ok(beforeUnsubscribe.includes("⏱ total — 3s"), `expected frozen total runtime, got: ${beforeUnsubscribe}`);
+    assert.ok(beforeUnsubscribe.includes("[po] ⏱ total — 3s"), `expected frozen total runtime, got: ${beforeUnsubscribe}`);
   });
 });
 

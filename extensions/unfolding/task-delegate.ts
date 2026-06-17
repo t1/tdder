@@ -155,7 +155,7 @@ export function streamChildSession(
 
   const renderTotalLine = () => {
     const totalSeconds = Math.max(0, Math.floor(((endedAt ?? now()) - startedAt) / 1000));
-    return `  ⏱ total — ${totalSeconds}s`;
+    return `  [${role}] ⏱ total — ${totalSeconds}s`;
   };
 
   const getLines = () => [

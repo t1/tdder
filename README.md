@@ -130,7 +130,7 @@ long-term workflow history: `task_accept` and `task_rollback` both delete the ta
 
 **Child-session live output:** delegated child progress forwarded into the commissioner session includes
 live tool rows (`⚙`) with in-place elapsed timers plus terminal markers (`✓` / `✗`), a total running-time line
-at the end (`⏱ total`), nested delegated-task live updates, assistant text (`💬`), assistant thinking (`🤔`),
+at the end (`[role] ⏱ total`), nested delegated-task live updates, assistant text (`💬`), assistant thinking (`🤔`),
 assistant stream errors (`❌`), and an explicit warning when a thinking-bearing assistant message is truncated
 by the length limit (`⚠ thinking truncated by length limit`).
 It intentionally skips low-value protocol/lifecycle chatter such as `agent_start`, `agent_end`, `turn_start`,
