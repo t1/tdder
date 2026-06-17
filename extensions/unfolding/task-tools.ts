@@ -1,3 +1,4 @@
+import { restoreTaskWorkspace } from "./git-task-state.ts";
 import { readTask, listTasks, updateTaskStatus, deleteTask } from "./task-store.ts";
 import type { Task } from "./task-store.ts";
 
@@ -52,6 +53,15 @@ export function taskBlock(cwd: string, slug: string, reason: string | undefined)
 
 export function taskAccept(cwd: string, slug: string): void {
   deleteTask(cwd, slug);
+}
+
+export function taskRollback(cwd: string, slug: string): void {
+  const task = readTask(cwd, slug);
+  if (!task) throw new Error(`Task "${slug}" not found`);
+  if (!task.base_sha) throw new Error(`Task "${slug}" has no base_sha for rollback`);
+
+  deleteTask(cwd, slug);
+  restoreTaskWorkspace(cwd, task.base_sha, task.snapshot_sha);
 }
 
 export function taskReopen(cwd: string, slug: string, reason: string): void {

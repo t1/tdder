@@ -1,6 +1,7 @@
-import type { AgentSession, AgentToolUpdateCallback, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { Model } from "@earendil-works/pi-ai";
+import type { AgentSession, AgentToolUpdateCallback, ExtensionAPI, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { readTask } from "./task-store.ts";
-import { streamChildSession, waitForChildDecision, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
+import { installTruncationRecovery, streamChildSession, waitForChildDecision, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
 import { restoreChildSession } from "./session-restore.ts";
 import { makeTaskDelegateDefinition } from "./task-delegate-tool.ts";
 
@@ -15,6 +16,9 @@ export interface ResumeDelegatedTaskParams {
   postOutput: (lines: string) => void;
   mutateTask: (cwd: string, slug: string, reason?: string) => void;
   pi: ExtensionAPI;
+  model?: Model<any>;
+  authStorage?: AuthStorage;
+  modelRegistry?: ModelRegistry;
 }
 
 function missingSessionMessage(action: "reopen" | "unblock", slug: string): string {
@@ -36,6 +40,9 @@ export async function resumeDelegatedTask({
   postOutput,
   mutateTask,
   pi,
+  model,
+  authStorage,
+  modelRegistry,
 }: ResumeDelegatedTaskParams): Promise<"finished" | "blocked" | "aborted"> {
   let session = activeSessions.get(slug);
   if (!session) {
@@ -46,6 +53,9 @@ export async function resumeDelegatedTask({
       pi,
       postOutput,
       (shortRole: string) => makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput),
+      model,
+      authStorage,
+      modelRegistry,
     );
   }
   if (!session) {
@@ -59,6 +69,7 @@ export async function resumeDelegatedTask({
   const task = readTask(cwd, slug);
   const shortRole = task?.to.replace(/^unfolding-/, "") ?? slug;
 
+  const unsubscribeTruncationRecovery = installTruncationRecovery(session, cwd, slug);
   session.prompt(`${task?.resume_message ?? action}\n\n${CHILD_FIXED_INSTRUCTION}`).catch((err: unknown) => {
     const stack = err instanceof Error ? err.stack : String(err);
     console.error(`[unfolding] resumed child session for task "${slug}" failed:`, stack);
@@ -76,6 +87,7 @@ export async function resumeDelegatedTask({
     undefined,
     signal,
   );
+  unsubscribeTruncationRecovery();
   stream?.unsubscribe();
   const stats = session.getSessionStats();
   const costLine = `  💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`;

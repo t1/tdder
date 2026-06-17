@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
-import type { ExtensionAPI, AgentSession } from "@earendil-works/pi-coding-agent";
+import type { Model } from "@earendil-works/pi-ai";
+import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { readTask } from "./task-store.ts";
 import { createChildAgentSession, type NestedDelegateToolFactory } from "./session-common.ts";
@@ -11,6 +12,9 @@ export async function restoreChildSession(
   pi: ExtensionAPI,
   postOutput: (lines: string) => void,
   nestedDelegateToolFactory: NestedDelegateToolFactory,
+  model?: Model<any>,
+  authStorage?: AuthStorage,
+  modelRegistry?: ModelRegistry,
 ): Promise<AgentSession | null> {
   const task = readTask(cwd, slug);
   if (!task?.session_file || !existsSync(task.session_file)) return null;
@@ -24,6 +28,9 @@ export async function restoreChildSession(
     pi,
     postOutput,
     nestedDelegateToolFactory,
+    model,
+    authStorage,
+    modelRegistry,
   });
   return session;
 }

@@ -4,7 +4,9 @@
 
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
 import { createTask } from "../task-store.ts";
 import {
   taskList,
@@ -14,8 +16,10 @@ import {
   taskAccept,
   taskReopen,
   taskUnblock,
+  taskRollback,
 } from "../task-tools.ts";
 import { makeTestTempDir, cleanupTestTempDir } from "./test-temp.ts";
+import { makeTestGitRepo } from "./test-git-repo.ts";
 
 let dir: string;
 before(() => { dir = makeTestTempDir("task-tools-test"); });
@@ -30,7 +34,7 @@ describe("structural invariants", () => {
     const indexSrc = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
     const delegateSrc = readFileSync(new URL("../task-delegate-tool.ts", import.meta.url).pathname, "utf8");
     const childSrc = readFileSync(new URL("../child-task-tools.ts", import.meta.url).pathname, "utf8");
-    for (const name of ["task_list", "task_read", "task_accept", "task_reopen", "task_unblock"]) {
+    for (const name of ["task_list", "task_read", "task_accept", "task_reopen", "task_unblock", "task_rollback"]) {
       assert.ok(indexSrc.includes(`"${name}"`), `index.ts must register tool "${name}"`);
     }
     assert.ok(delegateSrc.includes('name: "task_delegate"'), "task-delegate-tool.ts must define task_delegate");
@@ -202,6 +206,42 @@ describe("taskAccept", () => {
       createTask(cwd, { slug: "accept-me", from: "orchestrator", to: "po", body: "Done" });
       taskAccept(cwd, "accept-me");
       assert.throws(() => taskRead(cwd, "accept-me"), /accept-me/);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+});
+
+describe("taskRollback", () => {
+  it("restores the exact pre-task dirty state and deletes the task", () => {
+    const { cwd, head: baseSha } = makeTestGitRepo("tools-test");
+    try {
+      writeFileSync(join(cwd, "docs", "README.md"), "seed\npre-task dirty\n");
+      writeFileSync(join(cwd, "notes.txt"), "untracked before delegate\n");
+      execFileSync("git", ["add", "-A"], { cwd, stdio: "ignore" });
+      execFileSync("git", ["commit", "-m", "snapshot"], { cwd, stdio: "ignore" });
+      const snapshotSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
+
+      createTask(cwd, {
+        slug: "rollback-me",
+        from: "orchestrator",
+        to: "po",
+        body: "Do it",
+        base_sha: baseSha,
+        snapshot_sha: snapshotSha,
+      });
+      taskBlock(cwd, "rollback-me", "need rollback");
+
+      writeFileSync(join(cwd, "docs", "README.md"), "seed\ntask changed\n");
+      writeFileSync(join(cwd, "task-temp.txt"), "created by task\n");
+
+      taskRollback(cwd, "rollback-me");
+
+      assert.throws(() => taskRead(cwd, "rollback-me"), /rollback-me/);
+      assert.equal(execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim(), baseSha);
+      assert.equal(readFileSync(join(cwd, "docs", "README.md"), "utf8"), "seed\npre-task dirty\n");
+      assert.equal(readFileSync(join(cwd, "notes.txt"), "utf8"), "untracked before delegate\n");
+      assert.equal(existsSync(join(cwd, "task-temp.txt")), false, "task-created untracked file should be removed");
     } finally {
       cleanupTestTempDir(cwd);
     }

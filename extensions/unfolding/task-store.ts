@@ -19,6 +19,8 @@ export interface TaskInput {
   parent_slug?: string;
   session_id?: string;
   session_file?: string;
+  base_sha?: string;
+  snapshot_sha?: string;
 }
 
 export interface Task extends TaskInput {
@@ -68,6 +70,8 @@ function serialize(task: Task): string {
   if (task.parent_slug)   lines.push(`parent_slug: ${task.parent_slug}`);
   if (task.session_id)    lines.push(`session_id: ${task.session_id}`);
   if (task.session_file)  lines.push(`session_file: ${task.session_file}`);
+  if (task.base_sha)      lines.push(`base_sha: ${task.base_sha}`);
+  if (task.snapshot_sha)  lines.push(`snapshot_sha: ${task.snapshot_sha}`);
   if (task.blocked_reason) lines.push(...blockScalar("blocked_reason", task.blocked_reason));
   if (task.resume_message)  lines.push(...blockScalar("resume_message",  task.resume_message));
   lines.push(...blockScalar("body", task.body));

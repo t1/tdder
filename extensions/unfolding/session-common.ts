@@ -1,5 +1,6 @@
 import { resolve, join } from "node:path";
-import type { ExtensionAPI, AgentSession } from "@earendil-works/pi-coding-agent";
+import type { Model } from "@earendil-works/pi-ai";
+import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { createAgentSession, DefaultResourceLoader, SessionManager, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { loadAgentSystemPrompt, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
 import { createChildTaskTools } from "./child-task-tools.ts";
@@ -15,6 +16,9 @@ export interface ChildSessionBuildParams {
   pi: ExtensionAPI;
   postOutput: (lines: string) => void;
   nestedDelegateToolFactory: NestedDelegateToolFactory;
+  model?: Model<any>;
+  authStorage?: AuthStorage;
+  modelRegistry?: ModelRegistry;
 }
 
 export async function createChildAgentSession({
@@ -26,6 +30,9 @@ export async function createChildAgentSession({
   pi,
   postOutput,
   nestedDelegateToolFactory,
+  model,
+  authStorage,
+  modelRegistry,
 }: ChildSessionBuildParams): Promise<{ session: AgentSession; shortRole: string }> {
   const rolesDir = resolve(new URL(import.meta.url).pathname, "..", "roles");
   const shortRole = role.replace(/^unfolding-/, "");
@@ -46,6 +53,9 @@ export async function createChildAgentSession({
     cwd,
     sessionManager,
     resourceLoader: loader,
+    model,
+    authStorage,
+    modelRegistry,
     excludedToolNames: ["task_list", "task_read"],
     customTools: createChildTaskTools(cwd, slug, nestedDelegateToolFactory(shortRole)),
   });

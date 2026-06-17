@@ -39,6 +39,26 @@ describe("structural wiring", () => {
     // No release needed — child detects deletion via file polling
   });
 
+  it("task_rollback tool calls taskRollback", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1200);
+    assert.ok(block.includes("taskRollback"), "must call taskRollback");
+  });
+
+  it("task_rollback posts args to postOutput", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1200);
+    assert.ok(block.includes("postOutput"), "must post args via postOutput for human visibility");
+  });
+
+  it("task_rollback aborts a live session before removing the handle", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1200);
+    assert.ok(block.includes(".abort("), "must abort a live session on rollback");
+  });
+
+  it("task_rollback removes the active session handle", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1200);
+    assert.ok(block.includes("activeSessions.delete"), "must remove session from activeSessions on rollback");
+  });
+
   it("task_reopen tool calls taskReopen", () => {
     const block = blockAfter(loadSrc(), 'name: "task_reopen"', 1600);
     assert.ok(block.includes("taskReopen"), "must call taskReopen");
@@ -94,6 +114,11 @@ describe("structural wiring", () => {
   it("task_accept posts args to postOutput", () => {
     const block = blockAfter(loadSrc(), 'name: "task_accept"');
     assert.ok(block.includes("postOutput"), "must post args via postOutput for human visibility");
+  });
+
+  it("task_rollback tool does not delegate to resumeDelegatedTask", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1200);
+    assert.ok(!block.includes("resumeDelegatedTask"), "rollback is terminal and must not resume child flow");
   });
 });
 

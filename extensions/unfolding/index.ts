@@ -14,7 +14,7 @@ import { AgentSession } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
-import { taskList, taskRead, taskAccept, taskReopen, taskUnblock } from "./task-tools.ts";
+import { taskList, taskRead, taskAccept, taskReopen, taskUnblock, taskRollback } from "./task-tools.ts";
 import type { SessionLike } from "./task-tools.ts";
 import { resumeDelegatedTask } from "./task-resume.ts";
 import { filterDisplayOnlyMessages } from "./display-only.ts";
@@ -56,7 +56,7 @@ function makePostOutput(pi: ExtensionAPI) {
     pi.sendMessage({ customType: UNFOLDING_CHILD_OUTPUT_TYPE, content: "", display: true, details: { lines } });
 }
 
-export default function (pi: ExtensionAPI) {
+export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<string, AgentSession> }) {
   pi.on("context", async (event) =>
     filterDisplayOnlyMessages(event, UNFOLDING_CHILD_OUTPUT_TYPE) as { messages?: any[] } | undefined,
   );
@@ -72,7 +72,7 @@ export default function (pi: ExtensionAPI) {
   let pendingSkillInjection: string | null = null;
 
   /** Live child sessions keyed by task slug, for re-attaching after unblock/reopen. */
-  const activeSessions = new Map<string, AgentSession>();
+  const activeSessions = options?.activeSessions ?? new Map<string, AgentSession>();
   const postOutput = makePostOutput(pi);
 
   // Inject the orchestrator skill into the system prompt for the turn that
@@ -230,6 +230,26 @@ export default function (pi: ExtensionAPI) {
 
       return {
         content: [{ type: "text", text: `Task "${params.slug}" unblocked. Outcome: ${outcome}` }],
+        details: {},
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "task_rollback",
+    label: "Task rollback",
+    description: "Roll back a delegated task to its pre-delegation workspace state and delete the task file (commissioner).",
+    parameters: Type.Object({
+      slug: Type.String({ description: "Task slug" }),
+    }),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      postOutput(`  ↩️ task_rollback: ${params.slug}`);
+      const session = activeSessions.get(params.slug);
+      if (session) await session.abort().catch(() => {});
+      activeSessions.delete(params.slug);
+      taskRollback(ctx.cwd, params.slug);
+      return {
+        content: [{ type: "text", text: `Task "${params.slug}" rolled back.` }],
         details: {},
       };
     },

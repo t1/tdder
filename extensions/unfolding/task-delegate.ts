@@ -1,11 +1,18 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentSession, AgentSessionEvent, AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
+import { readTask, updateTaskStatus } from "./task-store.ts";
 import { stripFrontmatter } from "./unfold-helpers.ts";
 
 export const CHILD_FIXED_INSTRUCTION =
   "When you have completed your work, call `task_finished`. " +
   "If you cannot continue and need commissioner action, call `task_block` with a reason.";
+
+export const TRUNCATION_BLOCKED_REASON =
+  "Automatic recovery failed after repeated truncation before the child reached a checkpoint.";
+
+const TRUNCATION_RECOVERY_PROMPT =
+  "Your last response was truncated before you reached a checkpoint. Continue in smaller concrete steps, or call task_block with a workflow-level reason if you cannot continue.";
 
 // ---------------------------------------------------------------------------
 // loadAgentSystemPrompt
@@ -309,6 +316,37 @@ export function streamChildSession(
       unsubscribeSession();
     },
   };
+}
+
+export function installTruncationRecovery(session: AgentSession, cwd: string, slug: string): () => void {
+  let recoveryAttempted = false;
+  let sawLengthTruncationThisTurn = false;
+  return session.subscribe((event) => {
+    if (event.type === "message_end") {
+      if (event.message.role === "assistant" && event.message.stopReason === "length") {
+        sawLengthTruncationThisTurn = true;
+      }
+      return;
+    }
+
+    if (event.type !== "turn_end") return;
+    if (!sawLengthTruncationThisTurn) return;
+    sawLengthTruncationThisTurn = false;
+
+    const task = readTask(cwd, slug);
+    if (task?.status !== "in_progress") return;
+
+    if (!recoveryAttempted) {
+      recoveryAttempted = true;
+      session.prompt(TRUNCATION_RECOVERY_PROMPT, { streamingBehavior: "followUp" }).catch((err: unknown) => {
+        const stack = err instanceof Error ? err.stack : String(err);
+        console.error(`[unfolding] truncation recovery prompt for task "${slug}" failed:`, stack);
+      });
+      return;
+    }
+
+    updateTaskStatus(cwd, slug, "blocked", TRUNCATION_BLOCKED_REASON);
+  });
 }
 
 const POLL_INTERVAL_MS = 500;

@@ -1,7 +1,9 @@
-import type { ExtensionAPI, AgentSession } from "@earendil-works/pi-coding-agent";
+import type { Model } from "@earendil-works/pi-ai";
+import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { createSnapshotCommit, currentHeadSha, isWorkspaceDirty } from "./git-task-state.ts";
 import { createTask, readTask, updateTaskStatus, type Task } from "./task-store.ts";
-import { streamChildSession, waitForChildDecision } from "./task-delegate.ts";
+import { installTruncationRecovery, streamChildSession, waitForChildDecision } from "./task-delegate.ts";
 import { buildChildInitialMessage, createChildAgentSession, type NestedDelegateToolFactory } from "./session-common.ts";
 
 export interface ChildSessionRunResult {
@@ -22,6 +24,9 @@ export interface StartChildSessionParams {
   nestedDelegateToolFactory: NestedDelegateToolFactory;
   signal?: AbortSignal;
   onUpdate?: any;
+  model?: Model<any>;
+  authStorage?: AuthStorage;
+  modelRegistry?: ModelRegistry;
 }
 
 export async function startChildSession({
@@ -37,6 +42,9 @@ export async function startChildSession({
   nestedDelegateToolFactory,
   signal,
   onUpdate,
+  model,
+  authStorage,
+  modelRegistry,
 }: StartChildSessionParams): Promise<ChildSessionRunResult> {
   const existing = readTask(cwd, slug);
   const initialMessage = buildChildInitialMessage(body, existing?.resume_message);
@@ -50,11 +58,16 @@ export async function startChildSession({
     pi,
     postOutput,
     nestedDelegateToolFactory,
+    model,
+    authStorage,
+    modelRegistry,
   });
 
   if (existing) {
     updateTaskStatus(cwd, slug, "in_progress");
   } else {
+    const baseSha = currentHeadSha(cwd);
+    const snapshotSha = isWorkspaceDirty(cwd) ? createSnapshotCommit(cwd) : undefined;
     createTask(cwd, {
       slug,
       from,
@@ -63,10 +76,13 @@ export async function startChildSession({
       parent_slug,
       session_id: session.sessionId,
       session_file: session.sessionFile,
+      base_sha: baseSha,
+      snapshot_sha: snapshotSha,
     });
   }
 
   signal?.addEventListener("abort", () => { session.abort().catch(() => {}); });
+  const unsubscribeTruncationRecovery = installTruncationRecovery(session, cwd, slug);
   session.prompt(initialMessage).catch((err: unknown) => {
     const stack = err instanceof Error ? err.stack : String(err);
     console.error(`[unfolding] child session for task "${slug}" failed:`, stack);
@@ -81,6 +97,7 @@ export async function startChildSession({
     undefined,
     signal,
   );
+  unsubscribeTruncationRecovery();
   stream?.unsubscribe();
   const stats = session.getSessionStats();
   const costLine = `  💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`;

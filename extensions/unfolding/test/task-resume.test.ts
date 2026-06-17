@@ -3,11 +3,15 @@ import assert from "node:assert/strict";
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fauxAssistantMessage, fauxToolCall, registerFauxProvider } from "./faux-provider.ts";
+import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { createTask, readTask } from "../task-store.ts";
 import { taskBlock, taskFinished, taskReopen, taskUnblock } from "../task-tools.ts";
 import { resumeDelegatedTask } from "../task-resume.ts";
 import { restoreChildSession } from "../session-restore.ts";
+import { startChildSession } from "../session-factory.ts";
 import { makeTestTempDir, cleanupTestTempDir } from "./test-temp.ts";
+import { makeTestGitRepo } from "./test-git-repo.ts";
 
 function nestedDelegateToolFactory(_shortRole: string) {
   return {
@@ -121,12 +125,30 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
     }
   });
 
-  it("task_unblock restores a real blocked child session and reaches the next checkpoint", async () => {
-    const cwd = makeTestTempDir("resume-task");
+  it("task_unblock restores a blocked child session and reaches the next checkpoint with a faux model", async () => {
+    const { cwd } = makeTestGitRepo("resume-task");
+    const provider = `resume-task-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{ id: "test-model" }],
+    });
+    faux.setResponses([
+      fauxAssistantMessage([
+        fauxToolCall("task_block", { blocked_reason: "need input" }),
+      ], { stopReason: "toolUse" }),
+      fauxAssistantMessage("ok"),
+      fauxAssistantMessage([
+        fauxToolCall("task_finished", {}),
+      ], { stopReason: "toolUse" }),
+      fauxAssistantMessage("done"),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+
     try {
       const activeSessions = new Map() as any;
-      const { startChildSession } = await import("../session-factory.ts");
-      await startChildSession({
+      const started = await startChildSession({
         cwd,
         from: "orchestrator",
         role: "coder",
@@ -135,17 +157,13 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         activeSessions,
         pi: {} as any,
         postOutput: () => {},
-        nestedDelegateToolFactory: (_shortRole: string) => ({
-          name: "task_delegate",
-          label: "Task delegate",
-          description: "stub",
-          parameters: { type: "object", properties: {} },
-          async execute() {
-            return { content: [{ type: "text", text: "stub" }], details: {} };
-          },
-        }),
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
       });
 
+      assert.equal(started.outcome, "blocked");
       activeSessions.delete("coder-resume");
 
       const outcome = await resumeDelegatedTask({
@@ -157,12 +175,83 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         postOutput: () => {},
         mutateTask: taskUnblock,
         pi: {} as any,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
       });
 
-      assert.ok(outcome === "blocked" || outcome === "finished", `unexpected outcome: ${outcome}`);
+      assert.equal(outcome, "finished");
       const task = readTask(cwd, "coder-resume");
-      assert.ok(task?.status === "blocked" || task?.status === "finished", `unexpected status: ${task?.status}`);
+      assert.ok(task?.status === "finished", `unexpected status: ${task?.status}`);
+      assert.equal(faux.state.callCount, 4);
     } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("task_unblock blocks after repeated truncation during the resumed run", async () => {
+    const { cwd } = makeTestGitRepo("resume-task");
+    const provider = `resume-truncation-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{ id: "test-model" }],
+    });
+    faux.setResponses([
+      fauxAssistantMessage([
+        fauxToolCall("task_block", { blocked_reason: "need input" }),
+      ], { stopReason: "toolUse" }),
+      fauxAssistantMessage("ok"),
+      fauxAssistantMessage("first resumed truncation", { stopReason: "length" }),
+      fauxAssistantMessage("second resumed truncation", { stopReason: "length" }),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+
+    try {
+      const activeSessions = new Map() as any;
+      const started = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-resume-truncation",
+        body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
+        activeSessions,
+        pi: {} as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(started.outcome, "blocked");
+      activeSessions.delete("coder-resume-truncation");
+
+      const outcome = await resumeDelegatedTask({
+        action: "unblock",
+        cwd,
+        slug: "coder-resume-truncation",
+        reason: "continue",
+        activeSessions,
+        postOutput: () => {},
+        mutateTask: taskUnblock,
+        pi: {} as any,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(outcome, "blocked");
+      const task = readTask(cwd, "coder-resume-truncation");
+      assert.equal(
+        task?.blocked_reason,
+        "Automatic recovery failed after repeated truncation before the child reached a checkpoint.",
+      );
+      assert.equal(faux.state.callCount, 4, "should retry exactly once during resumed run");
+    } finally {
+      faux.unregister();
       cleanupTestTempDir(cwd);
     }
   });
