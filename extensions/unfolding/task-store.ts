@@ -117,6 +117,7 @@ function taskFiles(cwd: string): Array<{ file: string; task: Task }> {
 // ---------------------------------------------------------------------------
 
 export function createTask(cwd: string, input: TaskInput): Task {
+  ensureGitignore(cwd);
   const existing = taskFiles(cwd).find(({ task }) => task.slug === input.slug);
   if (existing) {
     throw new Error(`Task with slug "${input.slug}" already exists`);

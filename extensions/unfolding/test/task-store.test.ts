@@ -79,6 +79,17 @@ describe("createTask", () => {
     assert.equal(task.to, "po");
     assert.equal(task.body, "Define the login feature.");
   });
+
+  it("ensures the task directory is gitignored", () => {
+    const cwd = makeTestTempDir("task-test");
+    try {
+      createTask(cwd, { slug: "gitignore-me", from: "po", to: "architect", body: "Implement login" });
+      const gitignore = readFileSync(join(cwd, ".gitignore"), "utf8");
+      assert.ok(gitignore.includes(".pi/unfolding/tasks/"));
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
   it("uses an opaque filename, not the slug", () => {
     const cwd = makeTestTempDir("task-test");
     try {
