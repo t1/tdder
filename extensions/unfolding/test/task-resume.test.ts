@@ -255,4 +255,70 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       cleanupTestTempDir(cwd);
     }
   });
+
+  it("task_reopen blocks after repeated truncation during the resumed run", async () => {
+    const { cwd } = makeTestGitRepo("resume-task");
+    const provider = `resume-reopen-truncation-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{ id: "test-model" }],
+    });
+    faux.setResponses([
+      fauxAssistantMessage([
+        fauxToolCall("task_finished", {}),
+      ], { stopReason: "toolUse" }),
+      fauxAssistantMessage("done"),
+      fauxAssistantMessage("first reopened truncation", { stopReason: "length" }),
+      fauxAssistantMessage("second reopened truncation", { stopReason: "length" }),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+
+    try {
+      const activeSessions = new Map() as any;
+      const started = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-reopen-truncation",
+        body: "Call task_finished. Just call the tool, nothing else.",
+        activeSessions,
+        pi: {} as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(started.outcome, "finished");
+      activeSessions.delete("coder-reopen-truncation");
+
+      const outcome = await resumeDelegatedTask({
+        action: "reopen",
+        cwd,
+        slug: "coder-reopen-truncation",
+        reason: "continue",
+        activeSessions,
+        postOutput: () => {},
+        mutateTask: taskReopen,
+        pi: {} as any,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(outcome, "blocked");
+      const task = readTask(cwd, "coder-reopen-truncation");
+      assert.equal(
+        task?.blocked_reason,
+        "Automatic recovery failed after repeated truncation before the child reached a checkpoint.",
+      );
+      assert.equal(faux.state.callCount, 4, "should retry exactly once during reopened run");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
 });

@@ -140,6 +140,51 @@ describe("startChildSession groundwork", () => {
     }
   });
 
+  it("keeps snapshot_sha unset when the workspace is clean", async () => {
+    const {cwd, head: baseHead} = makeTestGitRepo("session-factory");
+    const {faux, authStorage, modelRegistry} = fauxSessionSetup("session-clean");
+    try {
+      const resultPromise = startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-clean",
+        body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
+        activeSessions: new Map() as any,
+        pi: {} as any,
+        postOutput: () => {
+        },
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      const deadline = Date.now() + 10000;
+      let snapshot = null;
+      while (Date.now() < deadline) {
+        snapshot = readTaskSnapshot(cwd, "coder-clean");
+        if (snapshot?.session_file) break;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+
+      assert.ok(snapshot, "task should exist");
+      assert.equal((snapshot as any)?.base_sha, baseHead, "task should persist base_sha");
+      assert.equal((snapshot as any)?.snapshot_sha, undefined, "task should leave snapshot_sha unset in a clean workspace");
+      assert.equal(
+        execFileSync("git", ["rev-parse", "HEAD"], {cwd, encoding: "utf8"}).trim(),
+        baseHead,
+        "clean delegate start should not create a snapshot commit",
+      );
+
+      const result = await resultPromise;
+      assert.equal(result.outcome, "blocked");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("creates and persists snapshot_sha when the workspace is dirty", async () => {
     const {cwd, head: baseHead} = makeTestGitRepo("session-factory");
     const {faux, authStorage, modelRegistry} = fauxSessionSetup("session-snapshot");
