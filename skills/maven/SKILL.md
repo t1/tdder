@@ -223,6 +223,18 @@ If Docker images are not cached locally, also add `"registry-1.docker.io"` to `a
 
 # Building
 
+Normally, `clean` is **not** necessary. Prefer incremental Maven builds/tests first.
+Reaching for `clean` by default only makes feedback slower and can hide the real problem.
+
+But be ready to recognize stale build output:
+
+- a test or runtime failure mentions a class that no longer has matching source code
+- a class/resource was renamed, moved, or deleted, but old behaviour still shows up
+- failures appear "impossible" compared to the current sources
+
+In those cases, check whether the referenced class actually still exists in `src/main` or `src/test`.
+If it doesn't, a stale class file in `target/` is a likely cause; then a `clean` build is justified.
+
 Use `maven_run` with `action="package"`. If not available, use `tdder-maven package`.
 If neither is available:
 
