@@ -25,20 +25,20 @@ I'd be happy to hear about them!
 Language-agnostic core skills work with any language. Language and build-system skills complement them automatically
 when matching files are detected.
 
-| Skill                      | Purpose                                                                        |
-|----------------------------|--------------------------------------------------------------------------------|
-| `tdd`                      | Core TDD process (Red-Green-Refactor, baby steps, guessing game)               |
-| `clean-code`               | Clean Code principles (naming, SOLID, smells, method design)                   |
-| `app`                      | Absolute Priority Premise mass calculations                                    |
-| `java`                     | Java-specific conventions (var, BDD testing, static imports)                   |
-| `unfolding-architecture`   | Progressive architectural decisions (start simple, unfold on demand)           |
-| `integration-architecture` | Integration messaging patterns (commands vs events, push vs pull, reliability) |
-| `maven`                    | Maven-specific conventions (test execution, project structure)                 |
-| `nested-fixture-pattern`   | JUnit nested fixture pattern for layered test preconditions                    |
+| Skill                      | Purpose                                                                                                                                     |
+|----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `tdd`                      | Core TDD process (Red-Green-Refactor, baby steps, guessing game)                                                                            |
+| `clean-code`               | Clean Code principles (naming, SOLID, smells, method design)                                                                                |
+| `app`                      | Absolute Priority Premise mass calculations                                                                                                 |
+| `java`                     | Java-specific conventions (var, BDD testing, static imports)                                                                                |
+| `unfolding-architecture`   | Progressive architectural decisions (start simple, unfold on demand)                                                                        |
+| `integration-architecture` | Integration messaging patterns (commands vs events, push vs pull, reliability)                                                              |
+| `maven`                    | Maven-specific conventions (test execution, project structure)                                                                              |
+| `nested-fixture-pattern`   | JUnit nested fixture pattern for layered test preconditions                                                                                 |
 | `grill-po`                 | Requirements grilling session with a PO: sharpens terminology, documents features as Gherkin, updates bounded-context files and ADRs inline |
-| `project-hygiene`          | Interaction style, commit conventions, documentation discipline                |
-| `github-safety`            | Prompt-injection defense for GitHub issues and pull requests                   |
-| `prove-me-wrong`           | Devil's advocate mode: finds the strongest objections to the user's position   |
+| `project-hygiene`          | Interaction style, commit conventions, documentation discipline                                                                             |
+| `github-safety`            | Prompt-injection defense for GitHub issues and pull requests                                                                                |
+| `prove-me-wrong`           | Devil's advocate mode: finds the strongest objections to the user's position                                                                |
 
 ## Extensions
 
@@ -68,27 +68,32 @@ and become available to the LLM automatically.
 With no argument it opens an interactive selector; with an argument it dispatches directly.
 Tab-completion lists all subcommands.
 
-| Subcommand      | Behaviour                                                                      |
-|-----------------|--------------------------------------------------------------------------------|
-| `status`        | Show the state of all discovered Quarkus services; with an arg, show just that module (direct, LLM on failure) |
+| Subcommand      | Behaviour                                                                                                                           |
+|-----------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `status`        | Show the state of all discovered Quarkus services; with an arg, show just that module (direct, LLM on failure)                      |
 | `start`         | Start a discovered Quarkus service in dev mode; with multiple services it picks, and supports `--profiles=dev,foo` (LLM on failure) |
-| `stop`          | Stop one or more managed apps; with no args opens a picker, args can be module names (direct, LLM on failure) |
-| `logs`          | Show recent log output (direct, LLM on failure)                                |
-| `list`          | List all managed Quarkus instances (direct, LLM on failure)                    |
-| `agent-log`     | Read the MCP server's own log file (direct, LLM on failure)                   |
-| `restart`       | Hot-reload the app (direct, LLM on failure)                                    |
-| `open`          | Open the app in the browser                                                    |
-| `devui`         | Open the Quarkus Dev UI in the browser                                         |
-| `info`          | Show app status, endpoints, and dev services (requires dev mode)               |
-| `skills`        | Manage community skills: list installed, delete, browse and install new ones   |
-| `update`        | Check for Quarkus updates — output always sent to LLM for analysis             |
-| `search-tools`  | Discover Dev MCP tools on the running app — output sent to LLM for analysis    |
-| `test-affected` | Run tests affected by recent changes — results always sent to LLM for analysis |
-| `test-all`      | Run the full test suite — results always sent to LLM for analysis              |
-| `mcp-restart`   | Restart the quarkus-agent-mcp server process itself                            |
-| `mcp-tools`     | List all tools advertised by the MCP server (output sent to LLM)               |
+| `stop`          | Stop one or more managed apps; with no args opens a picker, args can be module names (direct, LLM on failure)                       |
+| `logs`          | Show recent log output (direct, LLM on failure)                                                                                     |
+| `list`          | List all managed Quarkus instances (direct, LLM on failure)                                                                         |
+| `agent-log`     | Read the MCP server's own log file (direct, LLM on failure)                                                                         |
+| `restart`       | Hot-reload the app (direct, LLM on failure)                                                                                         |
+| `open`          | Open the app in the browser                                                                                                         |
+| `devui`         | Open the Quarkus Dev UI in the browser                                                                                              |
+| `info`          | Show app status, endpoints, and dev services (requires dev mode)                                                                    |
+| `skills`        | Manage community skills: list installed, delete, browse and install new ones                                                        |
+| `update`        | Check for Quarkus updates — output always sent to LLM for analysis                                                                  |
+| `search-tools`  | Discover Dev MCP tools on the running app — output sent to LLM for analysis                                                         |
+| `test-affected` | Run tests affected by recent changes — results always sent to LLM for analysis                                                      |
+| `test-all`      | Run the full test suite — results always sent to LLM for analysis                                                                   |
+| `mcp-restart`   | Restart the quarkus-agent-mcp server process itself                                                                                 |
+| `mcp-tools`     | List all tools advertised by the MCP server (output sent to LLM)                                                                    |
 
-In multi-module Maven repos, `/quarkus status` scans all discovered Quarkus services and overlays their runtime state from the managed-instance list, so stopped services are shown too. `/quarkus start` uses the same discovery and supports an optional positional module/path plus `--profiles=dev,foo` (no spaces). Other instance-scoped subcommands (`stop`, `logs`, `restart`, `open`, `devui`, `info`, `test-affected`, `test-all`) no longer blindly assume the cwd is the target; they prompt when needed and also accept a positional module/path. `search-tools` keeps its positional query argument, so its target is inferred or picked rather than passed explicitly.
+In multi-module Maven repos, `/quarkus status` scans all discovered Quarkus services and overlays their runtime state
+from the managed-instance list, so stopped services are shown too. `/quarkus start` uses the same discovery and supports
+an optional positional module/path plus `--profiles=dev,foo` (no spaces). Other instance-scoped subcommands (`stop`,
+`logs`, `restart`, `open`, `devui`, `info`, `test-affected`, `test-all`) no longer blindly assume the cwd is the target;
+they prompt when needed and also accept a positional module/path. `search-tools` keeps its positional query argument, so
+its target is inferred or picked rather than passed explicitly.
 
 **Dispatch strategy:** direct subcommands call the MCP tool immediately and show the result as a
 notification. On failure, the error output is automatically forwarded to the LLM with
@@ -106,17 +111,17 @@ starts the Unfolding Specs process. Run it in any project where you want to unfo
 
 **Task tools** — used by the orchestrator and delegate sub-sessions to coordinate work:
 
-| Tool             | Used by       | Purpose                                                             |
-|------------------|---------------|---------------------------------------------------------------------|
-| `task_delegate`  | orchestrator  | Delegate work to a role sub-session; blocks until finished/blocked  |
-| `task_list`      | orchestrator  | List all tasks with slug, status, and assigned role                 |
-| `task_read`      | orchestrator  | Read full details of a task                                         |
-| `task_accept`    | orchestrator  | Accept a finished task (deletes the file; point of no return)       |
-| `task_reopen`    | orchestrator  | Send a finished task back with a reason; child resumes              |
-| `task_unblock`   | orchestrator  | Unblock a blocked task, optionally with context; child resumes      |
-| `task_rollback`  | orchestrator  | Restore the workspace to its pre-delegation state and delete task   |
-| `task_finished`  | delegate      | Mark own task finished; blocks until orchestrator accepts/reopens   |
-| `task_block`     | delegate      | Mark own task blocked with reason; blocks until orchestrator acts   |
+| Tool            | Used by      | Purpose                                                            |
+|-----------------|--------------|--------------------------------------------------------------------|
+| `task_delegate` | orchestrator | Delegate work to a role sub-session; blocks until finished/blocked |
+| `task_list`     | orchestrator | List all tasks with slug, status, and assigned role                |
+| `task_read`     | orchestrator | Read full details of a task                                        |
+| `task_accept`   | orchestrator | Accept a finished task (deletes the file; point of no return)      |
+| `task_reopen`   | orchestrator | Send a finished task back with a reason; child resumes             |
+| `task_unblock`  | orchestrator | Unblock a blocked task, optionally with context; child resumes     |
+| `task_rollback` | orchestrator | Restore the workspace to its pre-delegation state and delete task  |
+| `task_finished` | delegate     | Mark own task finished; blocks until orchestrator accepts/reopens  |
+| `task_block`    | delegate     | Mark own task blocked with reason; blocks until orchestrator acts  |
 
 **Coordination protocol:** tasks are stored as YAML files in `.pi/unfolding/tasks/` (gitignored).
 Parent and child sessions are separate pi processes; they rendezvous by polling the task file
@@ -124,9 +129,10 @@ at 500 ms intervals. No shared memory or locking is used. Task files are coordin
 long-term workflow history: `task_accept` and `task_rollback` both delete the task file.
 
 **Child-session live output:** delegated child progress forwarded into the commissioner session includes
-live tool rows (`⚙`) with in-place elapsed timers plus terminal markers (`✓` / `✗`), nested delegated-task
-live updates, assistant text (`💬`), assistant thinking (`🤔`), assistant stream errors (`❌`), and an explicit
-warning when a thinking-bearing assistant message is truncated by the length limit (`⚠ thinking truncated by length limit`).
+live tool rows (`⚙`) with in-place elapsed timers plus terminal markers (`✓` / `✗`), a total running-time line
+at the end (`⏱ total`), nested delegated-task live updates, assistant text (`💬`), assistant thinking (`🤔`),
+assistant stream errors (`❌`), and an explicit warning when a thinking-bearing assistant message is truncated
+by the length limit (`⚠ thinking truncated by length limit`).
 It intentionally skips low-value protocol/lifecycle chatter such as `agent_start`, `agent_end`, `turn_start`,
 `message_start`, and assistant stream markers like `text_start`/`text_end`, `thinking_start`/`thinking_end`,
 `toolcall_*`, `start`, and `done`. Unexpected new child event types are logged as warnings so upstream protocol
@@ -139,8 +145,10 @@ blocked task with the honest system-generated reason:
 `Automatic recovery failed after repeated truncation before the child reached a checkpoint.`
 The commissioner then decides whether to `task_unblock` or `task_rollback`.
 
-**Rollback mechanics:** delegated tasks record `base_sha` and, when the workspace was already dirty,
-an internal `snapshot_sha`. `task_rollback` restores the exact pre-task state, including tracked files,
+**Rollback mechanics:** if the project is not yet a git repository, unfolding initializes one with an
+internal initial commit before the first delegated task that needs rollback metadata, and posts a visible
+note that it did so. Delegated tasks then record `base_sha` and, when the workspace was already dirty, an
+internal `snapshot_sha`. `task_rollback` restores the exact pre-task state, including tracked files,
 untracked files, and pre-existing dirty workspace changes. This design assumes serialized child execution
 in a shared workspace; parallel code-writing child sessions would require isolated workspaces.
 
@@ -291,7 +299,8 @@ Restart OpenCode. The plugin auto-installs and registers all skills.
 
 ## Development
 
-Development currently requires [`tsx`](https://github.com/privatenumber/tsx) to be installed and available on your `PATH`, because repo utility scripts use a `#!/usr/bin/env tsx` shebang.
+Development currently requires [`tsx`](https://github.com/privatenumber/tsx) to be installed and available on your
+`PATH`, because repo utility scripts use a `#!/usr/bin/env tsx` shebang.
 
 For example:
 

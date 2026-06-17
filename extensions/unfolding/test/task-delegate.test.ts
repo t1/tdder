@@ -99,7 +99,7 @@ describe("streamChildSession", () => {
     captured!({type: "message_update", assistantMessageEvent: {type: "text_delta", delta: "  "}});
 
     assert.equal(updates.length, 1, `expected no extra flush for whitespace-only deltas, got: ${updates.length}`);
-    assert.equal(updates[0], "[po/slug]");
+    assert.equal(updates[0], "[po/slug]\n  ⏱ total — 0s");
   });
 
   it("drops leading whitespace before the first visible assistant text", () => {
@@ -178,7 +178,7 @@ describe("streamChildSession", () => {
     captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "  "}});
 
     assert.equal(updates.length, 1, `expected no extra flush for whitespace-only thinking deltas, got: ${updates.length}`);
-    assert.equal(updates[0], "[po/slug]");
+    assert.equal(updates[0], "[po/slug]\n  ⏱ total — 0s");
   });
 
   it("does not append an empty line on turn_end", () => {
@@ -470,6 +470,49 @@ describe("streamChildSession", () => {
 
     const last = updates[updates.length - 1];
     assert.ok(last.includes("[po] ⚙ read foo.txt — 4s"), `expected ticking timer update, got: ${last}`);
+    assert.ok(last.includes("⏱ total — 4s"), `expected total timer update, got: ${last}`);
+  });
+
+  it("freezes elapsed time for completed tools while other tools are still pending", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    let intervalCallback: (() => void) | undefined;
+    let nowMs = 0;
+    let nextTimerId = 0;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text), {
+      now: () => nowMs,
+      setIntervalFn: (callback: () => void) => {
+        intervalCallback = callback;
+        return ++nextTimerId as any;
+      },
+      clearIntervalFn: () => {
+      },
+    });
+
+    captured!({ type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: { path: "done.txt" } });
+    captured!({ type: "tool_execution_start", toolCallId: "r2", toolName: "read", args: { path: "pending.txt" } });
+    nowMs = 2000;
+    captured!({
+      type: "tool_execution_end",
+      toolCallId: "r1",
+      toolName: "read",
+      isError: false,
+      result: { content: [{ type: "text", text: "ok" }] },
+    });
+
+    nowMs = 5000;
+    intervalCallback?.();
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] ⚙ read done.txt — 2s ✓"), `expected completed tool duration to stay frozen, got: ${last}`);
+    assert.ok(last.includes("[po] ⚙ read pending.txt — 5s"), `expected pending tool to keep ticking, got: ${last}`);
   });
 
   it("append adds a line and flushes", () => {
@@ -482,6 +525,36 @@ describe("streamChildSession", () => {
     append("  ⏸ blocked: need help");
     const last = updates[updates.length - 1];
     assert.ok(last.includes("⏸ blocked: need help"), `expected blocked line, got: ${last}`);
+  });
+
+  it("freezes the total runtime when unsubscribed", () => {
+    const updates: string[] = [];
+    let intervalCallback: (() => void) | undefined;
+    let nowMs = 0;
+    let nextTimerId = 0;
+    const fakeSession = {
+      subscribe: (_h: any) => () => {
+      }
+    } as any;
+
+    const stream = streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text), {
+      now: () => nowMs,
+      setIntervalFn: (callback: () => void) => {
+        intervalCallback = callback;
+        return ++nextTimerId as any;
+      },
+      clearIntervalFn: () => {
+      },
+    });
+
+    nowMs = 3000;
+    intervalCallback?.();
+    const beforeUnsubscribe = stream.getLines();
+    stream.unsubscribe();
+    nowMs = 9000;
+
+    assert.equal(stream.getLines(), beforeUnsubscribe, "total runtime should freeze after unsubscribe");
+    assert.ok(beforeUnsubscribe.includes("⏱ total — 3s"), `expected frozen total runtime, got: ${beforeUnsubscribe}`);
   });
 });
 

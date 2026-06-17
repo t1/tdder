@@ -82,7 +82,7 @@ const INTENTIONALLY_SKIPPED_ASSISTANT_MESSAGE_EVENT_TYPES = new Set([
 type ToolRowStatus = "pending" | "success" | "error";
 
 type StreamRow =
-  | { kind: "tool"; toolCallId: string; summary: string; startedAt: number; status: ToolRowStatus; errorSummary?: string; nestedText?: string }
+  | { kind: "tool"; toolCallId: string; summary: string; startedAt: number; finishedAt?: number; status: ToolRowStatus; errorSummary?: string; nestedText?: string }
   | { kind: "assistant"; rowKey: string; icon: "💬" | "🤔"; text: string }
   | { kind: "note"; text: string };
 
@@ -134,10 +134,13 @@ export function streamChildSession(
   const setIntervalFn = options.setIntervalFn ?? ((callback, ms) => setInterval(callback, ms));
   const clearIntervalFn = options.clearIntervalFn ?? ((interval) => clearInterval(interval));
   const tickMs = options.tickMs ?? 1000;
+  const startedAt = now();
+  let endedAt: number | undefined;
   let timer: ReturnType<typeof setInterval> | undefined;
 
   const renderToolRow = (row: Extract<StreamRow, { kind: "tool" }>): string[] => {
-    const elapsedSeconds = Math.max(0, Math.floor((now() - row.startedAt) / 1000));
+    const endedAt = row.finishedAt ?? now();
+    const elapsedSeconds = Math.max(0, Math.floor((endedAt - row.startedAt) / 1000));
     let line = `  [${role}] ⚙ ${row.summary} — ${elapsedSeconds}s`;
     if (row.status === "success") line += " ✓";
     if (row.status === "error") line += " ✗";
@@ -150,6 +153,11 @@ export function streamChildSession(
     return rendered;
   };
 
+  const renderTotalLine = () => {
+    const totalSeconds = Math.max(0, Math.floor(((endedAt ?? now()) - startedAt) / 1000));
+    return `  ⏱ total — ${totalSeconds}s`;
+  };
+
   const getLines = () => [
     `[${role}/${slug}]`,
     ...rows.flatMap(row => {
@@ -159,20 +167,16 @@ export function streamChildSession(
         case "note": return [row.text];
       }
     }),
+    renderTotalLine(),
   ].join("\n");
 
   const flush = () =>
     onUpdate({ content: [{ type: "text", text: getLines() }], details: undefined });
 
-  const syncTimer = () => {
-    const needsTimer = rows.some(row => row.kind === "tool" && row.status === "pending");
-    if (needsTimer && !timer) {
-      timer = setIntervalFn(() => flush(), tickMs);
-      (timer as { unref?: () => void }).unref?.();
-    } else if (!needsTimer && timer) {
-      clearIntervalFn(timer);
-      timer = undefined;
-    }
+  const ensureTimer = () => {
+    if (timer) return;
+    timer = setIntervalFn(() => flush(), tickMs);
+    (timer as { unref?: () => void }).unref?.();
   };
 
   const append = (line: string) => {
@@ -223,7 +227,6 @@ export function streamChildSession(
       };
       toolRows.set(event.toolCallId, row);
       rows.push(row);
-      syncTimer();
       flush();
       return;
     }
@@ -248,8 +251,8 @@ export function streamChildSession(
         return;
       }
       row.status = event.isError ? "error" : "success";
+      row.finishedAt = now();
       row.errorSummary = event.isError ? summarizeToolError(event.result) : undefined;
-      syncTimer();
       flush();
       return;
     }
@@ -303,12 +306,14 @@ export function streamChildSession(
     logUnexpectedChildEvent(role, slug, event);
   };
 
+  ensureTimer();
   flush();
   const unsubscribeSession = session.subscribe(handleEvent);
   return {
     append,
     getLines,
     unsubscribe: () => {
+      endedAt = endedAt ?? now();
       if (timer) {
         clearIntervalFn(timer);
         timer = undefined;

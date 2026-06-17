@@ -1,19 +1,38 @@
-import { describe, it } from "node:test";
+import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import {execFileSync} from "node:child_process";
+import {existsSync, readFileSync, writeFileSync} from "node:fs";
+import {join} from "node:path";
 import {
-  currentHeadSha,
-  isWorkspaceDirty,
   createSnapshotCommit,
+  currentHeadSha,
+  ensureGitRepoWithHead,
+  isWorkspaceDirty,
   restoreTaskWorkspace,
 } from "../git-task-state.ts";
-import { cleanupTestTempDir } from "./test-temp.ts";
-import { makeTestGitRepo } from "./test-git-repo.ts";
+import {cleanupTestTempDir, makeNonRepoTestTempDir} from "./test-temp.ts";
+import {makeTestGitRepo} from "./test-git-repo.ts";
 
 describe("git-task-state", () => {
+  it("ensureGitRepoWithHead initializes a repo with an initial HEAD when needed", () => {
+    const cwd = makeNonRepoTestTempDir("git-task-state");
+    try {
+      writeFileSync(join(cwd, "README.md"), "seed\n");
+
+      const bootstrap = ensureGitRepoWithHead(cwd);
+
+      assert.equal(bootstrap.initializedRepo, true);
+      assert.equal(bootstrap.createdInitialCommit, true);
+      assert.match(bootstrap.head, /^[0-9a-f]{40}$/);
+      assert.equal(currentHeadSha(cwd), bootstrap.head);
+      assert.equal(execFileSync("git", ["rev-parse", "--is-inside-work-tree"], {cwd, encoding: "utf8"}).trim(), "true");
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("currentHeadSha returns the current HEAD", () => {
-    const { cwd, head } = makeTestGitRepo("git-task-state");
+    const {cwd, head} = makeTestGitRepo("git-task-state");
     try {
       assert.equal(currentHeadSha(cwd), head);
     } finally {
@@ -22,7 +41,7 @@ describe("git-task-state", () => {
   });
 
   it("isWorkspaceDirty is false for a clean workspace and true for dirty changes", () => {
-    const { cwd } = makeTestGitRepo("git-task-state");
+    const {cwd} = makeTestGitRepo("git-task-state");
     try {
       assert.equal(isWorkspaceDirty(cwd), false);
       writeFileSync(join(cwd, "docs", "README.md"), "seed\nchanged\n");
@@ -33,7 +52,7 @@ describe("git-task-state", () => {
   });
 
   it("createSnapshotCommit captures tracked and untracked pre-task changes", () => {
-    const { cwd, head: baseSha } = makeTestGitRepo("git-task-state");
+    const {cwd, head: baseSha} = makeTestGitRepo("git-task-state");
     try {
       writeFileSync(join(cwd, "docs", "README.md"), "seed\nchanged before delegate\n");
       writeFileSync(join(cwd, "notes.txt"), "untracked before delegate\n");
@@ -51,7 +70,7 @@ describe("git-task-state", () => {
   });
 
   it("restoreTaskWorkspace restores the exact pre-task state from base_sha and snapshot_sha", () => {
-    const { cwd, head: baseSha } = makeTestGitRepo("git-task-state");
+    const {cwd, head: baseSha} = makeTestGitRepo("git-task-state");
     try {
       writeFileSync(join(cwd, "docs", "README.md"), "seed\npre-task dirty\n");
       writeFileSync(join(cwd, "notes.txt"), "untracked before delegate\n");
@@ -72,7 +91,7 @@ describe("git-task-state", () => {
   });
 
   it("restoreTaskWorkspace with no snapshot_sha returns a clean base state", () => {
-    const { cwd, head: baseSha } = makeTestGitRepo("git-task-state");
+    const {cwd, head: baseSha} = makeTestGitRepo("git-task-state");
     try {
       writeFileSync(join(cwd, "docs", "README.md"), "seed\ntask changed\n");
       writeFileSync(join(cwd, "task-temp.txt"), "created by task\n");

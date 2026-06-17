@@ -1,7 +1,7 @@
 import type { Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { createSnapshotCommit, currentHeadSha, isWorkspaceDirty } from "./git-task-state.ts";
+import { createSnapshotCommit, ensureGitRepoWithHead, isWorkspaceDirty } from "./git-task-state.ts";
 import { createTask, readTask, updateTaskStatus, type Task } from "./task-store.ts";
 import { installTruncationRecovery, streamChildSession, waitForChildDecision } from "./task-delegate.ts";
 import { buildChildInitialMessage, createChildAgentSession, type NestedDelegateToolFactory } from "./session-common.ts";
@@ -66,7 +66,11 @@ export async function startChildSession({
   if (existing) {
     updateTaskStatus(cwd, slug, "in_progress");
   } else {
-    const baseSha = currentHeadSha(cwd);
+    const gitBootstrap = ensureGitRepoWithHead(cwd);
+    if (gitBootstrap.initializedRepo) {
+      postOutput("  ℹ unfolding initialized a local git repository for rollback support");
+    }
+    const baseSha = gitBootstrap.head;
     const snapshotSha = isWorkspaceDirty(cwd) ? createSnapshotCommit(cwd) : undefined;
     createTask(cwd, {
       slug,
