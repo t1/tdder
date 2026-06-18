@@ -48,10 +48,11 @@ Some content here.`;
 // ---------------------------------------------------------------------------
 
 describe("buildUnfoldMessage", () => {
-  it("asks to pick up with no state and no guidance", () => {
+  it("starts directly with no state and no guidance", () => {
     const msg = buildUnfoldMessage({ state: null, guidance: undefined });
     assert.ok(msg.includes("fresh project"), "should mention fresh project");
-    assert.ok(msg.includes("pick up"), "should ask to pick up");
+    assert.ok(msg.includes("Start the unfolding process now."), "should tell a fresh project to start directly");
+    assert.ok(!msg.includes("pick up where the process left off"), "should not imply prior progress on a fresh project");
     assert.ok(msg.includes("no existing code or tech stack to explore yet"), "should include fresh-project anti-exploration note");
     assert.ok(!msg.includes("Sensei guidance"), "should not mention sensei guidance");
   });
@@ -60,6 +61,7 @@ describe("buildUnfoldMessage", () => {
     const msg = buildUnfoldMessage({ state: "feature:\n  name: Foo", guidance: undefined });
     assert.ok(msg.includes("```yaml"), "should include yaml code block");
     assert.ok(msg.includes("feature:"), "should include state content");
+    assert.ok(msg.includes("Please continue from the current state."), "should use continuation wording when state exists");
     assert.ok(!msg.includes("fresh project"), "should not mention fresh project");
   });
 
