@@ -8,7 +8,7 @@ import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { createTask, readTask } from "../task-store.ts";
 import { taskBlock, taskFinished, taskReopen, taskUnblock } from "../task-tools.ts";
 import { resumeDelegatedTask } from "../task-resume.ts";
-import { MISSING_CHECKPOINT_BLOCKED_REASON } from "../task-delegate.ts";
+import { CHILD_SESSION_FAILURE_BLOCKED_REASON, MISSING_CHECKPOINT_BLOCKED_REASON } from "../task-delegate.ts";
 import { restoreChildSession } from "../session-restore.ts";
 import { startChildSession } from "../session-factory.ts";
 import { makeTestTempDir, cleanupTestTempDir } from "./test-temp.ts";
@@ -310,6 +310,69 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       const task = readTask(cwd, "coder-resume-missing-checkpoint-block");
       assert.equal(task?.blocked_reason, MISSING_CHECKPOINT_BLOCKED_REASON);
       assert.equal(faux.state.callCount, 4, "should retry exactly once during resumed run after the first missing checkpoint");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("task_unblock blocks immediately on child-session failure during the resumed run", async () => {
+    const { cwd } = makeTestGitRepo("resume-task");
+    const provider = `resume-child-failure-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{ id: "test-model" }],
+    });
+    faux.setResponses([
+      fauxAssistantMessage([
+        fauxToolCall("task_block", { blocked_reason: "need input" }),
+      ], { stopReason: "toolUse" }),
+      fauxAssistantMessage("ok"),
+      fauxAssistantMessage("transport failed", { stopReason: "error", errorMessage: "Connection error." } as any),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+
+    try {
+      const activeSessions = new Map() as any;
+      const started = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-resume-child-failure",
+        body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
+        activeSessions,
+        pi: {} as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(started.outcome, "blocked");
+      activeSessions.delete("coder-resume-child-failure");
+
+      const outcome = await resumeDelegatedTask({
+        action: "unblock",
+        cwd,
+        slug: "coder-resume-child-failure",
+        reason: "continue",
+        activeSessions,
+        postOutput: () => {},
+        mutateTask: taskUnblock,
+        pi: {} as any,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(outcome, "blocked");
+      const task = readTask(cwd, "coder-resume-child-failure");
+      assert.match(task?.blocked_reason ?? "", new RegExp(`^${CHILD_SESSION_FAILURE_BLOCKED_REASON.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+      assert.match(task?.blocked_reason ?? "", /Last failure: Connection error\./);
+      assert.equal(faux.state.callCount, 3, "should block immediately on child-session failure during resumed run");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

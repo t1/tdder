@@ -5,7 +5,7 @@ import {execFileSync} from "node:child_process";
 import {join} from "node:path";
 import {AuthStorage, ModelRegistry} from "@earendil-works/pi-coding-agent";
 import {readTaskSnapshot, startChildSession} from "../session-factory.ts";
-import { MISSING_CHECKPOINT_BLOCKED_REASON } from "../task-delegate.ts";
+import { CHILD_SESSION_FAILURE_BLOCKED_REASON, MISSING_CHECKPOINT_BLOCKED_REASON } from "../task-delegate.ts";
 import {restoreChildSession} from "../session-restore.ts";
 import {cleanupTestTempDir, makeNonRepoTestTempDir} from "./test-temp.ts";
 import {makeTestGitRepo} from "./test-git-repo.ts";
@@ -310,6 +310,47 @@ describe("startChildSession groundwork", () => {
       const snapshot = readTaskSnapshot(cwd, "coder-missing-checkpoint-block");
       assert.equal(snapshot?.blocked_reason, MISSING_CHECKPOINT_BLOCKED_REASON);
       assert.equal(faux.state.callCount, 2, "should retry exactly once after the first missing checkpoint");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("blocks immediately on child-session failure instead of treating it as a missing checkpoint", async () => {
+    const {cwd} = makeTestGitRepo("session-factory");
+    const provider = `session-child-failure-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{id: "test-model"}],
+    });
+    faux.setResponses([
+      fauxAssistantMessage("transport failed", {stopReason: "error", errorMessage: "Connection error."} as any),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    try {
+      const result = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-child-failure",
+        body: "Do work.",
+        activeSessions: new Map() as any,
+        pi: {} as any,
+        postOutput: () => {
+        },
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(result.outcome, "blocked");
+      const snapshot = readTaskSnapshot(cwd, "coder-child-failure");
+      assert.match(snapshot?.blocked_reason ?? "", new RegExp(`^${CHILD_SESSION_FAILURE_BLOCKED_REASON.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+      assert.match(snapshot?.blocked_reason ?? "", /Last failure: Connection error\./);
+      assert.equal(faux.state.callCount, 1, "should block immediately on child-session failure");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

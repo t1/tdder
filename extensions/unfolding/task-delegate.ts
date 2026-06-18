@@ -14,6 +14,9 @@ export const TRUNCATION_BLOCKED_REASON =
 export const MISSING_CHECKPOINT_BLOCKED_REASON =
   "Automatic recovery failed after the child repeatedly ended turns without reaching a checkpoint.";
 
+export const CHILD_SESSION_FAILURE_BLOCKED_REASON =
+  "Automatic recovery blocked the child task after a child-session failure before it reached a checkpoint.";
+
 const TRUNCATION_RECOVERY_PROMPT =
   "Your last response was truncated before you reached a checkpoint. Continue in smaller concrete steps, or call task_block with a workflow-level reason if you cannot continue.";
 
@@ -148,10 +151,30 @@ function hasThinkingContent(message: unknown): boolean {
   return candidate.content?.some(part => part?.type === "thinking") ?? false;
 }
 
+function summarizeTerminalAssistantFailure(message: unknown): string {
+  if (!message || typeof message !== "object") return "child session failure";
+  const candidate = message as { errorMessage?: string; stopReason?: string };
+  const text = candidate.errorMessage?.trim();
+  if (text) return text;
+  if (candidate.stopReason === "aborted") return "request was aborted";
+  return "child session failure";
+}
+
 function isThinkingLengthTruncation(event: AgentSessionEvent): boolean {
   if (event.type !== "message_end") return false;
   if (event.message.role !== "assistant") return false;
   return event.message.stopReason === "length" && hasThinkingContent(event.message);
+}
+
+function isTerminalAssistantFailure(event: AgentSessionEvent): boolean {
+  if (event.type !== "message_end") return false;
+  if (event.message.role !== "assistant") return false;
+  return event.message.stopReason === "error" || event.message.stopReason === "aborted";
+}
+
+function childSessionFailureBlockedReason(detail: string): string {
+  const summary = truncateSummary(compactWhitespace(detail), 180);
+  return summary ? `${CHILD_SESSION_FAILURE_BLOCKED_REASON} Last failure: ${summary}` : CHILD_SESSION_FAILURE_BLOCKED_REASON;
 }
 
 export function streamChildSession(
@@ -332,6 +355,12 @@ export function streamChildSession(
       return;
     }
 
+    if (isTerminalAssistantFailure(event)) {
+      rows.push({ kind: "note", text: `  [${role}] ❌ ${summarizeTerminalAssistantFailure(event.message)}` });
+      flush();
+      return;
+    }
+
     if (event.type === "message_update") {
       if (INTENTIONALLY_SKIPPED_ASSISTANT_MESSAGE_EVENT_TYPES.has(event.assistantMessageEvent.type)) return;
       rows.push({ kind: "note", text: summarizeUnexpectedChildEvent(role, slug, sessionFile, event) });
@@ -377,12 +406,16 @@ export function installCheckpointRecovery(
   let truncationRecoveryAttempted = false;
   let missingCheckpointRecoveryAttempted = false;
   let sawLengthTruncationThisTurn = false;
+  let terminalFailureThisTurn: string | undefined;
   const onRecoveryNote = options.onRecoveryNote;
 
   return session.subscribe((event) => {
     if (event.type === "message_end") {
       if (event.message.role === "assistant" && event.message.stopReason === "length") {
         sawLengthTruncationThisTurn = true;
+      }
+      if (isTerminalAssistantFailure(event)) {
+        terminalFailureThisTurn = summarizeTerminalAssistantFailure(event.message);
       }
       return;
     }
@@ -392,11 +425,13 @@ export function installCheckpointRecovery(
     const task = readTask(cwd, slug);
     if (task?.status !== "in_progress") {
       sawLengthTruncationThisTurn = false;
+      terminalFailureThisTurn = undefined;
       return;
     }
 
     if (sawLengthTruncationThisTurn) {
       sawLengthTruncationThisTurn = false;
+      terminalFailureThisTurn = undefined;
       if (!truncationRecoveryAttempted) {
         truncationRecoveryAttempted = true;
         onRecoveryNote?.("  ⚠ child response was truncated before a checkpoint; prompting it to continue or block");
@@ -409,6 +444,14 @@ export function installCheckpointRecovery(
 
       onRecoveryNote?.("  ⚠ automatic recovery failed after repeated truncation; blocking the child task");
       updateTaskStatus(cwd, slug, "blocked", TRUNCATION_BLOCKED_REASON);
+      return;
+    }
+
+    if (terminalFailureThisTurn) {
+      const detail = terminalFailureThisTurn;
+      terminalFailureThisTurn = undefined;
+      onRecoveryNote?.(`  ⚠ child session failed before a checkpoint; blocking the child task — ${truncateSummary(compactWhitespace(detail))}`);
+      updateTaskStatus(cwd, slug, "blocked", childSessionFailureBlockedReason(detail));
       return;
     }
 

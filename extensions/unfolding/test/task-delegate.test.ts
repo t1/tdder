@@ -9,7 +9,7 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
-import {loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON} from "../task-delegate.ts";
+import {loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON, CHILD_SESSION_FAILURE_BLOCKED_REASON} from "../task-delegate.ts";
 
 const rolesDir = resolve(new URL("../roles", import.meta.url).pathname);
 
@@ -237,6 +237,78 @@ describe("streamChildSession", () => {
   });
 
   it("shows assistant stream errors", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text));
+
+    captured!({
+      type: "message_update",
+      assistantMessageEvent: { type: "error", errorMessage: "provider exploded" },
+    });
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] ❌ provider exploded"), `expected assistant error line, got: ${last}`);
+  });
+
+  it("shows terminal assistant failures from message_end", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text));
+
+    captured!({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        stopReason: "error",
+        errorMessage: "Connection error.",
+        content: [],
+      },
+    });
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] ❌ Connection error."), `expected terminal assistant failure line, got: ${last}`);
+  });
+
+  it("shows aborted assistant turns from message_end", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text));
+
+    captured!({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        stopReason: "aborted",
+        content: [],
+      },
+    });
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] ❌ request was aborted"), `expected aborted assistant failure line, got: ${last}`);
+  });
+
+  it("shows reduced unexpected child events in the normal transcript with a log reference", () => {
     const updates: string[] = [];
     let captured: ((e: any) => void) | undefined;
     const fakeSession = {
@@ -662,7 +734,21 @@ describe("structural invariants", () => {
     assert.ok(src.includes("createTask") || src.includes("updateTaskStatus"), "session-factory must own task setup logic");
   });
 
-  it("exports the missing-checkpoint blocked reason", () => {
+  it("exports the missing-checkpoint and child-session-failure blocked reasons", () => {
+    const src = readFileSync(new URL("../task-delegate.ts", import.meta.url).pathname, "utf8");
+    assert.ok(src.includes("MISSING_CHECKPOINT_BLOCKED_REASON"), "task-delegate.ts must export MISSING_CHECKPOINT_BLOCKED_REASON");
+    assert.equal(
+      MISSING_CHECKPOINT_BLOCKED_REASON,
+      "Automatic recovery failed after the child repeatedly ended turns without reaching a checkpoint.",
+    );
+    assert.ok(src.includes("CHILD_SESSION_FAILURE_BLOCKED_REASON"), "task-delegate.ts must export CHILD_SESSION_FAILURE_BLOCKED_REASON");
+    assert.equal(
+      CHILD_SESSION_FAILURE_BLOCKED_REASON,
+      "Automatic recovery blocked the child task after a child-session failure before it reached a checkpoint.",
+    );
+  });
+
+  it("task_delegate appends a fixed instruction to the child's initial message", () => {
     const src = readFileSync(new URL("../task-delegate.ts", import.meta.url).pathname, "utf8");
     assert.ok(src.includes("MISSING_CHECKPOINT_BLOCKED_REASON"), "task-delegate.ts must export MISSING_CHECKPOINT_BLOCKED_REASON");
     assert.equal(

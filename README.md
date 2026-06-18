@@ -131,19 +131,24 @@ long-term workflow history: `task_accept` and `task_rollback` both delete the ta
 **Child-session live output:** delegated child progress forwarded into the commissioner session includes
 live tool rows (`⚙`) with in-place elapsed timers plus terminal markers (`✓` / `✗`), a total running-time line
 at the end (`[role] ⏱ total`), nested delegated-task live updates, assistant text (`💬`), assistant thinking (`🤔`),
-assistant stream errors (`❌`), and an explicit warning when a thinking-bearing assistant message is truncated
+assistant stream errors (`❌`), terminal child-session failures surfaced from assistant `message_end`
+(such as connection/stream aborts), and an explicit warning when a thinking-bearing assistant message is truncated
 by the length limit (`⚠ thinking truncated by length limit`).
 It intentionally skips low-value protocol/lifecycle chatter such as `agent_start`, `agent_end`, `turn_start`,
 `message_start`, and assistant stream markers like `text_start`/`text_end`, `thinking_start`/`thinking_end`,
-`toolcall_*`, `start`, and `done`. Unexpected new child event types are logged as warnings so upstream protocol
-changes do not fail silently.
+`toolcall_*`, `start`, and `done`. Unexpected new child event types are rendered as compact transcript notes
+with reduced metadata plus a child session-log reference, so protocol drift stays visible without dumping raw JSON.
 
-**Truncation recovery:** if a child run ends with `stopReason: "length"` before reaching
-`task_finished` or `task_block`, unfolding queues exactly one follow-up recovery prompt on the
-same child session. If the child still fails to reach a checkpoint, the task becomes a normal
-blocked task with the honest system-generated reason:
-`Automatic recovery failed after repeated truncation before the child reached a checkpoint.`
-The commissioner then decides whether to `task_unblock` or `task_rollback`.
+**Checkpoint recovery:** unfolding distinguishes three failure classes before a child reaches
+`task_finished` or `task_block`:
+
+- `stopReason: "length"` (truncation) → queue exactly one follow-up recovery prompt on the same child session
+- normal turn end without a checkpoint → queue exactly one follow-up reminding the child to call `task_finished` or `task_block`
+- child-session/provider/stream failure (`stopReason: "error"`, `"aborted"`, connection/stream errors) → block immediately with an honest system-generated reason instead of pretending the child merely forgot the protocol step
+
+If truncation or missing-checkpoint recovery still fails on the follow-up turn, the task becomes a normal
+blocked task with the corresponding honest system-generated reason, and the commissioner then decides whether to
+`task_unblock` or `task_rollback`.
 
 **Rollback mechanics:** if the project is not yet a git repository, unfolding initializes one with an
 internal initial commit before the first delegated task that needs rollback metadata, and posts a visible
