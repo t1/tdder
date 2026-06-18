@@ -1,17 +1,19 @@
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 
 const ROOT = resolve(new URL("..", import.meta.url).pathname, "target/test-tmp");
-const NON_REPO_ROOT = resolve(ROOT, "../../../../../target/test-tmp-outside-repo");
+
+function ensureGitCeilingDirectories(): void {
+  const current = process.env.GIT_CEILING_DIRECTORIES?.split(delimiter).filter(Boolean) ?? [];
+  if (!current.includes(ROOT)) {
+    process.env.GIT_CEILING_DIRECTORIES = [...current, ROOT].join(delimiter);
+  }
+}
 
 export function makeTestTempDir(prefix: string): string {
   mkdirSync(ROOT, { recursive: true });
+  ensureGitCeilingDirectories();
   return mkdtempSync(join(ROOT, `${prefix}-`));
-}
-
-export function makeNonRepoTestTempDir(prefix: string): string {
-  mkdirSync(NON_REPO_ROOT, { recursive: true });
-  return mkdtempSync(join(NON_REPO_ROOT, `${prefix}-`));
 }
 
 export function cleanupTestTempDir(path: string): void {

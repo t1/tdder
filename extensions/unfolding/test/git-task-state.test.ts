@@ -10,12 +10,12 @@ import {
   isWorkspaceDirty,
   restoreTaskWorkspace,
 } from "../git-task-state.ts";
-import {cleanupTestTempDir, makeNonRepoTestTempDir} from "./test-temp.ts";
+import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
 import {makeTestGitRepo} from "./test-git-repo.ts";
 
 describe("git-task-state", () => {
   it("ensureGitRepoWithHead initializes a repo with an initial HEAD when needed", () => {
-    const cwd = makeNonRepoTestTempDir("git-task-state");
+    const cwd = makeTestTempDir("git-task-state");
     try {
       writeFileSync(join(cwd, "README.md"), "seed\n");
 

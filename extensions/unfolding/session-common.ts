@@ -21,9 +21,8 @@ export interface ChildSessionBuildParams {
   modelRegistry?: ModelRegistry;
 }
 
-export function resolveCurrentModel(pi: ExtensionAPI): Model<any> | undefined {
-  const session = (pi as ExtensionAPI & { currentSession?: { agent?: { state?: { model?: Model<any> } } } }).currentSession;
-  return session?.agent?.state?.model;
+export function resolveCurrentModel(_pi: ExtensionAPI): Model<any> | undefined {
+  return undefined;
 }
 
 export async function createChildAgentSession({

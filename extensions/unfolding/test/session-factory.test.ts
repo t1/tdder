@@ -7,7 +7,7 @@ import {AuthStorage, ModelRegistry} from "@earendil-works/pi-coding-agent";
 import {readTaskSnapshot, startChildSession} from "../session-factory.ts";
 import { CHILD_SESSION_FAILURE_BLOCKED_REASON, MISSING_CHECKPOINT_BLOCKED_REASON } from "../task-delegate.ts";
 import {restoreChildSession} from "../session-restore.ts";
-import {cleanupTestTempDir, makeNonRepoTestTempDir} from "./test-temp.ts";
+import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
 import {makeTestGitRepo} from "./test-git-repo.ts";
 import {fauxAssistantMessage, fauxToolCall, registerFauxProvider} from "./faux-provider.ts";
 
@@ -84,7 +84,7 @@ describe("startChildSession groundwork", () => {
   });
 
   it("initializes a git repo before persisting base_sha when the workspace has none", async () => {
-    const cwd = makeNonRepoTestTempDir("session-factory");
+    const cwd = makeTestTempDir("session-factory");
     const {faux, authStorage, modelRegistry} = fauxSessionSetup("session-init-git");
     try {
       mkdirSync(join(cwd, "docs"), {recursive: true});

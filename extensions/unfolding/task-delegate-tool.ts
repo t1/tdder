@@ -30,6 +30,8 @@ export function makeTaskDelegateDefinition(from: string, activeSessions: Map<str
             makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput),
           signal,
           onUpdate,
+          model: ctx.model,
+          modelRegistry: ctx.modelRegistry,
         });
 
         if (outcome === "aborted") {

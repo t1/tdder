@@ -163,8 +163,11 @@ describe("task_delegate wiring", () => {
     assert.ok(!src.includes('from: "orchestrator"'), "'from' must not be hardcoded in the factory body");
   });
 
-  it("pins child sessions to the current parent model when no explicit model override is passed", () => {
-    assert.ok(commonSrc.includes("resolveCurrentModel(pi)"), "child sessions must resolve the current parent model from pi");
+  it("pins child sessions to the current tool-call model", () => {
+    const delegateSrc = readFileSync(new URL("../task-delegate-tool.ts", import.meta.url).pathname, "utf8");
+    const indexSrc = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
+    assert.ok(delegateSrc.includes("model: ctx.model"), "task_delegate must pass ctx.model into child-session startup");
+    assert.ok(indexSrc.includes("model: ctx.model"), "resume flows must pass ctx.model into child-session resume");
     assert.ok(commonSrc.includes("model: selectedModel"), "createAgentSession must receive the selected child model");
   });
 

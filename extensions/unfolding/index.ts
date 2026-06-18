@@ -196,6 +196,8 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
         postOutput,
         mutateTask: taskReopen,
         pi,
+        model: ctx.model,
+        modelRegistry: ctx.modelRegistry,
       });
 
       if (outcome === "aborted") {
@@ -230,6 +232,8 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
         postOutput,
         mutateTask: taskUnblock,
         pi,
+        model: ctx.model,
+        modelRegistry: ctx.modelRegistry,
       });
 
       if (outcome === "aborted") {
