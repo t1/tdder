@@ -1,7 +1,7 @@
 import type { Model } from "@earendil-works/pi-ai";
 import type { AgentSession, AgentToolUpdateCallback, ExtensionAPI, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { readTask } from "./task-store.ts";
-import { installTruncationRecovery, streamChildSession, waitForChildDecision, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
+import { installCheckpointRecovery, streamChildSession, waitForChildDecision, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
 import { restoreChildSession } from "./session-restore.ts";
 import { makeTaskDelegateDefinition } from "./task-delegate-tool.ts";
 
@@ -69,15 +69,16 @@ export async function resumeDelegatedTask({
   const task = readTask(cwd, slug);
   const shortRole = task?.to.replace(/^unfolding-/, "") ?? slug;
 
-  const unsubscribeTruncationRecovery = installTruncationRecovery(session, cwd, slug);
+  const stream = onUpdate
+    ? streamChildSession(session, shortRole, slug, onUpdate, { sessionFile: task?.session_file })
+    : undefined;
+  const unsubscribeCheckpointRecovery = installCheckpointRecovery(session, cwd, slug, {
+    onRecoveryNote: stream?.append,
+  });
   session.prompt(`${task?.resume_message ?? action}\n\n${CHILD_FIXED_INSTRUCTION}`).catch((err: unknown) => {
     const stack = err instanceof Error ? err.stack : String(err);
     console.error(`[unfolding] resumed child session for task "${slug}" failed:`, stack);
   });
-
-  const stream = onUpdate
-    ? streamChildSession(session, shortRole, slug, onUpdate, { sessionFile: task?.session_file })
-    : undefined;
 
   const outcome = await waitForChildDecision(
     async () => readTask(cwd, slug),
@@ -87,7 +88,7 @@ export async function resumeDelegatedTask({
     undefined,
     signal,
   );
-  unsubscribeTruncationRecovery();
+  unsubscribeCheckpointRecovery();
   stream?.unsubscribe();
   const stats = session.getSessionStats();
   const costLine = `  💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`;

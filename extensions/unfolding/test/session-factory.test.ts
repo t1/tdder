@@ -5,6 +5,7 @@ import {execFileSync} from "node:child_process";
 import {join} from "node:path";
 import {AuthStorage, ModelRegistry} from "@earendil-works/pi-coding-agent";
 import {readTaskSnapshot, startChildSession} from "../session-factory.ts";
+import { MISSING_CHECKPOINT_BLOCKED_REASON } from "../task-delegate.ts";
 import {restoreChildSession} from "../session-restore.ts";
 import {cleanupTestTempDir, makeNonRepoTestTempDir} from "./test-temp.ts";
 import {makeTestGitRepo} from "./test-git-repo.ts";
@@ -228,6 +229,87 @@ describe("startChildSession groundwork", () => {
 
       const result = await resultPromise;
       assert.equal(result.outcome, "blocked");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("prompts once after a missing checkpoint and succeeds when the child then calls task_finished", async () => {
+    const {cwd} = makeTestGitRepo("session-factory");
+    const provider = `session-missing-checkpoint-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{id: "test-model"}],
+    });
+    faux.setResponses([
+      fauxAssistantMessage("I am done but forgot the checkpoint."),
+      fauxAssistantMessage([
+        fauxToolCall("task_finished", {}),
+      ], {stopReason: "toolUse"}),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    try {
+      const result = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-missing-checkpoint",
+        body: "Do work.",
+        activeSessions: new Map() as any,
+        pi: {} as any,
+        postOutput: () => {
+        },
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(result.outcome, "finished");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("blocks after repeated missing checkpoints with an honest system-generated reason", async () => {
+    const {cwd} = makeTestGitRepo("session-factory");
+    const provider = `session-missing-checkpoint-block-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{id: "test-model"}],
+    });
+    faux.setResponses([
+      fauxAssistantMessage("still forgot the checkpoint"),
+      fauxAssistantMessage("forgot again"),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    try {
+      const result = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-missing-checkpoint-block",
+        body: "Do work.",
+        activeSessions: new Map() as any,
+        pi: {} as any,
+        postOutput: () => {
+        },
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(result.outcome, "blocked");
+      const snapshot = readTaskSnapshot(cwd, "coder-missing-checkpoint-block");
+      assert.equal(snapshot?.blocked_reason, MISSING_CHECKPOINT_BLOCKED_REASON);
+      assert.equal(faux.state.callCount, 2, "should retry exactly once after the first missing checkpoint");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

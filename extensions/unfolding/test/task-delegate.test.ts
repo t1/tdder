@@ -9,7 +9,7 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
-import {loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume,} from "../task-delegate.ts";
+import {loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON} from "../task-delegate.ts";
 
 const rolesDir = resolve(new URL("../roles", import.meta.url).pathname);
 
@@ -660,6 +660,15 @@ describe("structural invariants", () => {
   it("task_delegate tool calls ensureGitignore before creating the task", () => {
     const src = readFileSync(new URL("../session-factory.ts", import.meta.url).pathname, "utf8");
     assert.ok(src.includes("createTask") || src.includes("updateTaskStatus"), "session-factory must own task setup logic");
+  });
+
+  it("exports the missing-checkpoint blocked reason", () => {
+    const src = readFileSync(new URL("../task-delegate.ts", import.meta.url).pathname, "utf8");
+    assert.ok(src.includes("MISSING_CHECKPOINT_BLOCKED_REASON"), "task-delegate.ts must export MISSING_CHECKPOINT_BLOCKED_REASON");
+    assert.equal(
+      MISSING_CHECKPOINT_BLOCKED_REASON,
+      "Automatic recovery failed after the child repeatedly ended turns without reaching a checkpoint.",
+    );
   });
 
   it("task_delegate appends a fixed instruction to the child's initial message", () => {

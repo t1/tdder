@@ -3,7 +3,7 @@ import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@ea
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { createSnapshotCommit, ensureGitRepoWithHead, isWorkspaceDirty } from "./git-task-state.ts";
 import { createTask, readTask, updateTaskStatus, type Task } from "./task-store.ts";
-import { installTruncationRecovery, streamChildSession, waitForChildDecision } from "./task-delegate.ts";
+import { installCheckpointRecovery, streamChildSession, waitForChildDecision } from "./task-delegate.ts";
 import { buildChildInitialMessage, createChildAgentSession, type NestedDelegateToolFactory } from "./session-common.ts";
 
 export interface ChildSessionRunResult {
@@ -86,13 +86,14 @@ export async function startChildSession({
   }
 
   signal?.addEventListener("abort", () => { session.abort().catch(() => {}); });
-  const unsubscribeTruncationRecovery = installTruncationRecovery(session, cwd, slug);
+  const stream = onUpdate ? streamChildSession(session, shortRole, slug, onUpdate, { sessionFile: session.sessionFile }) : undefined;
+  const unsubscribeCheckpointRecovery = installCheckpointRecovery(session, cwd, slug, {
+    onRecoveryNote: stream?.append,
+  });
   session.prompt(initialMessage).catch((err: unknown) => {
     const stack = err instanceof Error ? err.stack : String(err);
     console.error(`[unfolding] child session for task "${slug}" failed:`, stack);
   });
-
-  const stream = onUpdate ? streamChildSession(session, shortRole, slug, onUpdate, { sessionFile: session.sessionFile }) : undefined;
   const outcome = await waitForChildDecision(
     async () => readTask(cwd, slug),
     (_status: string, blocked_reason?: string) => {
@@ -101,7 +102,7 @@ export async function startChildSession({
     undefined,
     signal,
   );
-  unsubscribeTruncationRecovery();
+  unsubscribeCheckpointRecovery();
   stream?.unsubscribe();
   const stats = session.getSessionStats();
   const costLine = `  💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`;

@@ -11,8 +11,14 @@ export const CHILD_FIXED_INSTRUCTION =
 export const TRUNCATION_BLOCKED_REASON =
   "Automatic recovery failed after repeated truncation before the child reached a checkpoint.";
 
+export const MISSING_CHECKPOINT_BLOCKED_REASON =
+  "Automatic recovery failed after the child repeatedly ended turns without reaching a checkpoint.";
+
 const TRUNCATION_RECOVERY_PROMPT =
   "Your last response was truncated before you reached a checkpoint. Continue in smaller concrete steps, or call task_block with a workflow-level reason if you cannot continue.";
+
+const MISSING_CHECKPOINT_RECOVERY_PROMPT =
+  "Your last turn ended without reaching a checkpoint. Do not just describe status. If your work is complete, call `task_finished`. If you cannot continue and need commissioner action, call `task_block` with a reason.";
 
 // ---------------------------------------------------------------------------
 // loadAgentSystemPrompt
@@ -358,9 +364,21 @@ export function streamChildSession(
   };
 }
 
-export function installTruncationRecovery(session: AgentSession, cwd: string, slug: string): () => void {
-  let recoveryAttempted = false;
+export interface CheckpointRecoveryOptions {
+  onRecoveryNote?: (line: string) => void;
+}
+
+export function installCheckpointRecovery(
+  session: AgentSession,
+  cwd: string,
+  slug: string,
+  options: CheckpointRecoveryOptions = {},
+): () => void {
+  let truncationRecoveryAttempted = false;
+  let missingCheckpointRecoveryAttempted = false;
   let sawLengthTruncationThisTurn = false;
+  const onRecoveryNote = options.onRecoveryNote;
+
   return session.subscribe((event) => {
     if (event.type === "message_end") {
       if (event.message.role === "assistant" && event.message.stopReason === "length") {
@@ -370,22 +388,42 @@ export function installTruncationRecovery(session: AgentSession, cwd: string, sl
     }
 
     if (event.type !== "turn_end") return;
-    if (!sawLengthTruncationThisTurn) return;
-    sawLengthTruncationThisTurn = false;
 
     const task = readTask(cwd, slug);
-    if (task?.status !== "in_progress") return;
+    if (task?.status !== "in_progress") {
+      sawLengthTruncationThisTurn = false;
+      return;
+    }
 
-    if (!recoveryAttempted) {
-      recoveryAttempted = true;
-      session.prompt(TRUNCATION_RECOVERY_PROMPT, { streamingBehavior: "followUp" }).catch((err: unknown) => {
+    if (sawLengthTruncationThisTurn) {
+      sawLengthTruncationThisTurn = false;
+      if (!truncationRecoveryAttempted) {
+        truncationRecoveryAttempted = true;
+        onRecoveryNote?.("  ⚠ child response was truncated before a checkpoint; prompting it to continue or block");
+        session.prompt(TRUNCATION_RECOVERY_PROMPT, { streamingBehavior: "followUp" }).catch((err: unknown) => {
+          const stack = err instanceof Error ? err.stack : String(err);
+          console.error(`[unfolding] truncation recovery prompt for task "${slug}" failed:`, stack);
+        });
+        return;
+      }
+
+      onRecoveryNote?.("  ⚠ automatic recovery failed after repeated truncation; blocking the child task");
+      updateTaskStatus(cwd, slug, "blocked", TRUNCATION_BLOCKED_REASON);
+      return;
+    }
+
+    if (!missingCheckpointRecoveryAttempted) {
+      missingCheckpointRecoveryAttempted = true;
+      onRecoveryNote?.("  ⚠ child ended a turn without a checkpoint; prompting it to call task_finished or task_block");
+      session.prompt(MISSING_CHECKPOINT_RECOVERY_PROMPT, { streamingBehavior: "followUp" }).catch((err: unknown) => {
         const stack = err instanceof Error ? err.stack : String(err);
-        console.error(`[unfolding] truncation recovery prompt for task "${slug}" failed:`, stack);
+        console.error(`[unfolding] missing-checkpoint recovery prompt for task "${slug}" failed:`, stack);
       });
       return;
     }
 
-    updateTaskStatus(cwd, slug, "blocked", TRUNCATION_BLOCKED_REASON);
+    onRecoveryNote?.("  ⚠ automatic recovery failed after repeated missing checkpoints; blocking the child task");
+    updateTaskStatus(cwd, slug, "blocked", MISSING_CHECKPOINT_BLOCKED_REASON);
   });
 }
 
