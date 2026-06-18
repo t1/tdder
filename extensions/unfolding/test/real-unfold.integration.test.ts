@@ -59,7 +59,7 @@ function startPi(cwd: string): {
   nextEvent: () => Promise<RpcEvent>;
   stop: () => Promise<void>;
 } {
-  const args = ["--mode", "rpc", "--approve", "--no-extensions"];
+  const args = ["--mode", "rpc", "--no-extensions"];
   for (const extension of EXTENSIONS) {
     args.push("--extension", extension);
   }
@@ -254,7 +254,11 @@ describe("real unfolding smoke", { timeout: DEFAULT_TIMEOUT_MS + 30_000 }, () =>
           "set-model",
           60_000,
         );
-        const data = (response as { data?: { provider?: string; id?: string } }).data;
+        const modelResponse = response as { success?: boolean; error?: string; data?: { provider?: string; id?: string } };
+        if (modelResponse.success === false) {
+          throw new Error(`Failed to set requested model ${requestedModel}: ${modelResponse.error ?? "unknown error"}`);
+        }
+        const data = modelResponse.data;
         selectedModel = data?.provider && data?.id ? { provider: data.provider, id: data.id } : target;
       } else {
         const state = await waitForResponse(instance.send, instance.nextEvent, { type: "get_state" }, "state-default", 10_000);
