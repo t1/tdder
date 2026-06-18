@@ -91,7 +91,7 @@ const INTENTIONALLY_SKIPPED_ASSISTANT_MESSAGE_EVENT_TYPES = new Set([
 type ToolRowStatus = "pending" | "success" | "error";
 
 type StreamRow =
-  | { kind: "tool"; toolCallId: string; summary: string; startedAt: number; finishedAt?: number; status: ToolRowStatus; errorSummary?: string; nestedText?: string }
+  | { kind: "tool"; toolCallId: string; summary: string; startedAt: number; finishedAt?: number; status: ToolRowStatus; errorSummary?: string; outputTail?: string[] }
   | { kind: "assistant"; rowKey: string; icon: "💬" | "🤔"; text: string }
   | { kind: "note"; text: string };
 
@@ -123,6 +123,23 @@ function truncateSummary(text: string, max = 140): string {
 
 function sessionLogSuffix(sessionFile?: string): string {
   return sessionFile ? ` — see ${sessionFile}` : "";
+}
+
+const MAX_TOOL_OUTPUT_LINES = 5;
+
+function extractToolUpdateText(partialResult: unknown): string {
+  if (!partialResult || typeof partialResult !== "object") return "";
+  const candidate = partialResult as { content?: Array<{ type?: string; text?: string }> };
+  return candidate.content
+    ?.filter(part => part?.type === "text" && typeof part.text === "string")
+    .map(part => part.text ?? "")
+    .join("\n")
+    .trimEnd() ?? "";
+}
+
+function tailLines(text: string, maxLines = MAX_TOOL_OUTPUT_LINES): string[] {
+  if (!text) return [];
+  return text.split("\n").slice(-maxLines);
 }
 
 function summarizeUnexpectedChildEvent(role: string, slug: string, sessionFile: string | undefined, event: AgentSessionEvent): string {
@@ -207,8 +224,8 @@ export function streamChildSession(
     if (row.errorSummary) line += ` — ${row.errorSummary}`;
 
     const rendered = [line];
-    if (row.nestedText) {
-      for (const nestedLine of row.nestedText.split("\n")) rendered.push(`    ${nestedLine}`);
+    if (row.outputTail?.length) {
+      for (const outputLine of row.outputTail) rendered.push(`    ${outputLine}`);
     }
     return rendered;
   };
@@ -291,16 +308,16 @@ export function streamChildSession(
       return;
     }
 
-    if (event.type === "tool_execution_update" && event.toolName === "task_delegate") {
+    if (event.type === "tool_execution_update") {
       const row = toolRows.get(event.toolCallId);
       if (!row) {
         rows.push({ kind: "note", text: summarizeUnexpectedChildEvent(role, slug, sessionFile, event) });
         flush();
         return;
       }
-      const text: string = event.partialResult?.content?.[0]?.text ?? "";
+      const text = extractToolUpdateText(event.partialResult);
       if (!text) return;
-      row.nestedText = text;
+      row.outputTail = tailLines(text);
       flush();
       return;
     }

@@ -459,7 +459,7 @@ describe("streamChildSession", () => {
     unsubscribe();
   });
 
-  it("shows reduced unexpected tool_execution_update details with reason and log reference", () => {
+  it("treats tool_execution_update for a known tool call as expected and shows only the last five lines", () => {
     const updates: string[] = [];
     let captured: ((e: any) => void) | undefined;
     const fakeSession = {
@@ -470,9 +470,19 @@ describe("streamChildSession", () => {
       }
     } as any;
     streamChildSession(fakeSession, "po", "po-defining", (u: any) => updates.push(u.content[0].text), {
+      now: () => 0,
       sessionFile: "/logs/child.jsonl",
     });
 
+    captured!({
+      type: "tool_execution_start",
+      toolCallId: "u1",
+      toolName: "task_unblock",
+      args: {
+        slug: "arch-create-and-view-todos",
+        reason: "Tech stack and persistence are technical/architectural decisions within your domain — you own ADRs.",
+      },
+    });
     captured!({
       type: "tool_execution_update",
       toolCallId: "u1",
@@ -481,13 +491,21 @@ describe("streamChildSession", () => {
         slug: "arch-create-and-view-todos",
         reason: "Tech stack and persistence are technical/architectural decisions within your domain — you own ADRs.",
       },
-      partialResult: { content: [{ type: "text", text: "ignored here" }] },
+      partialResult: {
+        content: [{
+          type: "text",
+          text: "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7"
+        }]
+      },
     });
 
     const last = updates[updates.length - 1];
-    assert.ok(last.includes("[po] ⚠ unexpected child event for po/po-defining: tool=task_unblock — slug=arch-create-and-view-todos"), `expected reduced tool update notice, got: ${last}`);
-    assert.ok(last.includes("reason=Tech stack and persistence are technical/architectural decisions within your domain — you own ADRs."), `expected reduced reason, got: ${last}`);
-    assert.ok(last.includes("— see /logs/child.jsonl"), `expected log reference, got: ${last}`);
+    assert.ok(last.includes("[po] ⚙ task_unblock — 0s"), `expected tool row, got: ${last}`);
+    assert.ok(!last.includes("unexpected child event"), `did not expect unexpected-event warning, got: ${last}`);
+    assert.ok(!last.includes("    line 1"), `expected old lines to be trimmed from tool output tail, got: ${last}`);
+    assert.ok(!last.includes("    line 2"), `expected old lines to be trimmed from tool output tail, got: ${last}`);
+    assert.ok(last.includes("    line 3"), `expected retained output tail, got: ${last}`);
+    assert.ok(last.includes("    line 7"), `expected retained output tail, got: ${last}`);
   });
 
   it("forwards tool_execution_update for task_delegate as indented nested output", () => {
@@ -532,6 +550,7 @@ describe("streamChildSession", () => {
     assert.ok(last.includes("    [ux-designer/ux-slug]"), `expected indented grandchild header, got: ${last}`);
     assert.ok(last.includes("    [ux-designer] ⚙ write"), `expected indented grandchild tool line, got: ${last}`);
     assert.ok(last.includes("[po] ⚙ task_delegate ux-designer / ux-slug — 0s"), `expected parent delegate tool row, got: ${last}`);
+    assert.ok(!last.includes("unexpected child event"), `did not expect unexpected-event warning, got: ${last}`);
     // the grandchild block should not appear twice
     assert.equal((last.match(/\[ux-designer\/ux-slug]/g) ?? []).length, 1, "grandchild header should appear only once");
   });
