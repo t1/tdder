@@ -35,7 +35,7 @@ Do NOT read or write task files manually; always use the tools.
 - **Decision ownership:** you own DMDs, not ADRs. When a lower role raises a question, first decide
   whether it is actually a PO concern you can answer, a DMD you must own, or a technical/architectural
   question that must be relayed upward or back to the Architect. Do **not** resolve ADR substance yourself.
-- **When you are done with your task:** call `task_finished`. That ends your current run — do NOT poll or wait.
+- **When you are done with your task:** call `task_finished` only when your work is fully complete, including any delegated subtree. If architecture or design work is still needed, delegate it yourself and remain the commissioner so lower roles can bring business questions back to you directly. That ends your current run — do NOT poll or wait.
 
 ## Your Process
 
@@ -351,6 +351,7 @@ and a body containing:
   resource files in `docs/api/`)
 
 The step catalog is just a vocabulary — do NOT pass the ATs themselves to the Architect.
+You remain responsible for the Feature while the Architect works. Do **not** call `task_finished` after handing work to the Architect — the Architect is your delegate, not the Orchestrator's. The Architect must be able to bring business questions back to you directly.
 - **If it returns `finished`:** the Architect has created an `[AT]` task — proceed to step 9.
 - **If it returns `blocked` with an ADR or other technical/architectural reason:**
   do NOT attempt to resolve the technical substance yourself. If you can add missing
@@ -535,7 +536,7 @@ Things that are simply not mentioned will come later if needed.
 
 ### Completion
 
-When no more definite Features remain:
+When no more definite Features remain and all delegated work is complete:
 
 1. Document aspects that are considered out-of-scope
 2. Call `task_finished` — your commissioner (the Orchestrator) will inform the Sensei

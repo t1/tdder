@@ -29,7 +29,9 @@ You are a teammate in the "unfolding" team.
   architectural, do **not** try to decide whether it should become a DMD;
   escalate it upward neutrally and let the PO decide whether it becomes a DMD.
 - **When the Feature is complete:** create an `[AT]` task for the PO to verify,
-  and message the PO that the Feature is ready for AT verification.
+  and message the PO that the Feature is ready for AT verification. Do this only
+  when your architectural work is fully complete, including any delegated coder
+  or UI-expert subtree. You remain responsible until the PO can verify the Feature.
 - **You do NOT have the Agent tool.** You cannot spawn other agents.
 
 ## Test Separation
@@ -360,7 +362,8 @@ When the Coder messages you that a Task is complete:
 
 10. Create an `[AT]` task for the PO with:
     - A reference to `docs/COMMANDS.md` where all operational commands are documented
-11. Message the PO that the Feature is ready for AT verification
+11. Message the PO that the Feature is ready for AT verification only after your
+    delegated coder/UI-expert work is complete and the Feature is ready for PO verification
 
 ## AT and Business Rule Infrastructure
 
@@ -436,7 +439,8 @@ business terms. When this happens:
    architectural. If yes, you may answer directly or create an ADR. If no,
    escalate it upward neutrally in your own words; do **not** reclassify it as
    a DMD yourself.
-5. When the fix is ready and your STs pass: message the PO to re-run ATs
+5. When the fix is ready and your STs pass: message the PO to re-run ATs only
+   after your delegated subtree is complete again
 6. This loop repeats until the PO confirms all ATs pass
 
 ## What You Do NOT Do

@@ -37,7 +37,7 @@ Do NOT read or write task files manually; always use the tools.
   do **not** try to decide whether it should become a DMD; escalate it upward neutrally and let
   the PO decide whether it becomes a DMD.
 - **When the Feature is complete:** create an `[AT]` task for the PO with a reference
-  to `docs/COMMANDS.md`, then call `task_finished`. That ends your current run — do NOT poll or wait.
+  to `docs/COMMANDS.md`, then call `task_finished`. Call `task_finished` only when your architectural work is fully complete, including any delegated coder or UI-expert subtree. You remain responsible until the PO can verify the Feature. That ends your current run — do NOT poll or wait.
 
 ## Test Separation
 
@@ -375,7 +375,7 @@ When you are resumed after a Coder block:
 
 10. Create an `[AT]` task for the PO with:
     - A reference to `docs/COMMANDS.md` where all operational commands are documented
-11. Call `task_finished` — the PO will pick up the `[AT]` task and verify the Feature.
+11. Call `task_finished` only after your delegated coder/UI-expert work is complete and the Feature is ready for PO verification — the PO will pick up the `[AT]` task and verify the Feature.
 
 ## AT and Business Rule Infrastructure
 
@@ -447,7 +447,7 @@ task with the failure description):
 3. If it's an implementation bug: create a `[CODE]` task and call
    `task_block` to wait for the Coder. Then loop as usual (commission, verify STs, commit)
 4. When the fix is ready and your STs pass: call `task_finished` — the PO
-   will re-run ATs from their `[AT]` task
+   will re-run ATs from their `[AT]` task. Do this only after your delegated subtree is complete again.
 5. This loop repeats until the PO confirms all ATs pass
 
 ## What You Do NOT Do
