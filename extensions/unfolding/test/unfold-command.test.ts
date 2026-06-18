@@ -4,10 +4,7 @@
 
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { rmSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 // ---------------------------------------------------------------------------
 // Helpers extracted for testing — import directly from the module under test
@@ -129,6 +126,23 @@ describe("structural invariants", () => {
     assert.ok(
       src.includes('registerMessageRenderer<{ lines?: string }>(UNFOLDING_CHILD_OUTPUT_TYPE'),
       "index.ts must register a renderer for unfolding child output messages",
+    );
+  });
+
+  it("documents unfolding details in the extension README and links to it from the root README", () => {
+    const rootReadme = readFileSync(new URL("../../../README.md", import.meta.url).pathname, "utf8");
+    const extensionReadme = readFileSync(new URL("../../unfolding/README.md", import.meta.url).pathname, "utf8");
+    assert.ok(
+      rootReadme.includes("extensions/unfolding/README.md"),
+      "root README must link to the unfolding extension README",
+    );
+    assert.ok(
+      extensionReadme.includes("## Task tools"),
+      "extension README must document unfolding task tools",
+    );
+    assert.ok(
+      extensionReadme.includes("UNFOLDING_TEST_MODEL=provider/modelId npm --prefix extensions/unfolding run test:real-integration"),
+      "extension README must document the real integration test env-var interface",
     );
   });
 });
