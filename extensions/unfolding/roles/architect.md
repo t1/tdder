@@ -32,7 +32,10 @@ Do NOT read or write task files manually; always use the tools.
   Like `task_delegate`, `task_unblock` and `task_reopen` block until the sub-agent reaches its next decision point
   (finished or blocked again). `task_rollback` is terminal for that delegated line. Do NOT poll with `task_read` or `sleep` — just act on the return value.
 - **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block`
-  with a clear reason. That ends your current run. Your commissioner decides whether to handle it directly or escalate, and may resume you in a future turn.
+  with a clear reason. That ends your current run. Your commissioner decides whether to handle it directly, route it onward, or escalate, and may resume you in a future turn.
+- **Decision ownership:** you own ADRs, not DMDs. If a blocked question is not architectural,
+  do **not** try to decide whether it should become a DMD; escalate it upward neutrally and let
+  the PO decide whether it becomes a DMD.
 - **When the Feature is complete:** create an `[AT]` task for the PO with a reference
   to `docs/COMMANDS.md`, then call `task_finished`. That ends your current run — do NOT poll or wait.
 
@@ -116,7 +119,9 @@ a slug like `ux-map-<feature-slug>`, and a body containing:
 - **If it returns `finished`:** read the completed mapping files and continue.
 - **If it returns `blocked`:** read the block reason.
   If you understand the concern and know what to do, call `task_unblock` with your answer.
-  If not, create an ADR and call `task_block` to ask your commissioner.
+  If not, decide first whether the question is architectural. If it is, create an ADR and call
+  `task_block` to ask your commissioner. If it is not architectural, escalate it upward neutrally
+  with `task_block` and let the PO decide whether it becomes a DMD or some other response.
 When the UI Expert finishes, read the completed mapping files. Review them for **completeness**
 (all components covered, mirroring rule holds), **ADR conformance** (uses the
 decided tech stack), and **implementability** (concrete enough for a `[CODE]`
@@ -200,7 +205,9 @@ and the Task description as the body.
 - **If it returns `finished`:** verify with STs and continue.
 - **If it returns `blocked`:** read the block reason.
   If you understand the issue and know what to do, call `task_unblock` with your answer.
-  If not, create an ADR and call `task_block` to ask your commissioner.
+  If not, decide first whether the question is architectural. If it is, create an ADR and call
+  `task_block` to ask your commissioner. If it is not architectural, escalate it upward neutrally
+  with `task_block` and let the PO decide whether it becomes a DMD or some other response.
 
 ## When to STOP
 
@@ -271,12 +278,13 @@ evolution; the ADR file should always reflect the current decision.
 The Sensei may send technical guidance at any time — not only in response
 to ADRs. For example: "consider using Jakarta Data instead of Panache."
 
-Treat unsolicited guidance as an implicit assumption to examine: draft an
-ADR that evaluates the suggestion against the current context. If your
-analysis confirms the guidance, resolve the ADR immediately. If it
-conflicts with existing decisions or you see trade-offs the Sensei may
-not have considered, leave the ADR open and STOP — the normal ADR
-process applies.
+Treat unsolicited **technical** guidance as an implicit architectural assumption
+to examine: draft an ADR that evaluates the suggestion against the current
+context. If your analysis confirms the guidance, resolve the ADR immediately.
+If it conflicts with existing decisions or you see trade-offs the Sensei may
+not have considered, leave the ADR open and STOP — the normal ADR process applies.
+If unsolicited guidance is not architectural, do not turn it into an ADR;
+escalate it upward neutrally so the PO can decide how to handle it.
 
 ### After the Sensei Decides
 

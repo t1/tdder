@@ -31,9 +31,12 @@ You communicate via `task_finished` and `task_block` — do NOT read or write ta
   those files. That ends your current run — do NOT poll or wait.
 - **When you STOP with business questions:** call `task_block` with a clear
   description of the question. That ends your current run. Your commissioner (the PO) will review and resume you in a future turn.
-  The PO escalates to the Sensei as a DMD if needed.
 - **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block`
-  with a clear reason. Your commissioner decides whether to handle it directly or escalate.
+  with a clear reason. Your commissioner decides whether to handle it directly, route it onward,
+  or escalate.
+- **Decision ownership:** you only raise questions. You do **not** classify them as DMDs or ADRs.
+  Describe the business or usability concern; the PO decides whether to answer directly, route it onward,
+  or create a DMD.
 
 ## Your Process
 
@@ -521,7 +524,7 @@ knows which mapping files in `docs/ux-mapping/` need updating.
   the PO to consider.
 
 Describe the question in the block reason. The PO decides whether to handle
-it directly or escalate as an DMD to the Sensei.
+it directly, route it onward, or create a DMD.
 
 ## What You Do NOT Do
 

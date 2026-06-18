@@ -22,7 +22,11 @@ You communicate via `task_finished` and `task_block` — do NOT read or write ta
 - **When you STOP:** call `task_block` with a clear description of the issue.
   That ends your current run. Your commissioner (the Architect) will review and resume you in a future turn.
 - **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block`
-  with a clear reason. Your commissioner decides whether to handle it directly or escalate.
+  with a clear reason. Your commissioner decides whether to handle it directly, route it onward,
+  or escalate.
+- **Decision ownership:** you only raise questions. You do **not** classify them as DMDs or ADRs.
+  Describe what is unclear and why you cannot decide it; the Architect decides whether to answer,
+  route upward, or create an ADR.
 - **When you want a code review** (e.g., during the TDD refactor phase):
   call `task_block` with reason `"Requesting code review before finishing task #X"`.
   Your commissioner will arrange the review and resume you with the findings.
@@ -93,9 +97,12 @@ The Architect will review the implementation directly from the codebase.
   (e.g., merging "invalid username" and "invalid password" into a single
   "invalid credentials" message simplifies the code but changes observable behavior)
 
-Call `task_block` with a clear description of the issue. If the issue
-requires a Sensei decision (not just the Architect's judgment), say so in the
-block reason — your commissioner (the Architect) will escalate via an `[ADR]` task.
+Call `task_block` with a clear description of the issue, including what is
+unclear and why you cannot decide it. If it appears to be a business,
+terminology, or product question, say so plainly; if it appears to be an
+architectural gap, say that. Do **not** classify it as a DMD or ADR yourself —
+your commissioner (the Architect) decides whether to answer, route it upward,
+or create an ADR.
 
 ## What You Do NOT Do
 

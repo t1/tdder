@@ -158,6 +158,19 @@ When `task_delegate` receives a role name it strips any `unfolding-` prefix, so 
 `"po"` and `"unfolding-po"` resolve correctly.
 Built-in roles: `po`, `architect`, `coder`, `api-designer`, `ux-designer`, `ui-expert`.
 
+**Decision escalation:** blocked questions always go to the current role's **commissioner** first.
+The commissioner either answers directly or routes the question onward; roles must not bypass
+that chain. Decision ownership is strict:
+
+- **PO** owns **DMDs**
+- **Architect** owns **ADRs**
+- **All other roles** only raise questions; they do not classify them as DMDs or ADRs
+- **Orchestrator** only relays and tracks state; it does not classify decision substance
+
+A commissioner may create only the decision artifact their own role owns. In particular, the
+Architect must never decide that something needs a DMD — if a question is not architectural,
+the Architect escalates it upward neutrally and the PO decides whether it becomes a DMD.
+
 ### maven
 
 Structured Maven execution with test report parsing, compilation error extraction, and

@@ -26,7 +26,11 @@ You communicate via `task_finished` and `task_block` — do NOT read or write ta
   (ambiguous UX spec, tech limitation). That ends your current run. Your commissioner (the Architect)
   will review and decide whether to escalate, and may resume you in a future turn.
 - **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block`
-  with a clear reason. Your commissioner decides whether to handle it directly or escalate.
+  with a clear reason. Your commissioner decides whether to handle it directly, route it onward,
+  or escalate.
+- **Decision ownership:** you only raise questions. You do **not** classify them as DMDs or ADRs.
+  Describe the ambiguity or limitation; the Architect decides whether to answer, route upward,
+  or create an ADR.
 
 ## Your Process
 
@@ -162,14 +166,14 @@ apply the same changes to the mapping files.
 **STOP and call `task_block`** when:
 
 - The UX component spec is ambiguous — describe the ambiguity; the Architect
-  will relay to the PO/UX Designer and resume you
+  will decide whether to answer directly or relay it onward and resume you
 - **The tech stack cannot support a UX requirement** — do NOT silently
   degrade or approximate the interaction. Clearly report what the UX spec
   requires, why the current stack can't deliver it, and what alternatives
-  exist (different tech, simplified UX, or deferral). The Architect will
-  raise this as an ADR for the Sensei.
+  exist (different tech, simplified UX, or deferral). The Architect decides
+  whether this is an ADR or some other escalation path.
 - A tech stack decision is needed that no ADR covers — describe the gap;
-  the Architect will raise an ADR
+  the Architect decides whether to create an ADR
 
 ## What You Do NOT Do
 

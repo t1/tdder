@@ -31,7 +31,10 @@ Do NOT read or write task files manually; always use the tools.
   Like `task_delegate`, `task_unblock` and `task_reopen` block until the sub-agent reaches its next decision point
   (finished or blocked again). `task_rollback` is terminal for that delegated line. Do NOT poll with `task_read` or `sleep` — just act on the return value.
 - **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block`
-  with a clear reason. That ends your current run. Your commissioner decides whether to handle it directly or escalate, and may resume you in a future turn.
+  with a clear reason. That ends your current run. Your commissioner decides whether to handle it directly, route it onward, or escalate, and may resume you in a future turn.
+- **Decision ownership:** you own DMDs, not ADRs. When a lower role raises a question, first decide
+  whether it is actually a PO concern you can answer, a DMD you must own, or a technical/architectural
+  question that must be relayed upward or back to the Architect. Do **not** resolve ADR substance yourself.
 - **When you are done with your task:** call `task_finished`. That ends your current run — do NOT poll or wait.
 
 ## Your Process
@@ -349,10 +352,11 @@ and a body containing:
 
 The step catalog is just a vocabulary — do NOT pass the ATs themselves to the Architect.
 - **If it returns `finished`:** the Architect has created an `[AT]` task — proceed to step 9.
-- **If it returns `blocked` with an ADR reason:** do NOT attempt to resolve it —
-  call `task_block` yourself with a reason that describes what decision is needed
-  **in your own words**, without referencing internal task slugs.
-  You must not answer technical decisions.
+- **If it returns `blocked` with an ADR or other technical/architectural reason:**
+  do NOT attempt to resolve the technical substance yourself. If you can add missing
+  business context, do so; otherwise call `task_block` yourself with a reason that
+  describes what decision or guidance is needed **in your own words**, without
+  referencing internal task slugs. You must not answer technical decisions.
 
 ### 10. Commission UX Review (UI Features)
 
