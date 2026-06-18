@@ -235,6 +235,49 @@ describe("startChildSession groundwork", () => {
     }
   });
 
+  it("does not misclassify toolUse turns as missing checkpoints while the child is still working", async () => {
+    const {cwd} = makeTestGitRepo("session-factory");
+    const provider = `session-tooluse-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{id: "test-model"}],
+    });
+    faux.setResponses([
+      fauxAssistantMessage([
+        fauxToolCall("write", { path: "docs/product.md", content: "brief" }),
+      ], {stopReason: "toolUse"}),
+      fauxAssistantMessage([
+        fauxToolCall("task_finished", {}),
+      ], {stopReason: "toolUse"}),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    try {
+      const result = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-tooluse",
+        body: "Write docs/product.md, then call task_finished.",
+        activeSessions: new Map() as any,
+        pi: {} as any,
+        postOutput: () => {
+        },
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(result.outcome, "finished");
+      assert.equal(faux.state.callCount, 3, "current faux-provider flow still consumes one extra follow-up turn before reaching the next toolUse response");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("prompts once after a missing checkpoint and succeeds when the child then calls task_finished", async () => {
     const {cwd} = makeTestGitRepo("session-factory");
     const provider = `session-missing-checkpoint-${Date.now()}`;

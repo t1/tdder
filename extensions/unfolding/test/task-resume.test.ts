@@ -1,4 +1,5 @@
 import { describe, it } from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 
 import { writeFileSync } from "node:fs";
@@ -64,6 +65,13 @@ describe("restoreChildSession", () => {
     } finally {
       cleanupTestTempDir(cwd);
     }
+  });
+});
+
+describe("structural invariants", () => {
+  it("queues resumed child prompts with followUp streamingBehavior", () => {
+    const src = readFileSync(new URL("../task-resume.ts", import.meta.url).pathname, "utf8");
+    assert.match(src, /session\.prompt\([^\n]+\{ streamingBehavior: "followUp" \}\)/);
   });
 });
 
@@ -185,6 +193,71 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       const task = readTask(cwd, "coder-resume");
       assert.ok(task?.status === "finished", `unexpected status: ${task?.status}`);
       assert.equal(faux.state.callCount, 4);
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("task_unblock does not misclassify resumed toolUse turns as missing checkpoints", async () => {
+    const { cwd } = makeTestGitRepo("resume-task");
+    const provider = `resume-tooluse-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{ id: "test-model" }],
+    });
+    faux.setResponses([
+      fauxAssistantMessage([
+        fauxToolCall("task_block", { blocked_reason: "need input" }),
+      ], { stopReason: "toolUse" }),
+      fauxAssistantMessage("ok"),
+      fauxAssistantMessage([
+        fauxToolCall("write", { path: "docs/product.md", content: "brief" }),
+      ], { stopReason: "toolUse" }),
+      fauxAssistantMessage([
+        fauxToolCall("task_finished", {}),
+      ], { stopReason: "toolUse" }),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+
+    try {
+      const activeSessions = new Map() as any;
+      const started = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-resume-tooluse",
+        body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
+        activeSessions,
+        pi: {} as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(started.outcome, "blocked");
+      activeSessions.delete("coder-resume-tooluse");
+
+      const outcome = await resumeDelegatedTask({
+        action: "unblock",
+        cwd,
+        slug: "coder-resume-tooluse",
+        reason: "continue",
+        activeSessions,
+        postOutput: () => {},
+        mutateTask: taskUnblock,
+        pi: {} as any,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(outcome, "finished");
+      assert.equal(faux.state.callCount, 5, "current faux-provider flow still consumes one extra follow-up turn before reaching the next toolUse response");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

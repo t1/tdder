@@ -75,7 +75,7 @@ export async function resumeDelegatedTask({
   const unsubscribeCheckpointRecovery = installCheckpointRecovery(session, cwd, slug, {
     onRecoveryNote: stream?.append,
   });
-  session.prompt(`${task?.resume_message ?? action}\n\n${CHILD_FIXED_INSTRUCTION}`).catch((err: unknown) => {
+  session.prompt(`${task?.resume_message ?? action}\n\n${CHILD_FIXED_INSTRUCTION}`, { streamingBehavior: "followUp" }).catch((err: unknown) => {
     const stack = err instanceof Error ? err.stack : String(err);
     console.error(`[unfolding] resumed child session for task "${slug}" failed:`, stack);
   });

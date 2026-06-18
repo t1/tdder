@@ -407,11 +407,14 @@ export function installCheckpointRecovery(
   let missingCheckpointRecoveryAttempted = false;
   let sawLengthTruncationThisTurn = false;
   let terminalFailureThisTurn: string | undefined;
+  let assistantStopReasonThisTurn: string | undefined;
   const onRecoveryNote = options.onRecoveryNote;
 
   return session.subscribe((event) => {
     if (event.type === "message_end") {
-      if (event.message.role === "assistant" && event.message.stopReason === "length") {
+      if (event.message.role !== "assistant") return;
+      assistantStopReasonThisTurn = event.message.stopReason;
+      if (event.message.stopReason === "length") {
         sawLengthTruncationThisTurn = true;
       }
       if (isTerminalAssistantFailure(event)) {
@@ -426,12 +429,14 @@ export function installCheckpointRecovery(
     if (task?.status !== "in_progress") {
       sawLengthTruncationThisTurn = false;
       terminalFailureThisTurn = undefined;
+      assistantStopReasonThisTurn = undefined;
       return;
     }
 
     if (sawLengthTruncationThisTurn) {
       sawLengthTruncationThisTurn = false;
       terminalFailureThisTurn = undefined;
+      assistantStopReasonThisTurn = undefined;
       if (!truncationRecoveryAttempted) {
         truncationRecoveryAttempted = true;
         onRecoveryNote?.("  ⚠ child response was truncated before a checkpoint; prompting it to continue or block");
@@ -450,10 +455,18 @@ export function installCheckpointRecovery(
     if (terminalFailureThisTurn) {
       const detail = terminalFailureThisTurn;
       terminalFailureThisTurn = undefined;
+      assistantStopReasonThisTurn = undefined;
       onRecoveryNote?.(`  ⚠ child session failed before a checkpoint; blocking the child task — ${truncateSummary(compactWhitespace(detail))}`);
       updateTaskStatus(cwd, slug, "blocked", childSessionFailureBlockedReason(detail));
       return;
     }
+
+    if (assistantStopReasonThisTurn === "toolUse") {
+      assistantStopReasonThisTurn = undefined;
+      return;
+    }
+
+    assistantStopReasonThisTurn = undefined;
 
     if (!missingCheckpointRecoveryAttempted) {
       missingCheckpointRecoveryAttempted = true;
