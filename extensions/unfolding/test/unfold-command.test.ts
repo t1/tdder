@@ -55,6 +55,7 @@ describe("buildUnfoldMessage", () => {
     const msg = buildUnfoldMessage({ state: null, guidance: undefined });
     assert.ok(msg.includes("fresh project"), "should mention fresh project");
     assert.ok(msg.includes("pick up"), "should ask to pick up");
+    assert.ok(msg.includes("no existing code or tech stack to explore yet"), "should include fresh-project anti-exploration note");
     assert.ok(!msg.includes("Sensei guidance"), "should not mention sensei guidance");
   });
 
@@ -68,6 +69,7 @@ describe("buildUnfoldMessage", () => {
   it("includes guidance when provided", () => {
     const msg = buildUnfoldMessage({ state: null, guidance: "focus on login" });
     assert.ok(msg.includes("Sensei guidance: focus on login"), "should include guidance");
+    assert.ok(msg.includes("no existing code or tech stack to explore yet"), "should keep fresh-project anti-exploration note with guidance");
   });
 
   it("includes both state and guidance when both are provided", () => {

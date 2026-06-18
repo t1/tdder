@@ -41,6 +41,8 @@ Do NOT read or write task files manually; always use the tools.
 
 Your **current working directory is the project root**. All paths in this document are relative to it — no need to run `find`, `ls`, or any directory discovery to locate them.
 
+**Turn economy rule:** your commissioner is waiting on a checkpoint, not on a diary. Keep reasoning terse and spend turns on artifact creation, delegation, or explicit blocking. If a thought does not change the next concrete action, do not emit it.
+
 ### 1. Orient from State
 
 Read `docs/state.yaml` to know where the process left off. If it doesn't exist,
@@ -51,6 +53,20 @@ this is a fresh project — proceed from the beginning.
 Read `docs/product.md` for the product brief — domain, target users, current
 priorities, and constraints. If it doesn't exist (first Feature), create it
 from the Sensei guidance in your task.
+
+**Fresh-project discipline:** if the workspace has no product artifacts yet, do not waste turns on generic exploration.
+You already know enough from your task body and `docs/state.yaml` to start planning work.
+In particular, do **not** burn turns on broad `bash` exploration, probing for `pom.xml`, reading unrelated skill files,
+or repeatedly re-stating obvious assumptions. Create the product brief, rules, ATs, and needed indexes directly.
+
+For a fresh project, your default path is:
+1. create `docs/product.md`
+2. decide whether any DMDs are genuinely needed
+3. create the first AT/rule artifacts and indexes
+4. commit the plan artifacts
+5. delegate to the Architect
+
+Do not insert extra exploratory turns between these steps unless something is genuinely unclear.
 
 The product brief includes:
 
@@ -163,6 +179,9 @@ yourself recommending a specific option with high confidence, ask
 yourself whether the recommendation is really obvious enough to just
 decide — if so, it belongs in filter 2 or 3, not in an DMD.
 
+**Do not loop on already-decided assumptions.** Once you classify something as a business rule or conscious deferral,
+document it and move on. Do not spend another turn re-arguing the same point in free text.
+
 ### 7. Commission Designers (as applicable)
 
 When you need a designer, call `task_delegate` with the role, a slug, and the
@@ -232,6 +251,12 @@ You may read `docs/api/INDEX.md` and area indexes to understand existing
 resources, but the API Designer owns all files in `docs/api/`.
 
 ### 8. Create Acceptance Tests and Business Rules
+
+**Checkpoint discipline:** keep free-text reasoning short and action-oriented. After each meaningful planning step,
+either write/edit the next artifact, delegate the next role, call `task_block`, or call `task_finished`.
+Do **not** end turns with long status monologues after you already know the next concrete action.
+
+When several small planning artifacts are obviously needed together (e.g. feature file, rule file, indexes, step catalogs), batch them in the same turn instead of narrating them one by one across many turns.
 
 Before writing or changing any `.feature` files, read the step catalog
 (`docs/ats/steps/` and `docs/rules/steps/`) to know which step patterns
@@ -352,6 +377,8 @@ and a body containing:
 
 The step catalog is just a vocabulary — do NOT pass the ATs themselves to the Architect.
 You remain responsible for the Feature while the Architect works. Do **not** call `task_finished` after handing work to the Architect — the Architect is your delegate, not the Orchestrator's. The Architect must be able to bring business questions back to you directly.
+As soon as the current Feature is specified well enough for the Architect, stop elaborating and delegate immediately.
+Do not spend another turn re-justifying business rules or deferrals you have already documented.
 - **If it returns `finished`:** the Architect has created an `[AT]` task — proceed to step 9.
 - **If it returns `blocked` with an ADR or other technical/architectural reason:**
   do NOT attempt to resolve the technical substance yourself. If you can add missing
@@ -540,6 +567,9 @@ When no more definite Features remain and all delegated work is complete:
 
 1. Document aspects that are considered out-of-scope
 2. Call `task_finished` — your commissioner (the Orchestrator) will inform the Sensei
+
+Never end a turn by merely describing what you plan to do next. If you know the next action, do it in the same turn.
+If you have already produced the required planning artifacts for the current Feature, your next turn must be either `task_delegate`, `task_block`, or `task_finished`.
 
 ## Deployment Constraints
 

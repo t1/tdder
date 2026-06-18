@@ -29,6 +29,10 @@ export function buildUnfoldMessage({ state, guidance }: UnfoldMessageOptions): s
     parts.push(`Sensei guidance: ${guidance}`);
   }
 
+  if (!state) {
+    parts.push("Fresh-project note: there is no existing code or tech stack to explore yet. Start by creating the product brief, then the first planning artifacts (ATs, rules, indexes, and any genuinely needed DMDs) directly.");
+  }
+
   parts.push("Please pick up where the process left off.");
 
   return parts.join("\n\n");

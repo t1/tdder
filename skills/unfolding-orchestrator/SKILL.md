@@ -46,7 +46,8 @@ If it doesn't, this is a fresh project — create `docs/state.yaml` and launch t
 
 1. Create `docs/state.yaml` with `phase: defining`
 2. Create a `[PO]` task with the Sensei guidance as the body
-3. Spawn the PO with the Sensei guidance as the `task_delegate` body.
+3. Spawn the PO with the Sensei guidance as the `task_delegate` body
+4. On a genuinely empty project, tell the PO explicitly that there is no existing code or tech stack to explore and that it should start planning artifacts directly instead of probing the workspace
 
 ### Resuming
 

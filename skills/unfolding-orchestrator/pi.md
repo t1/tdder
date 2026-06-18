@@ -21,6 +21,8 @@ the agents themselves.
 task_delegate(role="po", slug="po-<feature-slug>", body="<Sensei guidance>")
 ```
 
+If the workspace is genuinely empty, include that explicitly in the body, e.g. that there is no existing code or tech stack to explore and the PO should start with `docs/product.md`, ATs, rules, indexes, and any needed DMDs directly.
+
 If resuming, create a task for the appropriate role per the phase table in
 `SKILL.md` and call `task_delegate` with that role.
 
