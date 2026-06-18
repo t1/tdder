@@ -91,6 +91,7 @@ export interface StreamChildSessionOptions {
   setIntervalFn?: (callback: () => void, ms: number) => ReturnType<typeof setInterval>;
   clearIntervalFn?: (interval: ReturnType<typeof setInterval>) => void;
   tickMs?: number;
+  sessionFile?: string;
 }
 
 /**
@@ -100,10 +101,39 @@ export interface StreamChildSessionOptions {
  * - show assistant message_update deltas for text and thinking, plus assistant stream errors
  * - show an explicit warning when a thinking-bearing assistant message is truncated by length limit
  * - intentionally skip protocol noise / lifecycle chatter listed above
- * - warn on anything else so new upstream event types don't fail silently
+ * - show reduced unexpected-event notices in the normal transcript with a session log reference
  */
-function logUnexpectedChildEvent(role: string, slug: string, event: AgentSessionEvent) {
-  console.warn(`[unfolding] unexpected child event for ${role}/${slug}: ${JSON.stringify(event)}`);
+function compactWhitespace(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function truncateSummary(text: string, max = 140): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1).trimEnd()}…`;
+}
+
+function sessionLogSuffix(sessionFile?: string): string {
+  return sessionFile ? ` — see ${sessionFile}` : "";
+}
+
+function summarizeUnexpectedChildEvent(role: string, slug: string, sessionFile: string | undefined, event: AgentSessionEvent): string {
+  const base = `  [${role}] ⚠ unexpected child event for ${role}/${slug}`;
+  if (event.type === "tool_execution_update") {
+    const parts = [`tool=${event.toolName}`];
+    const childSlug = typeof event.args?.slug === "string" && event.args.slug.trim()
+      ? event.args.slug.trim()
+      : slug;
+    parts.push(`slug=${childSlug}`);
+    const reason = typeof event.args?.reason === "string" ? truncateSummary(compactWhitespace(event.args.reason)) : "";
+    if (reason) parts.push(`reason=${reason}`);
+    return `${base}: ${parts.join(" — ")}${sessionLogSuffix(sessionFile)}`;
+  }
+
+  if (event.type === "message_update") {
+    return `${base}: type=${event.type}/${event.assistantMessageEvent.type}${sessionLogSuffix(sessionFile)}`;
+  }
+
+  return `${base}: type=${event.type}${sessionLogSuffix(sessionFile)}`;
 }
 
 function hasThinkingContent(message: unknown): boolean {
@@ -134,6 +164,7 @@ export function streamChildSession(
   const setIntervalFn = options.setIntervalFn ?? ((callback, ms) => setInterval(callback, ms));
   const clearIntervalFn = options.clearIntervalFn ?? ((interval) => clearInterval(interval));
   const tickMs = options.tickMs ?? 1000;
+  const sessionFile = options.sessionFile;
   const startedAt = now();
   let endedAt: number | undefined;
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -234,7 +265,8 @@ export function streamChildSession(
     if (event.type === "tool_execution_update" && event.toolName === "task_delegate") {
       const row = toolRows.get(event.toolCallId);
       if (!row) {
-        logUnexpectedChildEvent(role, slug, event);
+        rows.push({ kind: "note", text: summarizeUnexpectedChildEvent(role, slug, sessionFile, event) });
+        flush();
         return;
       }
       const text: string = event.partialResult?.content?.[0]?.text ?? "";
@@ -247,7 +279,8 @@ export function streamChildSession(
     if (event.type === "tool_execution_end") {
       const row = toolRows.get(event.toolCallId);
       if (!row) {
-        logUnexpectedChildEvent(role, slug, event);
+        rows.push({ kind: "note", text: summarizeUnexpectedChildEvent(role, slug, sessionFile, event) });
+        flush();
         return;
       }
       row.status = event.isError ? "error" : "success";
@@ -295,7 +328,8 @@ export function streamChildSession(
 
     if (event.type === "message_update") {
       if (INTENTIONALLY_SKIPPED_ASSISTANT_MESSAGE_EVENT_TYPES.has(event.assistantMessageEvent.type)) return;
-      logUnexpectedChildEvent(role, slug, event);
+      rows.push({ kind: "note", text: summarizeUnexpectedChildEvent(role, slug, sessionFile, event) });
+      flush();
       return;
     }
 
@@ -303,7 +337,8 @@ export function streamChildSession(
       return;
     }
 
-    logUnexpectedChildEvent(role, slug, event);
+    rows.push({ kind: "note", text: summarizeUnexpectedChildEvent(role, slug, sessionFile, event) });
+    flush();
   };
 
   ensureTimer();

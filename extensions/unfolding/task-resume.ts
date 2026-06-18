@@ -76,7 +76,7 @@ export async function resumeDelegatedTask({
   });
 
   const stream = onUpdate
-    ? streamChildSession(session, shortRole, slug, onUpdate)
+    ? streamChildSession(session, shortRole, slug, onUpdate, { sessionFile: task?.session_file })
     : undefined;
 
   const outcome = await waitForChildDecision(

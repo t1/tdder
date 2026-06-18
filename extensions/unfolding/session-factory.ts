@@ -92,7 +92,7 @@ export async function startChildSession({
     console.error(`[unfolding] child session for task "${slug}" failed:`, stack);
   });
 
-  const stream = onUpdate ? streamChildSession(session, shortRole, slug, onUpdate) : undefined;
+  const stream = onUpdate ? streamChildSession(session, shortRole, slug, onUpdate, { sessionFile: session.sessionFile }) : undefined;
   const outcome = await waitForChildDecision(
     async () => readTask(cwd, slug),
     (_status: string, blocked_reason?: string) => {

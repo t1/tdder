@@ -257,7 +257,8 @@ describe("streamChildSession", () => {
     assert.ok(last.includes("[po] ❌ provider exploded"), `expected assistant error line, got: ${last}`);
   });
 
-  it("warns on unexpected child events", () => {
+  it("shows reduced unexpected child events in the normal transcript with a log reference", () => {
+    const updates: string[] = [];
     let captured: ((e: any) => void) | undefined;
     const fakeSession = {
       subscribe: (h: any) => {
@@ -266,23 +267,14 @@ describe("streamChildSession", () => {
         };
       }
     } as any;
-    const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (message?: any) => {
-      warnings.push(String(message));
-    };
 
-    try {
-      streamChildSession(fakeSession, "po", "slug", () => {
-      });
-      captured!({ type: "queue_update", steering: [], followUp: [] });
-    } finally {
-      console.warn = originalWarn;
-    }
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text), {
+      sessionFile: "/logs/child.jsonl",
+    });
+    captured!({ type: "queue_update", steering: [], followUp: [] });
 
-    assert.equal(warnings.length, 1, `expected one warning, got: ${warnings.length}`);
-    assert.ok(warnings[0].includes("unexpected child event for po/slug"), `expected warning prefix, got: ${warnings[0]}`);
-    assert.ok(warnings[0].includes("\"type\":\"queue_update\""), `expected serialized event payload, got: ${warnings[0]}`);
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] ⚠ unexpected child event for po/slug: type=queue_update — see /logs/child.jsonl"), `expected reduced unexpected-event notice, got: ${last}`);
   });
 
   it("shows successful tool executions with a trailing checkmark", () => {
@@ -393,6 +385,37 @@ describe("streamChildSession", () => {
     assert.ok(cleared, "expected timer to be cleared on unsubscribe");
     assert.ok(unsubscribeCalled, "expected session unsubscribe to be called");
     unsubscribe();
+  });
+
+  it("shows reduced unexpected tool_execution_update details with reason and log reference", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "po-defining", (u: any) => updates.push(u.content[0].text), {
+      sessionFile: "/logs/child.jsonl",
+    });
+
+    captured!({
+      type: "tool_execution_update",
+      toolCallId: "u1",
+      toolName: "task_unblock",
+      args: {
+        slug: "arch-create-and-view-todos",
+        reason: "Tech stack and persistence are technical/architectural decisions within your domain — you own ADRs.",
+      },
+      partialResult: { content: [{ type: "text", text: "ignored here" }] },
+    });
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] ⚠ unexpected child event for po/po-defining: tool=task_unblock — slug=arch-create-and-view-todos"), `expected reduced tool update notice, got: ${last}`);
+    assert.ok(last.includes("reason=Tech stack and persistence are technical/architectural decisions within your domain — you own ADRs."), `expected reduced reason, got: ${last}`);
+    assert.ok(last.includes("— see /logs/child.jsonl"), `expected log reference, got: ${last}`);
   });
 
   it("forwards tool_execution_update for task_delegate as indented nested output", () => {
