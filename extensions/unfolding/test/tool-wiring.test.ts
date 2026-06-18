@@ -163,6 +163,11 @@ describe("task_delegate wiring", () => {
     assert.ok(!src.includes('from: "orchestrator"'), "'from' must not be hardcoded in the factory body");
   });
 
+  it("pins child sessions to the current parent model when no explicit model override is passed", () => {
+    assert.ok(commonSrc.includes("resolveCurrentModel(pi)"), "child sessions must resolve the current parent model from pi");
+    assert.ok(commonSrc.includes("model: selectedModel"), "createAgentSession must receive the selected child model");
+  });
+
   it("registers the session in activeSessions after creating the child session", () => {
     assert.ok(commonSrc.includes("activeSessions.set"), "must store session in activeSessions map");
   });

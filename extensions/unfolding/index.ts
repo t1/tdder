@@ -105,7 +105,15 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
 
       const guidance = args?.trim() || undefined;
       const state = loadStateYaml(ctx.cwd);
-      const message = buildUnfoldMessage({ state, guidance });
+      const freshProjectGuidance = !state
+        ? [
+            guidance,
+            "This is a genuinely empty project: no existing code, no pom.xml, no tech stack to discover yet.",
+            "Do not explore the workspace for implementation artifacts.",
+            "Start directly with docs/product.md, then the first planning artifacts (ATs, rules, indexes, step catalogs, and only genuinely needed DMDs).",
+          ].filter(Boolean).join("\n\n")
+        : guidance;
+      const message = buildUnfoldMessage({ state, guidance: freshProjectGuidance });
 
       // Arm the system-prompt injection for the upcoming turn.
       pendingSkillInjection = skill;

@@ -21,6 +21,11 @@ export interface ChildSessionBuildParams {
   modelRegistry?: ModelRegistry;
 }
 
+export function resolveCurrentModel(pi: ExtensionAPI): Model<any> | undefined {
+  const session = (pi as ExtensionAPI & { currentSession?: { agent?: { state?: { model?: Model<any> } } } }).currentSession;
+  return session?.agent?.state?.model;
+}
+
 export async function createChildAgentSession({
   cwd,
   role,
@@ -49,11 +54,13 @@ export async function createChildAgentSession({
   });
   await loader.reload();
 
+  const selectedModel = model ?? resolveCurrentModel(pi);
+
   const { session } = await createAgentSession({
     cwd,
     sessionManager,
     resourceLoader: loader,
-    model,
+    model: selectedModel,
     authStorage,
     modelRegistry,
     excludedToolNames: ["task_list", "task_read"],

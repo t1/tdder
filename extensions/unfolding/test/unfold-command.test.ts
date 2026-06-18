@@ -100,6 +100,17 @@ describe("structural invariants", () => {
     );
   });
 
+  it("adds explicit fresh-project anti-exploration guidance before building the unfold message", () => {
+    assert.ok(
+      src.includes("This is a genuinely empty project: no existing code, no pom.xml, no tech stack to discover yet."),
+      "index.ts must add explicit fresh-project anti-exploration guidance",
+    );
+    assert.ok(
+      src.includes("Do not explore the workspace for implementation artifacts."),
+      "index.ts must explicitly tell the PO not to explore implementation artifacts on a fresh project",
+    );
+  });
+
   it("guards against calling sendUserMessage while agent is busy", () => {
     assert.ok(
       src.includes("isIdle()"),
