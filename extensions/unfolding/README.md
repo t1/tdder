@@ -120,5 +120,13 @@ Run it with an explicit model:
 UNFOLDING_TEST_MODEL=provider/modelId npm --prefix extensions/unfolding run test:real-integration
 ```
 
-The real integration harness prints a JSON summary including the requested model, selected root model,
-child session files, child models, generated artifacts, and task files.
+The real integration harness reads the requested model from `UNFOLDING_TEST_MODEL`.
+It prints the temp workspace path at the start of the run.
+It prints a JSON summary including the requested model, selected root model,
+child session files, child models, generated artifacts, and task files. It also writes the same summary to
+`unfold-result.json` in the temp workspace used for that run.
+Temp workspaces are kept for inspection; remove them with:
+
+```bash
+npm --prefix extensions/unfolding run clean
+```

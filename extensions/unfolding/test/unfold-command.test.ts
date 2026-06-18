@@ -144,5 +144,17 @@ describe("structural invariants", () => {
       extensionReadme.includes("UNFOLDING_TEST_MODEL=provider/modelId npm --prefix extensions/unfolding run test:real-integration"),
       "extension README must document the real integration test env-var interface",
     );
+    assert.ok(
+      extensionReadme.includes("reads the requested model from `UNFOLDING_TEST_MODEL`"),
+      "extension README must document UNFOLDING_TEST_MODEL as the harness model source",
+    );
+    assert.ok(
+      extensionReadme.includes("npm --prefix extensions/unfolding run clean"),
+      "extension README must document how to remove preserved smoke-test temp workspaces",
+    );
+    assert.ok(
+      readFileSync(new URL("../package.json", import.meta.url).pathname, "utf8").includes('"clean": "rm -rf target/test-tmp"'),
+      "extension package.json must provide a clean script for preserved smoke-test temp workspaces",
+    );
   });
 });

@@ -1,9 +1,10 @@
 import { describe, it, before, after } from "node:test";
+import { setTimeout as sleep } from "node:timers/promises";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { makeTestTempDir, cleanupTestTempDir } from "./test-temp.ts";
+import { makeTestTempDir } from "./test-temp.ts";
 
 const REQUESTY_EXTENSION = resolve("/Users/rdohna/.pi/agent/git/github.com/requestyai/pi-requesty/requesty.js");
 const TDDS_ROOT = resolve(new URL("../../..", import.meta.url).pathname);
@@ -36,12 +37,6 @@ interface RunSummary {
 }
 
 function parseArgs(): { model?: string } {
-  const args = process.argv.slice(2);
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === "--model") return { model: args[i + 1] };
-    if (arg.startsWith("--model=")) return { model: arg.slice("--model=".length) };
-  }
   return { model: process.env.UNFOLDING_TEST_MODEL };
 }
 
@@ -103,11 +98,17 @@ function startPi(cwd: string): {
     }
   });
 
+  let resolveExit: (() => void) | undefined;
+  const exitPromise = new Promise<void>(resolve => {
+    resolveExit = resolve;
+  });
+
   proc.on("exit", (code, signal) => {
     const exitEvent = { type: "__process_exit__", code, signal, stderr } satisfies RpcEvent;
     const waiter = waiters.shift();
     if (waiter) waiter(exitEvent);
     else queue.push(exitEvent);
+    resolveExit?.();
   });
 
   function nextEvent(): Promise<RpcEvent> {
@@ -116,12 +117,26 @@ function startPi(cwd: string): {
   }
 
   async function stop(): Promise<void> {
-    if (proc.exitCode !== null || proc.killed) return;
-    send({ type: "abort" });
-    await new Promise(resolve => setTimeout(resolve, 500));
+    if (proc.exitCode !== null) {
+      await exitPromise;
+      return;
+    }
+
+    try {
+      send({ type: "abort" });
+    } catch {
+      // ignore broken pipe / closed stdin during shutdown
+    }
+    proc.stdin?.end();
+    await Promise.race([exitPromise, sleep(500)]);
+
     if (proc.exitCode === null) proc.kill("SIGTERM");
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await Promise.race([exitPromise, sleep(500)]);
+
     if (proc.exitCode === null) proc.kill("SIGKILL");
+    await exitPromise;
+    proc.stdout?.destroy();
+    proc.stderr?.destroy();
   }
 
   return { proc, send, nextEvent, stop };
@@ -135,10 +150,14 @@ async function waitFor(
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const remaining = Math.max(1, deadline - Date.now());
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     const event = await Promise.race([
       nextEvent(),
-      new Promise<null>(resolve => setTimeout(() => resolve(null), remaining)),
+      new Promise<null>(resolve => {
+        timeoutHandle = setTimeout(() => resolve(null), remaining);
+      }),
     ]);
+    if (timeoutHandle) clearTimeout(timeoutHandle);
     if (event === null) break;
     if (event.type === "__process_exit__") {
       throw new Error(`pi exited unexpectedly: ${JSON.stringify(event)}`);
@@ -234,10 +253,11 @@ describe("real unfolding smoke", { timeout: DEFAULT_TIMEOUT_MS + 30_000 }, () =>
   });
 
   after(() => {
-    cleanupTestTempDir(cwd);
+    // Keep temp workspaces for inspection; `npm --prefix extensions/unfolding run clean` removes them.
   });
 
   it(`runs /unfold in a fresh temp dir${requestedModel ? ` with ${requestedModel}` : " using the default model"}`, async () => {
+    console.log(`[unfolding smoke] temp dir: ${cwd}`);
     const instance = startPi(cwd);
     try {
       const ready = await waitForResponse(instance.send, instance.nextEvent, { type: "get_state" }, "state-ready", 10_000);
@@ -272,6 +292,7 @@ describe("real unfolding smoke", { timeout: DEFAULT_TIMEOUT_MS + 30_000 }, () =>
       await waitForArtifacts(cwd, DEFAULT_TIMEOUT_MS);
 
       const summary = summarizeRun(cwd, requestedModel, selectedModel, rootSessionFile);
+      writeFileSync(join(cwd, "unfold-result.json"), JSON.stringify(summary, null, 2) + "\n", "utf8");
       console.log(JSON.stringify(summary, null, 2));
 
       assert.ok(summary.artifacts.includes("docs/product.md"), "expected docs/product.md to be created");

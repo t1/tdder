@@ -9,6 +9,7 @@
   "type": "module",
   "scripts": {
     "sync": "echo 'no vendored files'",
+    "clean": "rm -rf target/test-tmp",
     "test": "node --test test/unfold-command.test.ts test/task-store.test.ts test/task-tools.test.ts test/task-delegate.test.ts test/task-resume.test.ts test/session-factory.test.ts test/tool-wiring.test.ts",
     "test:integration": "node --test test/integration.test.ts",
     "test:real-integration": "node --test test/real-unfold.integration.test.ts"
