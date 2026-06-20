@@ -16,6 +16,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { globSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
+import { filterDisplayOnlyMessages } from "../shared/context-filter.ts";
 
 function hasJavaOrKotlin(dir: string): boolean {
   // Walk up to two levels deep to keep startup fast on large projects.
@@ -42,7 +44,34 @@ function isGitHubProject(dir: string): boolean {
   }
 }
 
+const INJECTED_PROMPTS_MSG_TYPE = "hygiene-injected-prompts";
+
+function buildInjectedPromptsMessage(reminders: string[]) {
+  return {
+    customType: INJECTED_PROMPTS_MSG_TYPE,
+    content: [
+      "Injected prompts:",
+      ...reminders.map((reminder) => `- ${reminder}`),
+    ].join("\n"),
+    display: true,
+    details: { reminders },
+  };
+}
+
 export default function (pi: ExtensionAPI) {
+  pi.on("context", async (event) =>
+    filterDisplayOnlyMessages(event, INJECTED_PROMPTS_MSG_TYPE) as { messages?: any[] } | undefined,
+  );
+
+  pi.registerMessageRenderer<{ reminders?: string[] }>(INJECTED_PROMPTS_MSG_TYPE, (message, _options, theme) => {
+    const reminders = message.details?.reminders ?? [];
+    const text = [
+      theme.fg("muted", "Injected prompts:"),
+      ...reminders.map((reminder) => theme.fg("muted", `- ${reminder}`)),
+    ].join("\n");
+    return new Text(text, 0, 0);
+  });
+
   pi.on("before_agent_start", async (event) => {
     const cwd = event.systemPromptOptions.cwd ?? "";
     const loaded = new Set(event.systemPromptOptions.skills?.map((s) => s.name) ?? []);
@@ -65,6 +94,7 @@ export default function (pi: ExtensionAPI) {
 
     return {
       systemPrompt: event.systemPrompt + "\n\n" + reminders.join("\n"),
+      message: buildInjectedPromptsMessage(reminders),
     };
   });
 }
