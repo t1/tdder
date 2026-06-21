@@ -76,8 +76,18 @@ When `task_delegate` receives a role name it strips any `unfolding-` prefix, so 
 Built-in roles: `po`, `architect`, `coder`, `api-designer`, `ux-designer`, `ui-expert`.
 
 **Decision escalation:** blocked questions always go to the current role's **commissioner** first.
-The commissioner either answers directly or routes the question onward; roles must not bypass
-that chain. Decision ownership is strict:
+The commissioner may answer directly only within that commissioner's own decision authority; roles must not bypass
+that chain.
+
+For Architect → PO escalation: the PO may answer only PO-scope business questions. If an ADR is referenced, the PO
+forwards it upward without reading or interpreting the ADR artifact. If a technical question arrives without an ADR, the
+PO sends it back and requires the Architect to raise one. Mixed questions must be split into business and technical
+parts.
+
+When the Sensei answers an ADR, the Orchestrator resumes the PO, and the PO forwards that answer to the Architect
+verbatim via `task_unblock`.
+
+Decision ownership is strict:
 
 - **PO** owns **DMDs**
 - **Architect** owns **ADRs**
