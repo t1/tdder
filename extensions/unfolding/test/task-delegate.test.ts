@@ -477,20 +477,14 @@ describe("streamChildSession", () => {
     captured!({
       type: "tool_execution_start",
       toolCallId: "u1",
-      toolName: "task_unblock",
-      args: {
-        slug: "arch-create-and-view-todos",
-        reason: "Tech stack and persistence are technical/architectural decisions within your domain — you own ADRs.",
-      },
+      toolName: "bash",
+      args: {command: "ls"},
     });
     captured!({
       type: "tool_execution_update",
       toolCallId: "u1",
-      toolName: "task_unblock",
-      args: {
-        slug: "arch-create-and-view-todos",
-        reason: "Tech stack and persistence are technical/architectural decisions within your domain — you own ADRs.",
-      },
+      toolName: "bash",
+      args: {command: "ls"},
       partialResult: {
         content: [{
           type: "text",
@@ -500,7 +494,7 @@ describe("streamChildSession", () => {
     });
 
     const last = updates[updates.length - 1];
-    assert.ok(last.includes("[po] ⚙ task_unblock — 0s"), `expected tool row, got: ${last}`);
+    assert.ok(last.includes("[po] ⚙ bash ls — 0s"), `expected tool row, got: ${last}`);
     assert.ok(!last.includes("unexpected child event"), `did not expect unexpected-event warning, got: ${last}`);
     assert.ok(!last.includes("    line 1"), `expected old lines to be trimmed from tool output tail, got: ${last}`);
     assert.ok(!last.includes("    line 2"), `expected old lines to be trimmed from tool output tail, got: ${last}`);
@@ -553,6 +547,39 @@ describe("streamChildSession", () => {
     assert.ok(!last.includes("unexpected child event"), `did not expect unexpected-event warning, got: ${last}`);
     // the grandchild block should not appear twice
     assert.equal((last.match(/\[ux-designer\/ux-slug]/g) ?? []).length, 1, "grandchild header should appear only once");
+  });
+
+  it("forwards tool_execution_update for delegation tools fully, without tail truncation", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "po-slug", (u: any) => updates.push(u.content[0].text), {
+      now: () => 0,
+    });
+    captured!({
+      type: "tool_execution_start",
+      toolCallId: "u1",
+      toolName: "task_unblock",
+      args: {slug: "sub-task", reason: "unblocked"},
+    });
+    captured!({
+      type: "tool_execution_update",
+      toolCallId: "u1",
+      toolName: "task_unblock",
+      args: {slug: "sub-task"},
+      partialResult: {
+        content: [{type: "text", text: "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7"}]
+      },
+    });
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("    line 1"), `expected all lines to be forwarded, got: ${last}`);
+    assert.ok(last.includes("    line 7"), `expected last line to be present, got: ${last}`);
   });
 
   it("ticks elapsed time for pending tools", () => {

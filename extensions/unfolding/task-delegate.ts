@@ -106,7 +106,8 @@ export interface StreamChildSessionOptions {
 /**
  * Child-session display policy:
  * - show all tool rows in place with elapsed time and terminal marker
- * - show nested tool_execution_update only for task_delegate
+ * - forward tool_execution_update fully (all lines) for delegation tools (task_delegate, task_unblock, task_reopen, task_rollback, task_accept)
+ * - truncate tool_execution_update to the last 5 lines for all other tools
  * - show assistant message_update deltas for text and thinking, plus assistant stream errors
  * - show an explicit warning when a thinking-bearing assistant message is truncated by length limit
  * - intentionally skip protocol noise / lifecycle chatter listed above
@@ -137,9 +138,22 @@ function extractToolUpdateText(partialResult: unknown): string {
     .trimEnd() ?? "";
 }
 
+const DELEGATION_TOOLS = new Set([
+  "task_delegate",
+  "task_unblock",
+  "task_reopen",
+  "task_rollback",
+  "task_accept",
+]);
+
 function tailLines(text: string, maxLines = MAX_TOOL_OUTPUT_LINES): string[] {
   if (!text) return [];
   return text.split("\n").slice(-maxLines);
+}
+
+function allLines(text: string): string[] {
+  if (!text) return [];
+  return text.split("\n");
 }
 
 function summarizeUnexpectedChildEvent(role: string, slug: string, sessionFile: string | undefined, event: AgentSessionEvent): string {
@@ -317,7 +331,7 @@ export function streamChildSession(
       }
       const text = extractToolUpdateText(event.partialResult);
       if (!text) return;
-      row.outputTail = tailLines(text);
+      row.outputTail = DELEGATION_TOOLS.has(event.toolName) ? allLines(text) : tailLines(text);
       flush();
       return;
     }
