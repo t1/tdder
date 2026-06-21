@@ -106,8 +106,20 @@ export async function startChildSession({
   stream?.unsubscribe();
   const stats = session.getSessionStats();
   const costLine = `  💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`;
-  if (stream) postOutput(stream.getLines() + "\n" + costLine);
-  else postOutput(costLine);
+  if (stream) {
+    // Show final transcript + cost via the tool's own update callback, NOT via postOutput.
+    // postOutput() calls pi.sendMessage() which, while isStreaming=true, enqueues the message
+    // as a steer. Each steer triggers an extra inner-loop LLM call. After
+    // filterDisplayOnlyMessages removes the custom message from the context, the last remaining
+    // message may be an assistant message — causing Anthropic/Bedrock to return:
+    //   400 "This model does not support assistant message prefill."
+    // The live onUpdate display already showed the transcript incrementally.
+    // Using onUpdate here for the final state shows it in the tool-update area (during tool
+    // execution) without triggering a steer or an extra LLM call.
+    onUpdate?.({ content: [{ type: "text", text: stream.getLines() + "\n" + costLine }], details: undefined });
+  } else {
+    postOutput(costLine);
+  }
 
   return { session, outcome };
 }

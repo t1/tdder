@@ -92,8 +92,15 @@ export async function resumeDelegatedTask({
   stream?.unsubscribe();
   const stats = session.getSessionStats();
   const costLine = `  💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`;
-  if (stream) postOutput(stream.getLines() + "\n" + costLine);
-  else postOutput(costLine);
+  if (stream) {
+    // Use onUpdate (tool update callback) instead of postOutput to avoid a steer.
+    // postOutput → pi.sendMessage while isStreaming=true → steer → extra LLM call →
+    // after filterDisplayOnlyMessages the context may end with an assistant message →
+    // 400 "does not support assistant message prefill" on Anthropic/Bedrock.
+    onUpdate?.({ content: [{ type: "text", text: stream.getLines() + "\n" + costLine }], details: undefined });
+  } else {
+    postOutput(costLine);
+  }
 
   return outcome;
 }
