@@ -4,10 +4,9 @@
 
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import {
-  ensureGitignore,
   createTask,
   readTask,
   listTasks,
@@ -15,51 +14,12 @@ import {
   deleteTask,
 } from "../task-store.ts";
 import { makeTestTempDir, cleanupTestTempDir } from "./test-temp.ts";
+import { makeTestGitRepo } from "./test-git-repo.ts";
 
 let dir: string;
 before(() => { dir = makeTestTempDir("unfolding-test"); });
 after(() => { cleanupTestTempDir(dir); });
 
-// ---------------------------------------------------------------------------
-// ensureGitignore
-// ---------------------------------------------------------------------------
-
-describe("ensureGitignore", () => {
-  it("adds the rule when .gitignore does not exist", () => {
-    const cwd = makeTestTempDir("gitignore-test");
-    try {
-      ensureGitignore(cwd);
-      const content = readFileSync(join(cwd, ".gitignore"), "utf8");
-      assert.ok(content.includes(".pi/unfolding/tasks/"));
-    } finally {
-      cleanupTestTempDir(cwd);
-    }
-  });
-  it("adds the rule when .gitignore exists but lacks the rule", () => {
-    const cwd = makeTestTempDir("gitignore-test");
-    try {
-      writeFileSync(join(cwd, ".gitignore"), "node_modules/\n");
-      ensureGitignore(cwd);
-      const content = readFileSync(join(cwd, ".gitignore"), "utf8");
-      assert.ok(content.includes(".pi/unfolding/tasks/"));
-      assert.ok(content.includes("node_modules/"), "existing content must be preserved");
-    } finally {
-      cleanupTestTempDir(cwd);
-    }
-  });
-  it("leaves .gitignore unchanged when rule already present", () => {
-    const cwd = makeTestTempDir("gitignore-test");
-    try {
-      const original = "node_modules/\n.pi/unfolding/tasks/\n";
-      writeFileSync(join(cwd, ".gitignore"), original);
-      ensureGitignore(cwd);
-      const content = readFileSync(join(cwd, ".gitignore"), "utf8");
-      assert.equal(content, original);
-    } finally {
-      cleanupTestTempDir(cwd);
-    }
-  });
-});
 
 // ---------------------------------------------------------------------------
 // createTask
@@ -80,12 +40,13 @@ describe("createTask", () => {
     assert.equal(task.body, "Define the login feature.");
   });
 
-  it("ensures the task directory is gitignored", () => {
-    const cwd = makeTestTempDir("task-test");
+  it("writes the task ignore rule to .git/info/exclude without touching .gitignore", () => {
+    const { cwd } = makeTestGitRepo("task-test");
     try {
       createTask(cwd, { slug: "gitignore-me", from: "po", to: "architect", body: "Implement login" });
-      const gitignore = readFileSync(join(cwd, ".gitignore"), "utf8");
-      assert.ok(gitignore.includes(".pi/unfolding/tasks/"));
+      const exclude = readFileSync(join(cwd, ".git", "info", "exclude"), "utf8");
+      assert.ok(exclude.includes(".pi/unfolding/tasks/"));
+      assert.equal(existsSync(join(cwd, ".gitignore")), false, "createTask should not create or modify .gitignore");
     } finally {
       cleanupTestTempDir(cwd);
     }

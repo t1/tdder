@@ -30,18 +30,15 @@ export interface Task extends TaskInput {
 }
 
 // ---------------------------------------------------------------------------
-// ensureGitignore
+// ensureGitExclude
 // ---------------------------------------------------------------------------
 
-export function ensureGitignore(cwd: string): void {
-  const path = join(cwd, ".gitignore");
-  if (!existsSync(path)) {
-    writeFileSync(path, GITIGNORE_RULE + "\n");
-    return;
-  }
+export function ensureGitExclude(cwd: string): void {
+  const path = join(cwd, ".git", "info", "exclude");
+  if (!existsSync(path)) return;
   const content = readFileSync(path, "utf8");
   if (!content.includes(GITIGNORE_RULE)) {
-    appendFileSync(path, "\n" + GITIGNORE_RULE + "\n");
+    appendFileSync(path, (content.endsWith("\n") ? "" : "\n") + GITIGNORE_RULE + "\n");
   }
 }
 
@@ -57,6 +54,10 @@ function ensureTasksDir(cwd: string): string {
   const dir = tasksDir(cwd);
   mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+function taskFilename(cwd: string, slug: string): string {
+  return join(ensureTasksDir(cwd), `${slug}.yaml`);
 }
 
 function serialize(task: Task): string {
@@ -117,7 +118,7 @@ function taskFiles(cwd: string): Array<{ file: string; task: Task }> {
 // ---------------------------------------------------------------------------
 
 export function createTask(cwd: string, input: TaskInput): Task {
-  ensureGitignore(cwd);
+  ensureGitExclude(cwd);
   const existing = taskFiles(cwd).find(({ task }) => task.slug === input.slug);
   if (existing) {
     throw new Error(`Task with slug "${input.slug}" already exists`);

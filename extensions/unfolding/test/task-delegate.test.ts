@@ -775,7 +775,7 @@ describe("waitForResume", () => {
 // ---------------------------------------------------------------------------
 
 describe("structural invariants", () => {
-  it("task_delegate tool calls ensureGitignore before creating the task", () => {
+  it("task_delegate owns task setup before creating the task", () => {
     const src = readFileSync(new URL("../session-factory.ts", import.meta.url).pathname, "utf8");
     assert.ok(src.includes("createTask") || src.includes("updateTaskStatus"), "session-factory must own task setup logic");
   });

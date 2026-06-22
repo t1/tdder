@@ -4,6 +4,7 @@ import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@ea
 import { createAgentSession, DefaultResourceLoader, SessionManager, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { loadAgentSystemPrompt, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
 import { createChildTaskTools } from "./child-task-tools.ts";
+import type { ChildCommissionerContext } from "./child-task-tools.ts";
 
 export type NestedDelegateToolFactory = (shortRole: string) => any;
 
@@ -63,7 +64,13 @@ export async function createChildAgentSession({
     authStorage,
     modelRegistry,
     excludedToolNames: ["task_list", "task_read"],
-    customTools: createChildTaskTools(cwd, slug, nestedDelegateToolFactory(shortRole)),
+    customTools: createChildTaskTools(cwd, slug, nestedDelegateToolFactory(shortRole), {
+      activeSessions,
+      postOutput,
+      pi,
+      model: selectedModel,
+      modelRegistry,
+    }),
   });
   activeSessions.set(slug, session);
   return { session, shortRole };

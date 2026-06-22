@@ -1,7 +1,20 @@
+import type { Model } from "@earendil-works/pi-ai";
+import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { taskFinished, taskBlock } from "./task-tools.ts";
+import { taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock, taskRollback } from "./task-tools.ts";
+import { waitForChildDecision, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
+import { readTask } from "./task-store.ts";
 
-export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTool: any): any[] {
+export interface ChildCommissionerContext {
+  activeSessions: Map<string, AgentSession>;
+  postOutput: (lines: string) => void;
+  pi: ExtensionAPI;
+  model?: Model<any>;
+  authStorage?: AuthStorage;
+  modelRegistry?: ModelRegistry;
+}
+
+export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTool: any, commissionerCtx: ChildCommissionerContext): any[] {
   return [
     {
       name: "task_finished",
@@ -28,5 +41,114 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
       },
     },
     nestedDelegateTool,
+    {
+      name: "task_reopen",
+      label: "Task reopen",
+      description: "Reopen a finished delegated task and resume the child session (commissioner).",
+      parameters: Type.Object({
+        slug: Type.String({ description: "Task slug" }),
+        reason: Type.String({ description: "Why the task is being reopened" }),
+      }),
+      async execute(_id: string, params: { slug: string; reason: string }, signal: any) {
+        const childSession = commissionerCtx.activeSessions.get(params.slug);
+        if (!childSession) throw new Error(`task_reopen: no live session found for slug "${params.slug}"`);
+
+        // Wait for the session to finish aborting before we prompt it
+        while (childSession.isStreaming) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+
+        taskReopen(cwd, params.slug, params.reason);
+        const task = readTask(cwd, params.slug);
+        const resumeMessage = task?.resume_message ?? params.reason;
+
+        childSession.prompt(`${resumeMessage}\n\n${CHILD_FIXED_INSTRUCTION}`).catch((err: unknown) => {
+          const stack = err instanceof Error ? err.stack : String(err);
+          console.error(`[unfolding] child task_reopen prompt for "${params.slug}" failed:`, stack);
+        });
+
+        const outcome = await waitForChildDecision(
+          async () => readTask(cwd, params.slug),
+          undefined,
+          undefined,
+          signal,
+        );
+
+        if (outcome === "aborted") commissionerCtx.activeSessions.delete(params.slug);
+
+        return {
+          content: [{ type: "text", text: `Task "${params.slug}" reopened. Outcome: ${outcome}` }],
+          details: {},
+        };
+      },
+    },
+    {
+      name: "task_unblock",
+      label: "Task unblock",
+      description: "Unblock a blocked delegated task and resume the child session (commissioner).",
+      parameters: Type.Object({
+        slug: Type.String({ description: "Task slug" }),
+        reason: Type.Optional(Type.String({ description: "Why the task is now unblocked" })),
+      }),
+      async execute(_id: string, params: { slug: string; reason?: string }, signal: any) {
+        const childSession = commissionerCtx.activeSessions.get(params.slug);
+        if (!childSession) throw new Error(`task_unblock: no live session found for slug "${params.slug}"`);
+
+        while (childSession.isStreaming) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+
+        taskUnblock(cwd, params.slug, params.reason);
+        const task = readTask(cwd, params.slug);
+        const resumeMessage = task?.resume_message ?? params.reason ?? "unblocked";
+
+        childSession.prompt(`${resumeMessage}\n\n${CHILD_FIXED_INSTRUCTION}`).catch((err: unknown) => {
+          const stack = err instanceof Error ? err.stack : String(err);
+          console.error(`[unfolding] child task_unblock prompt for "${params.slug}" failed:`, stack);
+        });
+
+        const outcome = await waitForChildDecision(
+          async () => readTask(cwd, params.slug),
+          undefined,
+          undefined,
+          signal,
+        );
+
+        if (outcome === "aborted") commissionerCtx.activeSessions.delete(params.slug);
+
+        return {
+          content: [{ type: "text", text: `Task "${params.slug}" unblocked. Outcome: ${outcome}` }],
+          details: {},
+        };
+      },
+    },
+    {
+      name: "task_rollback",
+      label: "Task rollback",
+      description: "Roll back a delegated task to its pre-delegation workspace state and delete the task.",
+      parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
+      async execute(_id: string, params: { slug: string }) {
+        const childSession = commissionerCtx.activeSessions.get(params.slug);
+        if (childSession) await childSession.abort().catch(() => {});
+        commissionerCtx.activeSessions.delete(params.slug);
+        taskRollback(cwd, params.slug);
+        return {
+          content: [{ type: "text", text: `Task "${params.slug}" rolled back.` }],
+          details: {},
+        };
+      },
+    },
+    {
+      name: "task_accept",
+      label: "Task accept",
+      description: "Accept a finished delegated task (commissioner).",
+      parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
+      async execute(_id: string, params: { slug: string }) {
+        commissionerCtx.postOutput(`  ✅ task_accept: ${params.slug}`);
+        taskAccept(cwd, params.slug);
+        commissionerCtx.activeSessions.delete(params.slug);
+        return { content: [{ type: "text", text: `Task "${params.slug}" accepted.` }], details: {} };
+      },
+    },
   ];
 }

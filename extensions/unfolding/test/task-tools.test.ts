@@ -213,6 +213,43 @@ describe("taskAccept", () => {
 });
 
 describe("taskRollback", () => {
+  it("preserves unrelated task files when rolling back one task", () => {
+    const { cwd, head: baseSha } = makeTestGitRepo("tools-test");
+    try {
+      writeFileSync(join(cwd, "docs", "README.md"), "seed\npre-task dirty\n");
+      writeFileSync(join(cwd, "notes.txt"), "untracked before delegate\n");
+
+      execFileSync("git", ["add", "-A"], { cwd, stdio: "ignore" });
+      execFileSync("git", ["commit", "-m", "snapshot"], { cwd, stdio: "ignore" });
+      const snapshotSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
+
+      createTask(cwd, {
+        slug: "parent-task",
+        from: "orchestrator",
+        to: "po",
+        body: "Parent task",
+        base_sha: baseSha,
+        snapshot_sha: snapshotSha,
+      });
+      createTask(cwd, {
+        slug: "child-task",
+        from: "po",
+        to: "coder",
+        body: "Child task",
+        parent_slug: "parent-task",
+        base_sha: baseSha,
+        snapshot_sha: snapshotSha,
+      });
+
+      taskRollback(cwd, "child-task");
+
+      assert.ok(taskRead(cwd, "parent-task").includes("parent-task"));
+      assert.throws(() => taskRead(cwd, "child-task"), /child-task/);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("restores the exact pre-task dirty state and deletes the task", () => {
     const { cwd, head: baseSha } = makeTestGitRepo("tools-test");
     try {
