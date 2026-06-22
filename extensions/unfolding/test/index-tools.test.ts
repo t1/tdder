@@ -1,26 +1,27 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { writeFileSync, readFileSync, existsSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import initUnfolding from "../index.ts";
 import { createTask, updateTaskStatus, readTask } from "../task-store.ts";
 import { createSnapshotCommit } from "../git-task-state.ts";
-import { cleanupTestTempDir } from "./test-temp.ts";
+import { makeTestTempDir, cleanupTestTempDir } from "./test-temp.ts";
 import { makeTestGitRepo } from "./test-git-repo.ts";
 
 function setupPi(activeSessions?: Map<string, any>) {
   const tools = new Map<string, any>();
+  const commands = new Map<string, any>();
   const pi = {
     on() {},
     registerMessageRenderer() {},
-    registerCommand() {},
+    registerCommand(name: string, def: any) { commands.set(name, def); },
     registerTool(def: any) { tools.set(def.name, def); },
     sendMessage() {},
     sendUserMessage() {},
   };
   initUnfolding(pi as any, { activeSessions } as any);
-  return { tools };
+  return { tools, commands };
 }
 
 describe("registered task tools", () => {
@@ -178,6 +179,150 @@ describe("registered task tools", () => {
       assert.equal(activeSessions.has("rollback-live"), false, "live session handle should be removed");
       assert.equal(readTask(cwd, "rollback-live"), null);
       assert.equal(readFileSync(join(cwd, "docs", "README.md"), "utf8"), "seed\n");
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("task_accept exports html when /unfold --debug enabled", async () => {
+    const { cwd } = makeTestGitRepo("index-tools");
+    try {
+      const sessionFile = join(cwd, "fake-session.jsonl");
+      writeFileSync(sessionFile, [
+        JSON.stringify({ type: "session", version: 3, id: "sess-1", timestamp: "2026-06-22T00:00:00.000Z", cwd }),
+        JSON.stringify({ type: "message", id: "m1", parentId: null, timestamp: "2026-06-22T00:00:01.000Z", message: { role: "user", content: [{ type: "text", text: "hello" }], timestamp: 1 } }),
+        JSON.stringify({ type: "message", id: "m2", parentId: "m1", timestamp: "2026-06-22T00:00:02.000Z", message: { role: "assistant", content: [{ type: "text", text: "world" }], stopReason: "stop", timestamp: 2 } }),
+      ].join("\n") + "\n");
+      createTask(cwd, {
+        slug: "accept-debug",
+        from: "orchestrator",
+        to: "po",
+        body: "Done",
+        session_file: sessionFile,
+      });
+      updateTaskStatus(cwd, "accept-debug", "finished");
+
+      const { tools, commands } = setupPi();
+      const unfold = commands.get("unfold");
+      assert.ok(unfold, "unfold command must be registered");
+      await unfold.handler("--debug", {
+        cwd,
+        isIdle: () => true,
+        ui: { notify() {} },
+      });
+
+      const tool = tools.get("task_accept");
+      assert.ok(tool, "task_accept tool must be registered");
+      await tool.execute("1", { slug: "accept-debug" }, undefined, undefined, { cwd });
+
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "accept-debug.html")), true);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("task_rollback exports html when /unfold --debug enabled", async () => {
+    const { cwd, head: baseSha } = makeTestGitRepo("index-tools");
+    const sessionDir = makeTestTempDir("index-tools-session");
+    try {
+      const sessionFile = join(sessionDir, "fake-session.jsonl");
+      writeFileSync(sessionFile, [
+        JSON.stringify({ type: "session", version: 3, id: "sess-2", timestamp: "2026-06-22T00:00:00.000Z", cwd }),
+        JSON.stringify({ type: "message", id: "m1", parentId: null, timestamp: "2026-06-22T00:00:01.000Z", message: { role: "user", content: [{ type: "text", text: "hello" }], timestamp: 1 } }),
+      ].join("\n") + "\n");
+      createTask(cwd, {
+        slug: "rollback-debug",
+        from: "orchestrator",
+        to: "po",
+        body: "Done",
+        session_file: sessionFile,
+        base_sha: baseSha,
+      });
+      updateTaskStatus(cwd, "rollback-debug", "finished");
+
+      const { tools, commands } = setupPi();
+      const unfold = commands.get("unfold");
+      assert.ok(unfold, "unfold command must be registered");
+      await unfold.handler("--debug", {
+        cwd,
+        isIdle: () => true,
+        ui: { notify() {} },
+      });
+
+      const tool = tools.get("task_rollback");
+      assert.ok(tool, "task_rollback tool must be registered");
+      await tool.execute("1", { slug: "rollback-debug" }, undefined, undefined, { cwd });
+
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "rollback-debug.html")), true);
+    } finally {
+      cleanupTestTempDir(cwd);
+      cleanupTestTempDir(sessionDir);
+    }
+  });
+
+  it("task_delegate exports html when the child outcome is aborted and /unfold --debug enabled", async () => {
+    const { cwd } = makeTestGitRepo("index-tools");
+    const sessionDir = makeTestTempDir("index-tools-session");
+    try {
+      const sessionFile = join(sessionDir, "fake-session.jsonl");
+      writeFileSync(sessionFile, [
+        JSON.stringify({ type: "session", version: 3, id: "sess-3", timestamp: "2026-06-22T00:00:00.000Z", cwd }),
+        JSON.stringify({ type: "message", id: "m1", parentId: null, timestamp: "2026-06-22T00:00:01.000Z", message: { role: "user", content: [{ type: "text", text: "hello" }], timestamp: 1 } }),
+      ].join("\n") + "\n");
+      createTask(cwd, {
+        slug: "aborted-debug",
+        from: "orchestrator",
+        to: "coder",
+        body: "Do work",
+        session_file: sessionFile,
+      });
+
+      const { tools, commands } = setupPi();
+      const unfold = commands.get("unfold");
+      assert.ok(unfold, "unfold command must be registered");
+      await unfold.handler("--debug", {
+        cwd,
+        isIdle: () => true,
+        ui: { notify() {} },
+      });
+
+      const controller = new AbortController();
+      controller.abort();
+      const tool = tools.get("task_delegate");
+      assert.ok(tool, "task_delegate tool must be registered");
+      const result = await tool.execute("1", { role: "coder", slug: "aborted-debug", body: "Do work" }, controller.signal, undefined, { cwd });
+
+      assert.equal(result.content[0].text, 'Task "aborted-debug" aborted.');
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "aborted-debug.html")), true);
+    } finally {
+      cleanupTestTempDir(cwd);
+      cleanupTestTempDir(sessionDir);
+    }
+  });
+
+  it("does not export html when debug mode is off", async () => {
+    const { cwd } = makeTestGitRepo("index-tools");
+    try {
+      const sessionFile = join(cwd, "fake-session.jsonl");
+      writeFileSync(sessionFile, [
+        JSON.stringify({ type: "session", version: 3, id: "sess-4", timestamp: "2026-06-22T00:00:00.000Z", cwd }),
+        JSON.stringify({ type: "message", id: "m1", parentId: null, timestamp: "2026-06-22T00:00:01.000Z", message: { role: "user", content: [{ type: "text", text: "hello" }], timestamp: 1 } }),
+      ].join("\n") + "\n");
+      createTask(cwd, {
+        slug: "accept-nodebug",
+        from: "orchestrator",
+        to: "po",
+        body: "Done",
+        session_file: sessionFile,
+      });
+      updateTaskStatus(cwd, "accept-nodebug", "finished");
+
+      const { tools } = setupPi();
+      const tool = tools.get("task_accept");
+      assert.ok(tool, "task_accept tool must be registered");
+      await tool.execute("1", { slug: "accept-nodebug" }, undefined, undefined, { cwd });
+
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "accept-nodebug.html")), false);
     } finally {
       cleanupTestTempDir(cwd);
     }

@@ -8,13 +8,16 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentSession } from "@earendil-works/pi-coding-agent";
+import { exportFromFile } from "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/index.js";
 import { Box, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
 import { taskList, taskRead, taskAccept, taskReopen, taskUnblock, taskRollback } from "./task-tools.ts";
+import { readTask } from "./task-store.ts";
 import type { SessionLike } from "./task-tools.ts";
 import { resumeDelegatedTask } from "./task-resume.ts";
 import { filterDisplayOnlyMessages } from "./display-only.ts";
@@ -50,6 +53,20 @@ function loadStateYaml(cwd: string): string | null {
 // ---------------------------------------------------------------------------
 
 const UNFOLDING_CHILD_OUTPUT_TYPE = "unfolding-child-output";
+const UNFOLDING_EXPORTS_DIR = ".pi/unfolding/exports";
+
+async function exportTaskSessionHtml(cwd: string, slug: string, sessionFile?: string): Promise<void> {
+  if (!sessionFile) return;
+  const dir = join(cwd, UNFOLDING_EXPORTS_DIR);
+  await mkdir(dir, { recursive: true });
+  await exportFromFile(sessionFile, join(dir, `${slug}.html`));
+}
+
+async function exportTaskDebugHtmlIfEnabled(cwd: string, slug: string, enabled: boolean): Promise<void> {
+  if (!enabled) return;
+  const task = readTask(cwd, slug);
+  await exportTaskSessionHtml(cwd, slug, task?.session_file);
+}
 
 function makePostOutput(pi: ExtensionAPI) {
   return (lines: string) =>
@@ -70,6 +87,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
 
   /** Set when /unfold is invoked; cleared after the next before_agent_start fires. */
   let pendingSkillInjection: string | null = null;
+  let debugExportsEnabled = false;
 
   /** Live child sessions keyed by task slug, for re-attaching after unblock/reopen. */
   const activeSessions = options?.activeSessions ?? new Map<string, AgentSession>();
@@ -103,7 +121,9 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
         return;
       }
 
-      const guidance = args?.trim() || undefined;
+      const argText = args?.trim() || "";
+      const debug = argText.includes("--debug");
+      const guidance = argText.replace(/(^|\s)--debug(?=\s|$)/g, " ").trim() || undefined;
       const state = loadStateYaml(ctx.cwd);
       const freshProjectGuidance = !state
         ? [
@@ -117,6 +137,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
 
       // Arm the system-prompt injection for the upcoming turn.
       pendingSkillInjection = skill;
+      debugExportsEnabled = debug;
 
       pi.sendUserMessage(message);
     },
@@ -203,7 +224,17 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     },
   });
 
-  pi.registerTool(makeTaskDelegateDefinition("orchestrator", activeSessions, pi, postOutput));
+  pi.registerTool(makeTaskDelegateDefinition(
+    "orchestrator",
+    activeSessions,
+    pi,
+    postOutput,
+    async (cwd, slug, outcome) => {
+      if (outcome === "aborted") {
+        await exportTaskDebugHtmlIfEnabled(cwd, slug, debugExportsEnabled);
+      }
+    },
+  ));
 
   pi.registerTool({
     name: "task_accept",
@@ -212,6 +243,10 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       postOutput(`  ✅ task_accept: ${params.slug}`);
+      const task = readTask(ctx.cwd, params.slug);
+      if (debugExportsEnabled) {
+        await exportTaskSessionHtml(ctx.cwd, params.slug, task?.session_file);
+      }
       taskAccept(ctx.cwd, params.slug);
       activeSessions.delete(params.slug);
       return { content: [{ type: "text", text: `Task "${params.slug}" accepted.` }], details: {} };
@@ -299,10 +334,14 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       postOutput(`  ↩️ task_rollback: ${params.slug}`);
+      const task = readTask(ctx.cwd, params.slug);
       const session = activeSessions.get(params.slug);
       if (session) await session.abort().catch(() => {});
       activeSessions.delete(params.slug);
       taskRollback(ctx.cwd, params.slug);
+      if (debugExportsEnabled) {
+        await exportTaskSessionHtml(ctx.cwd, params.slug, task?.session_file);
+      }
       return {
         content: [{ type: "text", text: `Task "${params.slug}" rolled back.` }],
         details: {},

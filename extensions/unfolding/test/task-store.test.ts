@@ -40,12 +40,13 @@ describe("createTask", () => {
     assert.equal(task.body, "Define the login feature.");
   });
 
-  it("writes the task ignore rule to .git/info/exclude without touching .gitignore", () => {
+  it("writes task and export ignore rules to .git/info/exclude without touching .gitignore", () => {
     const { cwd } = makeTestGitRepo("task-test");
     try {
       createTask(cwd, { slug: "gitignore-me", from: "po", to: "architect", body: "Implement login" });
       const exclude = readFileSync(join(cwd, ".git", "info", "exclude"), "utf8");
       assert.ok(exclude.includes(".pi/unfolding/tasks/"));
+      assert.ok(exclude.includes(".pi/unfolding/exports/"));
       assert.equal(existsSync(join(cwd, ".gitignore")), false, "createTask should not create or modify .gitignore");
     } finally {
       cleanupTestTempDir(cwd);

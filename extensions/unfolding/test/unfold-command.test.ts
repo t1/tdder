@@ -117,6 +117,13 @@ describe("structural invariants", () => {
     );
   });
 
+  it("parses a --debug flag for the unfold command", () => {
+    assert.ok(
+      src.includes("--debug"),
+      "index.ts must recognize a --debug flag for /unfold",
+    );
+  });
+
   it("registers a display-only context filter for unfolding child output", () => {
     assert.ok(
       src.includes('filterDisplayOnlyMessages(event, UNFOLDING_CHILD_OUTPUT_TYPE)'),

@@ -9,6 +9,9 @@ checkpoints, and assembles the results.
 **`/unfold` command:** injects the `unfolding-orchestrator` skill into the current session and
 starts the Unfolding Specs process. Run it in any project where you want to unfold a feature.
 
+Pass `--debug` to export child sessions to HTML for inspection. Debug exports are written to
+`.pi/unfolding/exports/<slug>.html` when a child task is accepted, rolled back, or ends aborted.
+
 ## Task tools
 
 Used by the orchestrator and delegate sub-sessions to coordinate work:

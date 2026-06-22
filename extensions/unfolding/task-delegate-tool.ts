@@ -3,7 +3,13 @@ import { AgentSession } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { startChildSession } from "./session-factory.ts";
 
-export function makeTaskDelegateDefinition(from: string, activeSessions: Map<string, AgentSession>, pi: ExtensionAPI, postOutput: (lines: string) => void): any {
+export function makeTaskDelegateDefinition(
+  from: string,
+  activeSessions: Map<string, AgentSession>,
+  pi: ExtensionAPI,
+  postOutput: (lines: string) => void,
+  onChildOutcome?: (cwd: string, slug: string, outcome: "finished" | "blocked" | "aborted") => Promise<void> | void,
+): any {
   return {
     name: "task_delegate",
     label: "Task delegate",
@@ -27,12 +33,14 @@ export function makeTaskDelegateDefinition(from: string, activeSessions: Map<str
           pi,
           postOutput,
           nestedDelegateToolFactory: (shortRole: string) =>
-            makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput),
+            makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput, onChildOutcome),
           signal,
           onUpdate,
           model: ctx.model,
           modelRegistry: ctx.modelRegistry,
         });
+
+        await onChildOutcome?.(ctx.cwd, params.slug, outcome);
 
         if (outcome === "aborted") {
           activeSessions.delete(params.slug);

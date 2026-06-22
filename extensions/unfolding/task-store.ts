@@ -2,7 +2,10 @@ import { existsSync, readFileSync, appendFileSync, writeFileSync, mkdirSync, rea
 import { join } from "node:path";
 
 
-const GITIGNORE_RULE = ".pi/unfolding/tasks/";
+const GITIGNORE_RULES = [
+  ".pi/unfolding/tasks/",
+  ".pi/unfolding/exports/",
+] as const;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,9 +39,13 @@ export interface Task extends TaskInput {
 export function ensureGitExclude(cwd: string): void {
   const path = join(cwd, ".git", "info", "exclude");
   if (!existsSync(path)) return;
-  const content = readFileSync(path, "utf8");
-  if (!content.includes(GITIGNORE_RULE)) {
-    appendFileSync(path, (content.endsWith("\n") ? "" : "\n") + GITIGNORE_RULE + "\n");
+  let content = readFileSync(path, "utf8");
+  for (const rule of GITIGNORE_RULES) {
+    if (!content.includes(rule)) {
+      const addition = (content.endsWith("\n") ? "" : "\n") + rule + "\n";
+      appendFileSync(path, addition);
+      content += addition;
+    }
   }
 }
 
