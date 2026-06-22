@@ -26,25 +26,26 @@ If the workspace is genuinely empty, include that explicitly in the body, e.g. t
 If resuming, create a task for the appropriate role per the phase table in
 `SKILL.md` and call `task_delegate` with that role.
 
-## Relay Sensei Questions
+## Handle Blocked Tasks
 
-When the PO's `task_delegate` returns `blocked` and the reason references a
-`[DMD]` task, or the Architect's delegation surfaces an `[ADR]`:
+Normal ADR/DMD questions are **not** your job anymore:
 
-1. Read the referenced DMD/ADR file to extract the question text — do not
-   interpret or reason about the content
-2. Present each question verbatim to the Sensei, one at a time, using the
-   `ask_sensei` tool:
-   - pass `options` for multiple-choice questions
-   - omit `options` for free-text questions
-   - set `freeText: true` if the question has options plus a free-text override
-3. Call `task_unblock(slug, answer)` on the **PO task** (not the Architect or
-   any deeper task) with the Sensei's answer verbatim. The PO relays it down
-   the chain via its own `task_unblock` call.
+- the PO asks DMD questions directly with `ask_sensei`
+- the Architect asks ADR questions directly with `ask_sensei`
 
-If the blocked reason is not a DMD/ADR (e.g. a service not running, a
-Playwright issue), handle it directly — start the service, fix the
-environment — then call `task_unblock`.
+Do **not** read ADR/DMD files just to extract question text, and do **not** relay
+normal decision questions through the PO.
+
+When a top-level task returns `blocked`, treat it as a real commissioner issue:
+
+1. Read the blocked reason
+2. If the issue is environmental or operational (e.g. service not running,
+   Playwright issue, missing local setup), fix it directly
+3. If the issue is malformed scope/input, unblock with a short corrective message
+4. If the issue cannot honestly be resolved by you, report that clearly instead of
+   fabricating an answer
+
+Only after resolving the commissioner issue should you call `task_unblock`.
 
 ## Sensei Guidance (unsolicited)
 

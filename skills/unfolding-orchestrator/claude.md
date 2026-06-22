@@ -47,19 +47,23 @@ When an idle notification includes a peer DM summary showing a handoff was
 sent, trust that it landed. Only intervene if the receiving agent stays idle
 for an unusually long time. Redundant nudges cause duplicate messages.
 
-## Relay Sensei Questions
+## Handle Blocked Agents
 
-Watch the task list for `[DMD]` and `[ADR]` tasks. When you see one:
+Normal ADR/DMD questions are **not** your job anymore:
 
-1. Read the referenced DMD/ADR file to extract the question text — do not
-   interpret or reason about the content
-2. Use `AskUserQuestion` to present each question verbatim to the Sensei,
-   one at a time. Map the agent's options to question choices.
-   Always offer a free-text option.
-3. Add only brief context (Feature/Task name) — do not rephrase the questions
-4. Wait for the Sensei's answer
-5. Send the answer to the requesting agent via `SendMessage` — verbatim.
-   Do not interpret, summarize, or fill in gaps.
+- the PO asks DMD questions directly with `AskUserQuestion`
+- the Architect asks ADR questions directly with `AskUserQuestion`
+
+Do **not** read ADR/DMD files just to extract question text, and do **not** relay
+normal decision questions between agents.
+
+When an agent blocks, treat it as a genuine commissioner issue:
+
+1. Read the blocked reason carefully
+2. Resolve only the commissioner-level problem actually described there
+3. If it is an environment/runtime issue, handle it directly and message the agent
+4. If it is malformed scope/input, send a short corrective message
+5. If you cannot honestly resolve it, report that clearly instead of inventing an answer
 
 ## Shut Down Idle Agents
 

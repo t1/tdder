@@ -1,28 +1,26 @@
-import { describe, it } from "node:test";
-import { readFileSync } from "node:fs";
+import {describe, it} from "node:test";
+import {readFileSync, writeFileSync} from "node:fs";
 import assert from "node:assert/strict";
-
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { fauxAssistantMessage, fauxToolCall, registerFauxProvider } from "./faux-provider.ts";
-import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
-import { createTask, readTask } from "../task-store.ts";
-import { taskBlock, taskFinished, taskReopen, taskUnblock } from "../task-tools.ts";
-import { resumeDelegatedTask } from "../task-resume.ts";
-import { CHILD_SESSION_FAILURE_BLOCKED_REASON, MISSING_CHECKPOINT_BLOCKED_REASON } from "../task-delegate.ts";
-import { restoreChildSession } from "../session-restore.ts";
-import { startChildSession } from "../session-factory.ts";
-import { makeTestTempDir, cleanupTestTempDir } from "./test-temp.ts";
-import { makeTestGitRepo } from "./test-git-repo.ts";
+import {join} from "node:path";
+import {fauxAssistantMessage, fauxToolCall, registerFauxProvider} from "./faux-provider.ts";
+import {AuthStorage, ModelRegistry} from "@earendil-works/pi-coding-agent";
+import {createTask, readTask} from "../task-store.ts";
+import {taskBlock, taskFinished, taskReopen, taskUnblock} from "../task-tools.ts";
+import {resumeDelegatedTask} from "../task-resume.ts";
+import {CHILD_SESSION_FAILURE_BLOCKED_REASON, MISSING_CHECKPOINT_BLOCKED_REASON} from "../task-delegate.ts";
+import {restoreChildSession} from "../session-restore.ts";
+import {startChildSession} from "../session-factory.ts";
+import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
+import {makeTestGitRepo} from "./test-git-repo.ts";
 
 function nestedDelegateToolFactory(_shortRole: string) {
   return {
     name: "task_delegate",
     label: "Task delegate",
     description: "stub",
-    parameters: { type: "object", properties: {} },
+    parameters: {type: "object", properties: {}},
     async execute() {
-      return { content: [{ type: "text", text: "stub" }], details: {} };
+      return {content: [{type: "text", text: "stub"}], details: {}};
     },
   };
 }
@@ -35,8 +33,9 @@ describe("restoreChildSession", () => {
   it("returns null when session_file is missing", async () => {
     const cwd = makeTestTempDir("resume-task");
     try {
-      createTask(cwd, { slug: "arch-add-todo", from: "po", to: "architect", body: "Continue" });
-      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {}, nestedDelegateToolFactory);
+      createTask(cwd, {slug: "arch-add-todo", from: "po", to: "architect", body: "Continue"});
+      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {
+      }, nestedDelegateToolFactory);
       assert.equal(result, null);
     } finally {
       cleanupTestTempDir(cwd);
@@ -46,8 +45,15 @@ describe("restoreChildSession", () => {
   it("returns null when session_file does not exist", async () => {
     const cwd = makeTestTempDir("resume-task");
     try {
-      createTask(cwd, { slug: "arch-add-todo", from: "po", to: "architect", body: "Continue", session_file: join(cwd, "missing.jsonl") });
-      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {}, nestedDelegateToolFactory);
+      createTask(cwd, {
+        slug: "arch-add-todo",
+        from: "po",
+        to: "architect",
+        body: "Continue",
+        session_file: join(cwd, "missing.jsonl")
+      });
+      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {
+      }, nestedDelegateToolFactory);
       assert.equal(result, null);
     } finally {
       cleanupTestTempDir(cwd);
@@ -58,9 +64,16 @@ describe("restoreChildSession", () => {
     const cwd = makeTestTempDir("resume-task");
     try {
       const sessionFile = join(cwd, "session.jsonl");
-      writeFileSync(sessionFile, JSON.stringify({ version: 1, cwd }) + "\n");
-      createTask(cwd, { slug: "arch-add-todo", from: "po", to: "architect", body: "Continue", session_file: sessionFile });
-      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {}, nestedDelegateToolFactory);
+      writeFileSync(sessionFile, JSON.stringify({version: 1, cwd}) + "\n");
+      createTask(cwd, {
+        slug: "arch-add-todo",
+        from: "po",
+        to: "architect",
+        body: "Continue",
+        session_file: sessionFile
+      });
+      const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {
+      }, nestedDelegateToolFactory);
       assert.ok(result !== null);
     } finally {
       cleanupTestTempDir(cwd);
@@ -71,7 +84,7 @@ describe("restoreChildSession", () => {
 describe("structural invariants", () => {
   it("queues resumed child prompts with followUp streamingBehavior", () => {
     const src = readFileSync(new URL("../task-resume.ts", import.meta.url).pathname, "utf8");
-    assert.match(src, /session\.prompt\([^\n]+\{ streamingBehavior: "followUp" \}\)/);
+    assert.match(src, /session\.prompt\([^\n]+\{ streamingBehavior: "followUp" }\)/);
   });
 });
 
@@ -80,7 +93,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
     const cwd = makeTestTempDir("resume-task");
     const output: string[] = [];
     try {
-      createTask(cwd, { slug: "arch-add-todo", from: "po", to: "architect", body: "Continue" });
+      createTask(cwd, {slug: "arch-add-todo", from: "po", to: "architect", body: "Continue"});
       taskBlock(cwd, "arch-add-todo", "waiting for ADR decision");
 
       await assert.rejects(
@@ -109,7 +122,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
     const cwd = makeTestTempDir("resume-task");
     const output: string[] = [];
     try {
-      createTask(cwd, { slug: "arch-add-todo", from: "po", to: "architect", body: "Continue" });
+      createTask(cwd, {slug: "arch-add-todo", from: "po", to: "architect", body: "Continue"});
       taskFinished(cwd, "arch-add-todo");
 
       await assert.rejects(
@@ -135,20 +148,20 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
   });
 
   it("task_unblock restores a blocked child session and reaches the next checkpoint with a faux model", async () => {
-    const { cwd } = makeTestGitRepo("resume-task");
+    const {cwd} = makeTestGitRepo("resume-task");
     const provider = `resume-task-${Date.now()}`;
     const faux = registerFauxProvider({
       provider,
-      models: [{ id: "test-model" }],
+      models: [{id: "test-model"}],
     });
     faux.setResponses([
       fauxAssistantMessage([
-        fauxToolCall("task_block", { blocked_reason: "need input" }),
-      ], { stopReason: "toolUse" }),
+        fauxToolCall("task_block", {blocked_reason: "need input"}),
+      ], {stopReason: "toolUse"}),
       fauxAssistantMessage("ok"),
       fauxAssistantMessage([
         fauxToolCall("task_finished", {}),
-      ], { stopReason: "toolUse" }),
+      ], {stopReason: "toolUse"}),
       fauxAssistantMessage("done"),
     ]);
     const authStorage = AuthStorage.inMemory();
@@ -165,7 +178,8 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
         pi: {} as any,
-        postOutput: () => {},
+        postOutput: () => {
+        },
         nestedDelegateToolFactory,
         model: faux.getModel(),
         authStorage,
@@ -181,7 +195,8 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         slug: "coder-resume",
         reason: "continue",
         activeSessions,
-        postOutput: () => {},
+        postOutput: () => {
+        },
         mutateTask: taskUnblock,
         pi: {} as any,
         model: faux.getModel(),
@@ -199,24 +214,105 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
     }
   });
 
-  it("task_unblock does not misclassify resumed toolUse turns as missing checkpoints", async () => {
-    const { cwd } = makeTestGitRepo("resume-task");
-    const provider = `resume-tooluse-${Date.now()}`;
+  it("restored resumed child session can still use proxied ask_sensei", async () => {
+    const {cwd} = makeTestGitRepo("resume-task");
+    const provider = `resume-ask-${Date.now()}`;
     const faux = registerFauxProvider({
       provider,
-      models: [{ id: "test-model" }],
+      models: [{id: "test-model"}],
     });
     faux.setResponses([
       fauxAssistantMessage([
-        fauxToolCall("task_block", { blocked_reason: "need input" }),
-      ], { stopReason: "toolUse" }),
+        fauxToolCall("task_block", {blocked_reason: "need input"}),
+      ], {stopReason: "toolUse"}),
       fauxAssistantMessage("ok"),
       fauxAssistantMessage([
-        fauxToolCall("write", { path: "docs/product.md", content: "brief" }),
-      ], { stopReason: "toolUse" }),
+        fauxToolCall("ask_sensei", {question: "Resumed question?"}),
+      ], {stopReason: "toolUse"}),
+      fauxAssistantMessage("thanks"),
       fauxAssistantMessage([
         fauxToolCall("task_finished", {}),
-      ], { stopReason: "toolUse" }),
+      ], {stopReason: "toolUse"}),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const asks: any[] = [];
+
+    try {
+      const activeSessions = new Map() as any;
+      const started = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "architect",
+        slug: "architect-resume-ask",
+        body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
+        activeSessions,
+        pi: {
+          __unfoldingAskSensei: async (params: any) => {
+            asks.push(params);
+            return {answer: "42", cancelled: false};
+          }
+        } as any,
+        postOutput: () => {
+        },
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(started.outcome, "blocked");
+      activeSessions.delete("architect-resume-ask");
+
+      const outcome = await resumeDelegatedTask({
+        action: "unblock",
+        cwd,
+        slug: "architect-resume-ask",
+        reason: "continue",
+        activeSessions,
+        postOutput: () => {
+        },
+        mutateTask: taskUnblock,
+        pi: {
+          __unfoldingAskSensei: async (params: any) => {
+            asks.push(params);
+            return {answer: "42", cancelled: false};
+          }
+        } as any,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(outcome, "finished");
+      assert.deepEqual(asks, [{question: "Resumed question?"}]);
+      const task = readTask(cwd, "architect-resume-ask");
+      assert.ok(task?.status === "finished", `unexpected status: ${task?.status}`);
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("task_unblock does not misclassify resumed toolUse turns as missing checkpoints", async () => {
+    const {cwd} = makeTestGitRepo("resume-task");
+    const provider = `resume-tooluse-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{id: "test-model"}],
+    });
+    faux.setResponses([
+      fauxAssistantMessage([
+        fauxToolCall("task_block", {blocked_reason: "need input"}),
+      ], {stopReason: "toolUse"}),
+      fauxAssistantMessage("ok"),
+      fauxAssistantMessage([
+        fauxToolCall("write", {path: "docs/product.md", content: "brief"}),
+      ], {stopReason: "toolUse"}),
+      fauxAssistantMessage([
+        fauxToolCall("task_finished", {}),
+      ], {stopReason: "toolUse"}),
     ]);
     const authStorage = AuthStorage.inMemory();
     authStorage.setRuntimeApiKey(provider, "test-key");
@@ -232,7 +328,8 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
         pi: {} as any,
-        postOutput: () => {},
+        postOutput: () => {
+        },
         nestedDelegateToolFactory,
         model: faux.getModel(),
         authStorage,
@@ -248,7 +345,8 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         slug: "coder-resume-tooluse",
         reason: "continue",
         activeSessions,
-        postOutput: () => {},
+        postOutput: () => {
+        },
         mutateTask: taskUnblock,
         pi: {} as any,
         model: faux.getModel(),
@@ -265,21 +363,21 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
   });
 
   it("task_unblock prompts once after a missing checkpoint and succeeds when the child then calls task_finished", async () => {
-    const { cwd } = makeTestGitRepo("resume-task");
+    const {cwd} = makeTestGitRepo("resume-task");
     const provider = `resume-missing-checkpoint-${Date.now()}`;
     const faux = registerFauxProvider({
       provider,
-      models: [{ id: "test-model" }],
+      models: [{id: "test-model"}],
     });
     faux.setResponses([
       fauxAssistantMessage([
-        fauxToolCall("task_block", { blocked_reason: "need input" }),
-      ], { stopReason: "toolUse" }),
+        fauxToolCall("task_block", {blocked_reason: "need input"}),
+      ], {stopReason: "toolUse"}),
       fauxAssistantMessage("ok"),
       fauxAssistantMessage("I finished but forgot the checkpoint"),
       fauxAssistantMessage([
         fauxToolCall("task_finished", {}),
-      ], { stopReason: "toolUse" }),
+      ], {stopReason: "toolUse"}),
     ]);
     const authStorage = AuthStorage.inMemory();
     authStorage.setRuntimeApiKey(provider, "test-key");
@@ -295,7 +393,8 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
         pi: {} as any,
-        postOutput: () => {},
+        postOutput: () => {
+        },
         nestedDelegateToolFactory,
         model: faux.getModel(),
         authStorage,
@@ -311,7 +410,8 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         slug: "coder-resume-missing-checkpoint",
         reason: "continue",
         activeSessions,
-        postOutput: () => {},
+        postOutput: () => {
+        },
         mutateTask: taskUnblock,
         pi: {} as any,
         model: faux.getModel(),
@@ -327,16 +427,16 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
   });
 
   it("task_unblock blocks after repeated missing checkpoints during the resumed run", async () => {
-    const { cwd } = makeTestGitRepo("resume-task");
+    const {cwd} = makeTestGitRepo("resume-task");
     const provider = `resume-missing-checkpoint-block-${Date.now()}`;
     const faux = registerFauxProvider({
       provider,
-      models: [{ id: "test-model" }],
+      models: [{id: "test-model"}],
     });
     faux.setResponses([
       fauxAssistantMessage([
-        fauxToolCall("task_block", { blocked_reason: "need input" }),
-      ], { stopReason: "toolUse" }),
+        fauxToolCall("task_block", {blocked_reason: "need input"}),
+      ], {stopReason: "toolUse"}),
       fauxAssistantMessage("ok"),
       fauxAssistantMessage("forgot checkpoint once"),
       fauxAssistantMessage("forgot checkpoint twice"),
@@ -355,7 +455,8 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
         pi: {} as any,
-        postOutput: () => {},
+        postOutput: () => {
+        },
         nestedDelegateToolFactory,
         model: faux.getModel(),
         authStorage,
@@ -371,7 +472,8 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         slug: "coder-resume-missing-checkpoint-block",
         reason: "continue",
         activeSessions,
-        postOutput: () => {},
+        postOutput: () => {
+        },
         mutateTask: taskUnblock,
         pi: {} as any,
         model: faux.getModel(),
@@ -390,18 +492,18 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
   });
 
   it("task_unblock blocks immediately on child-session failure during the resumed run", async () => {
-    const { cwd } = makeTestGitRepo("resume-task");
+    const {cwd} = makeTestGitRepo("resume-task");
     const provider = `resume-child-failure-${Date.now()}`;
     const faux = registerFauxProvider({
       provider,
-      models: [{ id: "test-model" }],
+      models: [{id: "test-model"}],
     });
     faux.setResponses([
       fauxAssistantMessage([
-        fauxToolCall("task_block", { blocked_reason: "need input" }),
-      ], { stopReason: "toolUse" }),
+        fauxToolCall("task_block", {blocked_reason: "need input"}),
+      ], {stopReason: "toolUse"}),
       fauxAssistantMessage("ok"),
-      fauxAssistantMessage("transport failed", { stopReason: "error", errorMessage: "Connection error." } as any),
+      fauxAssistantMessage("transport failed", {stopReason: "error", errorMessage: "Connection error."} as any),
     ]);
     const authStorage = AuthStorage.inMemory();
     authStorage.setRuntimeApiKey(provider, "test-key");
@@ -417,7 +519,8 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
         pi: {} as any,
-        postOutput: () => {},
+        postOutput: () => {
+        },
         nestedDelegateToolFactory,
         model: faux.getModel(),
         authStorage,
@@ -433,7 +536,8 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         slug: "coder-resume-child-failure",
         reason: "continue",
         activeSessions,
-        postOutput: () => {},
+        postOutput: () => {
+        },
         mutateTask: taskUnblock,
         pi: {} as any,
         model: faux.getModel(),
@@ -453,19 +557,19 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
   });
 
   it("task_unblock blocks after repeated truncation during the resumed run", async () => {
-    const { cwd } = makeTestGitRepo("resume-task");
+    const {cwd} = makeTestGitRepo("resume-task");
     const provider = `resume-truncation-${Date.now()}`;
     const faux = registerFauxProvider({
       provider,
-      models: [{ id: "test-model" }],
+      models: [{id: "test-model"}],
     });
     faux.setResponses([
       fauxAssistantMessage([
-        fauxToolCall("task_block", { blocked_reason: "need input" }),
-      ], { stopReason: "toolUse" }),
+        fauxToolCall("task_block", {blocked_reason: "need input"}),
+      ], {stopReason: "toolUse"}),
       fauxAssistantMessage("ok"),
-      fauxAssistantMessage("first resumed truncation", { stopReason: "length" }),
-      fauxAssistantMessage("second resumed truncation", { stopReason: "length" }),
+      fauxAssistantMessage("first resumed truncation", {stopReason: "length"}),
+      fauxAssistantMessage("second resumed truncation", {stopReason: "length"}),
     ]);
     const authStorage = AuthStorage.inMemory();
     authStorage.setRuntimeApiKey(provider, "test-key");
@@ -481,7 +585,8 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
         pi: {} as any,
-        postOutput: () => {},
+        postOutput: () => {
+        },
         nestedDelegateToolFactory,
         model: faux.getModel(),
         authStorage,
@@ -497,7 +602,8 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         slug: "coder-resume-truncation",
         reason: "continue",
         activeSessions,
-        postOutput: () => {},
+        postOutput: () => {
+        },
         mutateTask: taskUnblock,
         pi: {} as any,
         model: faux.getModel(),
@@ -519,19 +625,19 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
   });
 
   it("task_reopen blocks after repeated truncation during the resumed run", async () => {
-    const { cwd } = makeTestGitRepo("resume-task");
+    const {cwd} = makeTestGitRepo("resume-task");
     const provider = `resume-reopen-truncation-${Date.now()}`;
     const faux = registerFauxProvider({
       provider,
-      models: [{ id: "test-model" }],
+      models: [{id: "test-model"}],
     });
     faux.setResponses([
       fauxAssistantMessage([
         fauxToolCall("task_finished", {}),
-      ], { stopReason: "toolUse" }),
+      ], {stopReason: "toolUse"}),
       fauxAssistantMessage("done"),
-      fauxAssistantMessage("first reopened truncation", { stopReason: "length" }),
-      fauxAssistantMessage("second reopened truncation", { stopReason: "length" }),
+      fauxAssistantMessage("first reopened truncation", {stopReason: "length"}),
+      fauxAssistantMessage("second reopened truncation", {stopReason: "length"}),
     ]);
     const authStorage = AuthStorage.inMemory();
     authStorage.setRuntimeApiKey(provider, "test-key");
@@ -547,7 +653,8 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         body: "Call task_finished. Just call the tool, nothing else.",
         activeSessions,
         pi: {} as any,
-        postOutput: () => {},
+        postOutput: () => {
+        },
         nestedDelegateToolFactory,
         model: faux.getModel(),
         authStorage,
@@ -563,7 +670,8 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         slug: "coder-reopen-truncation",
         reason: "continue",
         activeSessions,
-        postOutput: () => {},
+        postOutput: () => {
+        },
         mutateTask: taskReopen,
         pi: {} as any,
         model: faux.getModel(),

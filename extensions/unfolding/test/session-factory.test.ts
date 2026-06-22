@@ -482,6 +482,126 @@ describe("startChildSession groundwork", () => {
     }
   });
 
+  it("child sessions exclude root-only task tools and root ask_sensei", async () => {
+    const { cwd } = makeTestGitRepo("session-factory");
+    const { faux, authStorage, modelRegistry } = fauxSessionSetup("session-tools");
+    try {
+      const activeSessions = new Map() as any;
+      const { session } = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "architect",
+        slug: "architect-tools",
+        body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
+        activeSessions,
+        pi: { __unfoldingAskSensei: async () => ({ answer: "5", cancelled: false }) } as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      const tools = session.getAllTools().map(t => t.name);
+      assert.equal(tools.includes("task_list"), false, "child session must not expose task_list");
+      assert.equal(tools.includes("task_read"), false, "child session must not expose task_read");
+      assert.equal(tools.includes("ask_sensei"), true, "child session should expose the proxied ask_sensei");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("architect can ask Sensei directly in a child session", async () => {
+    const { cwd } = makeTestGitRepo("session-factory");
+    const provider = `architect-ask-${Date.now()}`;
+    const faux = registerFauxProvider({ provider, models: [{ id: "test-model" }] });
+    faux.setResponses([
+      fauxAssistantMessage([
+        fauxToolCall("ask_sensei", { question: "Architect direct question?", options: ["A", "B"] }),
+      ], { stopReason: "toolUse" }),
+      fauxAssistantMessage("thanks"),
+      fauxAssistantMessage([
+        fauxToolCall("task_finished", {}),
+      ], { stopReason: "toolUse" }),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const asks: any[] = [];
+
+    try {
+      const result = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "architect",
+        slug: "architect-ask-sensei",
+        body: "Immediately ask Sensei a direct question, then finish.",
+        activeSessions: new Map() as any,
+        pi: { __unfoldingAskSensei: async (params: any) => {
+          asks.push(params);
+          return { answer: "B", cancelled: false };
+        } } as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(result.outcome, "finished");
+      assert.deepEqual(asks, [{ question: "Architect direct question?", options: ["A", "B"] }]);
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("PO can ask Sensei directly in a child session", async () => {
+    const { cwd } = makeTestGitRepo("session-factory");
+    const provider = `po-ask-${Date.now()}`;
+    const faux = registerFauxProvider({ provider, models: [{ id: "test-model" }] });
+    faux.setResponses([
+      fauxAssistantMessage([
+        fauxToolCall("ask_sensei", { question: "PO direct question?" }),
+      ], { stopReason: "toolUse" }),
+      fauxAssistantMessage("thanks"),
+      fauxAssistantMessage([
+        fauxToolCall("task_finished", {}),
+      ], { stopReason: "toolUse" }),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const asks: any[] = [];
+
+    try {
+      const result = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "po",
+        slug: "po-ask-sensei",
+        body: "Immediately ask Sensei a direct question, then finish.",
+        activeSessions: new Map() as any,
+        pi: { __unfoldingAskSensei: async (params: any) => {
+          asks.push(params);
+          return { answer: "Because", cancelled: false };
+        } } as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(result.outcome, "finished");
+      assert.deepEqual(asks, [{ question: "PO direct question?" }]);
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("source contains nestedDelegateToolFactory seam", () => {
     const src = readFileSync(new URL("../session-factory.ts", import.meta.url).pathname, "utf8");
     assert.ok(src.includes("nestedDelegateToolFactory"));

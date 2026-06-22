@@ -166,7 +166,7 @@ apply the same changes to the mapping files.
 **STOP and call `task_block`** when:
 
 - The UX component spec is ambiguous — describe the ambiguity; the Architect
-  will decide whether to answer directly or relay it onward and resume you
+  will decide whether to answer directly or escalate appropriately and resume you
 - **The tech stack cannot support a UX requirement** — do NOT silently
   degrade or approximate the interaction. Clearly report what the UX spec
   requires, why the current stack can't deliver it, and what alternatives

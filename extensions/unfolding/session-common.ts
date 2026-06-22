@@ -1,10 +1,9 @@
-import { resolve, join } from "node:path";
-import type { Model } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
-import { createAgentSession, DefaultResourceLoader, SessionManager, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { loadAgentSystemPrompt, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
-import { createChildTaskTools } from "./child-task-tools.ts";
-import type { ChildCommissionerContext } from "./child-task-tools.ts";
+import {join, resolve} from "node:path";
+import type {Model} from "@earendil-works/pi-ai";
+import type {AgentSession, AuthStorage, ExtensionAPI, ModelRegistry} from "@earendil-works/pi-coding-agent";
+import {createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager} from "@earendil-works/pi-coding-agent";
+import {CHILD_FIXED_INSTRUCTION, loadAgentSystemPrompt} from "./task-delegate.ts";
+import {createChildTaskTools} from "./child-task-tools.ts";
 
 export type NestedDelegateToolFactory = (shortRole: string) => any;
 
@@ -27,18 +26,21 @@ export function resolveCurrentModel(_pi: ExtensionAPI): Model<any> | undefined {
 }
 
 export async function createChildAgentSession({
-  cwd,
-  role,
-  slug,
-  sessionManager,
-  activeSessions,
-  pi,
-  postOutput,
-  nestedDelegateToolFactory,
-  model,
-  authStorage,
-  modelRegistry,
-}: ChildSessionBuildParams): Promise<{ session: AgentSession; shortRole: string }> {
+                                                cwd,
+                                                role,
+                                                slug,
+                                                sessionManager,
+                                                activeSessions,
+                                                pi,
+                                                postOutput,
+                                                nestedDelegateToolFactory,
+                                                model,
+                                                authStorage,
+                                                modelRegistry,
+                                              }: ChildSessionBuildParams): Promise<{
+  session: AgentSession;
+  shortRole: string
+}> {
   const rolesDir = resolve(new URL(import.meta.url).pathname, "..", "roles");
   const shortRole = role.replace(/^unfolding-/, "");
   const systemPrompt = loadAgentSystemPrompt(rolesDir, shortRole);
@@ -56,24 +58,25 @@ export async function createChildAgentSession({
 
   const selectedModel = model ?? resolveCurrentModel(pi);
 
-  const { session } = await createAgentSession({
+  const {session} = await createAgentSession({
     cwd,
     sessionManager,
     resourceLoader: loader,
     model: selectedModel,
     authStorage,
     modelRegistry,
-    excludedToolNames: ["task_list", "task_read"],
+    excludeTools: ["task_list", "task_read"],
     customTools: createChildTaskTools(cwd, slug, nestedDelegateToolFactory(shortRole), {
       activeSessions,
       postOutput,
       pi,
+      askSensei: (pi as any).__unfoldingAskSensei,
       model: selectedModel,
       modelRegistry,
     }),
   });
   activeSessions.set(slug, session);
-  return { session, shortRole };
+  return {session, shortRole};
 }
 
 export function buildChildInitialMessage(body: string, resumeMessage?: string): string {

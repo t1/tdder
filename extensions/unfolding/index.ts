@@ -22,6 +22,7 @@ import type { SessionLike } from "./task-tools.ts";
 import { resumeDelegatedTask } from "./task-resume.ts";
 import { filterDisplayOnlyMessages } from "./display-only.ts";
 import { makeTaskDelegateDefinition } from "./task-delegate-tool.ts";
+import { askSenseiViaUi, createAskSenseiFn } from "./ask-sensei.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -74,6 +75,8 @@ function makePostOutput(pi: ExtensionAPI) {
 }
 
 export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<string, AgentSession> }) {
+  (pi as any).__unfoldingAskSensei = undefined;
+
   pi.on("context", async (event) =>
     filterDisplayOnlyMessages(event, UNFOLDING_CHILD_OUTPUT_TYPE) as { messages?: any[] } | undefined,
   );
@@ -154,7 +157,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
   pi.registerTool({
     name: "ask_sensei",
     label: "Ask Sensei",
-    description: "Ask the user a single question via pi UI and return the answer. Use this to relay DMD/ADR questions verbatim, one at a time.",
+    description: "Ask the user a single question via pi UI and return the answer. Use this for direct role questioning, one question at a time.",
     parameters: Type.Object({
       question: Type.String({ description: "The single question to ask the user." }),
       context: Type.Optional(Type.String({ description: "Optional brief context shown above the question." })),
@@ -163,34 +166,12 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       placeholder: Type.Optional(Type.String({ description: "Optional placeholder for free-text input." })),
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
-      if (!ctx.hasUI) {
-        return {
-          content: [{ type: "text", text: "Error: UI not available" }],
-          details: { answer: null, cancelled: true },
-        };
-      }
-
-      const prompt = params.context ? `${params.context}\n\n${params.question}` : params.question;
-      const options = params.options?.filter(option => option.length > 0) ?? [];
-
-      const done = (answer: string | null, cancelled = false) => ({
-        content: [{ type: "text", text: answer ?? "(cancelled)" }],
-        details: { answer, cancelled },
-      });
-
-      if (options.length === 0) {
-        const answer = await ctx.ui.input(prompt, params.placeholder ?? "");
-        return done(answer ?? null, answer === undefined);
-      }
-
-      const otherOption = "Other…";
-      const selectableOptions = params.freeText ? [...options, otherOption] : options;
-      const selected = await ctx.ui.select(prompt, selectableOptions);
-      if (selected === undefined) return done(null, true);
-      if (selected !== otherOption) return done(selected);
-
-      const answer = await ctx.ui.input(prompt, params.placeholder ?? "");
-      return done(answer ?? null, answer === undefined);
+      (pi as any).__unfoldingAskSensei = createAskSenseiFn(ctx);
+      const result = await askSenseiViaUi(params, ctx.ui);
+      return {
+        content: [{ type: "text", text: result.answer ?? "(cancelled)" }],
+        details: result,
+      };
     },
   });
 
@@ -218,6 +199,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     description: "Read full details of a delegated task by slug (root session only).",
     parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
+      (pi as any).__unfoldingAskSensei = createAskSenseiFn(ctx);
       const text = taskRead(ctx.cwd, params.slug);
       console.log(`[task_read] slug=${params.slug}`);
       return { content: [{ type: "text", text }], details: {} };
@@ -242,6 +224,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     description: "Accept a finished delegated task (commissioner).",
     parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
+      (pi as any).__unfoldingAskSensei = createAskSenseiFn(ctx);
       postOutput(`  ✅ task_accept: ${params.slug}`);
       const task = readTask(ctx.cwd, params.slug);
       if (debugExportsEnabled) {
@@ -262,6 +245,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       reason: Type.String({ description: "Why the task is being reopened" }),
     }),
     async execute(_id, params, signal, onUpdate, ctx) {
+      (pi as any).__unfoldingAskSensei = createAskSenseiFn(ctx);
       postOutput(`  🔄 task_reopen: ${params.slug} — ${params.reason}`);
       const outcome = await resumeDelegatedTask({
         action: "reopen",
@@ -298,6 +282,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       reason: Type.Optional(Type.String({ description: "Optional context for the unblock" })),
     }),
     async execute(_id, params, signal, onUpdate, ctx) {
+      (pi as any).__unfoldingAskSensei = createAskSenseiFn(ctx);
       postOutput(`  🔓 task_unblock: ${params.slug}${params.reason ? ` — ${params.reason}` : ""}`);
       const outcome = await resumeDelegatedTask({
         action: "unblock",
@@ -333,6 +318,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       slug: Type.String({ description: "Task slug" }),
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
+      (pi as any).__unfoldingAskSensei = createAskSenseiFn(ctx);
       postOutput(`  ↩️ task_rollback: ${params.slug}`);
       const task = readTask(ctx.cwd, params.slug);
       const session = activeSessions.get(params.slug);

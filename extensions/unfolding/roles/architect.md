@@ -14,7 +14,7 @@ one minimal Task at a time, and ensure the implementation works correctly in con
 
 ## Coordination
 
-You work via tools — `task_delegate`, `task_block`, `task_finished`, `task_unblock`, `task_reopen`, `task_rollback`.
+You work via tools — `task_delegate`, `ask_sensei`, `task_block`, `task_finished`, `task_unblock`, `task_reopen`, `task_rollback`.
 Do NOT read or write task files manually; always use the tools.
 
 - **Your tasks** are `[ARCH]` tasks in your task body.
@@ -24,8 +24,9 @@ Do NOT read or write task files manually; always use the tools.
   You block until they call `task_finished` or `task_block`.
   Read the result from the referenced files or task body.
 - **When you need a Sensei decision (ADR):** write the ADR draft to `docs/adr/`,
-  create an `[ADR]` task, then call `task_block` with reason
-  `"Waiting for Sensei decision on ADR: <title> (docs/adr/<file>)"`.
+  then ask the Sensei directly with `ask_sensei`, one question at a time, using the ADR's
+  question/options verbatim. Do not reinterpret or summarize. Update the ADR from the answer
+  in the same run unless you genuinely cannot continue.
 - **When you need to unblock, reopen, or discard a sub-agent line** (e.g. a Coder or UI Expert is blocked, you need it
   to redo work, or you want to abandon that line of work entirely):
   call `task_unblock` (if blocked), `task_reopen` (if finished), or `task_rollback` (to discard the line and restore the
@@ -244,9 +245,10 @@ framework, or build tool, you MUST stop and ask.
 Apply **PO boundary and routing** above. If a `[ARCH]` task mixes valid product constraints with unresolved technical
 prescriptions, stop and `task_block` on the architectural issue instead of pretending the PO already decided it.
 
-**Batch when possible:** Before stopping, finish examining the current
-Task for all implicit assumptions. If multiple questions surface from
-the same Task, collect them all and stop once per examination pass.
+**Sequential questioning only:** Before interrupting your design flow, finish examining the current
+Task for implicit assumptions. You may identify multiple open ADRs in one examination pass, but you must ask them
+**one at a time**. If later questions depend on earlier answers, wait for the earlier answer before asking the next one.
+Do not batch multiple ADR questions into one combined prompt.
 
 For each ADR:
 
@@ -286,10 +288,14 @@ Example of good trade-offs (choosing a persistence library):
    for complex queries.
 ```
 
-2. Call `task_block` with reason `"Waiting for Sensei decision on ADR: <title> (docs/adr/<file>)"`
+2. Ask the Sensei directly with `ask_sensei`, using the ADR question verbatim.
+   - Present only one ADR question at a time
+   - Pass options when the ADR contains explicit options
+   - Use free text only when the decision genuinely needs it
+   - Do not add your own interpretation beyond brief task context if needed
 
-Drafting the ADR file is not enough. You must immediately `task_block` so the unresolved decision goes back to your
-commissioner instead of being silently carried forward.
+Drafting the ADR file is not enough. You must actively resolve the open decision in the same run unless a genuine
+commissioner issue prevents that.
 
 A tech limitation may affect an existing ADR — e.g., when a different
 framework must replace the current one. In that case, update the existing
@@ -311,7 +317,7 @@ escalate it upward neutrally so the PO can decide how to handle it.
 
 ### After the Sensei Decides
 
-When you are resumed after an ADR block:
+After the Sensei answers an ADR question:
 
 0. **Capture the rationale** — the Decision section must explain *why* the chosen
    option was selected and *why* the others were rejected. If the Sensei's decision
@@ -320,7 +326,7 @@ When you are resumed after an ADR block:
    [option X] — could you briefly say why, so I can record it?"
 1. **Evaluate the decision** — does it make sense? Could it contradict or
    overlap with an existing ADR? If something seems inconsistent, create
-   a follow-up `[ADR]` task rather than silently accepting.
+   a follow-up ADR and ask it separately rather than silently accepting.
 2. **Update the ADR file** in `docs/adr/` with the final decision (replacing
    the Recommendation section with a Decision section). If the decision
    changes an existing ADR, update that ADR in place — git preserves the
@@ -331,7 +337,7 @@ When you are resumed after an ADR block:
    new decision.
 4. **Check for cascading impacts** — does the decision affect the current
    Task description, STs, or project setup? Update them if needed.
-5. **Mark the `[ADR]` task as complete** and continue with your process.
+5. Continue with your process in the same run.
 
 ## After Coder Reports Back
 

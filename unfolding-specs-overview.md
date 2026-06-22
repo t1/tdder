@@ -45,7 +45,7 @@ runtime-specific handoff mechanism.
 
 | Role             | Role Definition / Runtime Hook         | Responsibility                                                                                    |
 |------------------|----------------------------------------|---------------------------------------------------------------------------------------------------|
-| **Orchestrator** | skill / command / extension entrypoint | Dispatches role runs, relays Sensei questions, proxies restricted actions, owns `docs/state.yaml` |
+| **Orchestrator** | skill / command / extension entrypoint | Dispatches role runs, mediates runtime-specific Sensei interaction, proxies restricted actions, owns `docs/state.yaml` |
 | **PO**           | `unfolding-po.md`                      | Decomposes Features, writes Acceptance Tests and Business Rules, proposes DMDs                    |
 | **Architect**    | `unfolding-architect.md`               | Decomposes Features into Tasks, writes System Tests, proposes ADRs                                |
 | **Coder**        | `unfolding-coder.md`                   | Implements Tasks using TDD (Red-Green-Refactor)                                                   |
@@ -82,8 +82,8 @@ These terms describe the process independently of Claude Code or pi:
 - **Activation** — making a target role able to receive its next handoff.
   Depending on runtime this may mean spawning an agent, resuming a session, or
   invoking a subagent.
-- **Sensei escalation** — any question that requires human judgment and must be
-  routed back to the human.
+- **Sensei escalation** — any question that requires human judgment and must reach the human,
+  either directly from the owning role when the runtime supports it or via the dispatcher when it does not.
 - **Process state** — the durable checkpoint that allows `/unfold` to resume.
 
 ## Runtime Mapping
@@ -96,7 +96,7 @@ These terms describe the process independently of Claude Code or pi:
 | **Shared work queue** | Shared task list                                    | Shared task/state files or extension-managed queue                             |
 | **Handoff**           | `SendMessage` plus task references                  | Durable task/artifact update plus extension-routed or session-directed message |
 | **Activation**        | `Agent(...)` / ensure-active                        | Start or resume the target role session/subagent                               |
-| **Sensei escalation** | Orchestrator asks the human                         | Orchestrator/extension asks the human                                          |
+| **Sensei escalation** | Runtime-dependent: often orchestrator-mediated      | Runtime-dependent: direct role questioning or orchestrator/extension-mediated   |
 | **Process state**     | `docs/state.yaml`                                   | `docs/state.yaml`                                                              |
 
 ## Communication Model
@@ -107,11 +107,11 @@ Roles create work items with prefixed subjects to route work:
 
 ```
 [PO] Define Feature ──> PO works
-  ├── [DMD] Decision ──> Dispatcher relays to Sensei
+  ├── [DMD] Decision ──> Sensei answer reached via runtime-specific path
   ├── [UX] Design ──> UX Designer works <──handoff──> PO
   ├── [API] Design ──> API Designer works <──handoff──> PO
   └── [ARCH] Implement Feature ──> Architect works
-        ├── [ADR] Decision ──> Dispatcher relays to Sensei
+        ├── [ADR] Decision ──> Sensei answer reached via runtime-specific path
         ├── [UX-MAP] Map component ──> UI Expert works <──handoff──> Architect
         └── [CODE] Implement Task ──> Coder works <──handoff──> Architect
               └── [UX-REVIEW] Review UX ──> UX Designer reviews in browser <──handoff──> PO
@@ -125,7 +125,7 @@ Primary collaboration paths are:
 - PO <-> UX Designer, API Designer
 - Architect <-> Coder, UI Expert
 - Architect -> PO (AT verification)
-- Any role -> Dispatcher (activation requests, Sensei escalation only)
+- Any role -> Dispatcher (activation requests, plus Sensei escalation when the runtime does not support direct role questioning)
 
 The process requires that a handoff reaches a role that is ready to receive it.
 How that is achieved is runtime-specific:
@@ -141,8 +141,9 @@ The important rule is not "use direct messages"; it is:
 > it ready.**
 
 The Dispatcher should avoid relaying routine collaboration when the runtime can
-support direct handoff, but the process remains valid even when a runtime needs
-more mediation.
+support direct handoff. The same applies to Sensei questions: if the runtime supports
+direct role questioning, the owning role should ask directly; otherwise the dispatcher
+mediates. The process remains valid even when a runtime needs more mediation.
 
 ## Artifact Ownership
 

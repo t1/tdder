@@ -4,11 +4,13 @@ import { Type } from "typebox";
 import { taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock, taskRollback } from "./task-tools.ts";
 import { waitForChildDecision, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
 import { readTask } from "./task-store.ts";
+import type { AskSenseiFn, AskSenseiParams } from "./ask-sensei.ts";
 
 export interface ChildCommissionerContext {
   activeSessions: Map<string, AgentSession>;
   postOutput: (lines: string) => void;
   pi: ExtensionAPI;
+  askSensei?: AskSenseiFn;
   model?: Model<any>;
   authStorage?: AuthStorage;
   modelRegistry?: ModelRegistry;
@@ -41,6 +43,31 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
       },
     },
     nestedDelegateTool,
+    {
+      name: "ask_sensei",
+      label: "Ask Sensei",
+      description: "Ask the human a single question via pi UI and return the answer.",
+      parameters: Type.Object({
+        question: Type.String({ description: "The single question to ask the user." }),
+        context: Type.Optional(Type.String({ description: "Optional brief context shown above the question." })),
+        options: Type.Optional(Type.Array(Type.String(), { description: "Optional multiple-choice options." })),
+        freeText: Type.Optional(Type.Boolean({ description: "If true and options are provided, also offer an 'Other…' choice for free-text input." })),
+        placeholder: Type.Optional(Type.String({ description: "Optional placeholder for free-text input." })),
+      }),
+      async execute(_id: string, params: AskSenseiParams) {
+        if (!commissionerCtx.askSensei) {
+          return {
+            content: [{ type: "text", text: "Error: UI not available" }],
+            details: { answer: null, cancelled: true },
+          };
+        }
+        const result = await commissionerCtx.askSensei(params);
+        return {
+          content: [{ type: "text", text: result.answer ?? "(cancelled)" }],
+          details: result,
+        };
+      },
+    },
     {
       name: "task_reopen",
       label: "Task reopen",
