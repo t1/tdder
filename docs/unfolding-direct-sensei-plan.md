@@ -105,6 +105,8 @@ Switch the **pi unfolding runtime** from orchestrator-relayed ADR/DMD questionin
 - In the **pi unfolding runtime**, direct questioning is now the normal path:
   - Architect asks ADR questions directly with `ask_sensei`
   - PO asks DMD questions directly with `ask_sensei`
+- The Architect must not self-approve ADRs or continue implementation past an unresolved ADR decision point
+- The PO should not inspect or reason about ADR artifacts at all; technical decision artifacts stay outside PO context
 - In the pi runtime, the Orchestrator no longer relays normal ADR/DMD questions and no longer reads ADR/DMD files to extract question text
 - `task_block` is no longer the normal mechanism for ADR/DMD human Q&A
 - `task_block` remains for genuine commissioner action, environment problems, malformed input, or situations where a role truly cannot continue
@@ -157,6 +159,8 @@ Still pending:
 - [x] Audited current relay assumptions and recorded affected files
 - [x] Defined the new direct-questioning protocol and sequential batching rule
 - [x] Updated Architect and PO role guidance for direct `ask_sensei` questioning
+- [x] Tightened the Architect prompt so ADRs must be asked immediately, not self-resolved or left as "draft and stop"
+- [x] Removed ADR awareness from the PO role guidance; PO now handles only PO-scope blocked questions
 - [x] Removed normal ADR/DMD relay behavior from the pi orchestrator guidance and extension docs
 - [x] Updated the process overview to describe Sensei interaction as runtime-dependent
 - [x] Verified runtime/tool exposure behavior in automated tests
