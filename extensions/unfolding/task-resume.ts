@@ -93,11 +93,17 @@ export async function resumeDelegatedTask({
     const stats = session.getSessionStats();
     const costLine = `  💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`;
     if (stream) {
+      const finalSnapshot = stream.getLines() + "\n" + costLine;
       // Use onUpdate (tool update callback) instead of postOutput to avoid a steer.
       // postOutput → pi.sendMessage while isStreaming=true → steer → extra LLM call →
       // after filterDisplayOnlyMessages the context may end with an assistant message →
       // 400 "does not support assistant message prefill" on Anthropic/Bedrock.
-      onUpdate?.({ content: [{ type: "text", text: stream.getLines() + "\n" + costLine }], details: undefined });
+      onUpdate?.({ content: [{ type: "text", text: finalSnapshot }], details: undefined });
+      if (outcome === "aborted") {
+        // User-triggered abort clears transient tool-update UI. Re-post the final child snapshot
+        // as a display-only custom message so the nested transcript stays visible like a normal run.
+        postOutput(finalSnapshot);
+      }
     } else {
       postOutput(costLine);
     }

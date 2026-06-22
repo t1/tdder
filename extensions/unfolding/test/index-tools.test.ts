@@ -13,6 +13,7 @@ import {createChildTaskTools} from "../child-task-tools.ts";
 function setupPi(activeSessions?: Map<string, any>) {
   const tools = new Map<string, any>();
   const commands = new Map<string, any>();
+  const sentMessages: any[] = [];
   const pi = {
     on() {
     },
@@ -24,13 +25,14 @@ function setupPi(activeSessions?: Map<string, any>) {
     registerTool(def: any) {
       tools.set(def.name, def);
     },
-    sendMessage() {
+    sendMessage(message: any) {
+      sentMessages.push(message);
     },
     sendUserMessage() {
     },
   };
   initUnfolding(pi as any, {activeSessions} as any);
-  return {tools, commands};
+  return {tools, commands, sentMessages};
 }
 
 describe("registered task tools", () => {
@@ -338,6 +340,35 @@ describe("registered task tools", () => {
     } finally {
       cleanupTestTempDir(cwd);
       cleanupTestTempDir(sessionDir);
+    }
+  });
+
+  it("task_delegate keeps the final nested transcript visible when the child outcome is aborted", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    try {
+      const {tools, sentMessages} = setupPi();
+      const controller = new AbortController();
+      controller.abort();
+      const updates: string[] = [];
+      const tool = tools.get("task_delegate");
+      assert.ok(tool, "task_delegate tool must be registered");
+
+      const result = await tool.execute("1", {
+        role: "coder",
+        slug: "aborted-transcript",
+        body: "Do work"
+      }, controller.signal, (update: any) => {
+        updates.push(update.content[0].text);
+      }, {cwd});
+
+      assert.equal(result.content[0].text, 'Task "aborted-transcript" aborted.');
+      assert.ok(updates.some(text => text.includes("[coder/aborted-transcript]")), "transient nested transcript should be streamed before abort");
+      const childOutput = sentMessages.find(message => message?.customType === "unfolding-child-output");
+      assert.ok(childOutput, "aborted child should emit a durable display-only nested transcript snapshot");
+      assert.match(childOutput.details?.lines ?? "", /\[coder\/aborted-transcript\]/);
+      assert.match(childOutput.details?.lines ?? "", /💰 \$/);
+    } finally {
+      cleanupTestTempDir(cwd);
     }
   });
 

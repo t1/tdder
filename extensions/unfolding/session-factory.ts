@@ -107,6 +107,7 @@ export async function startChildSession({
     const stats = session.getSessionStats();
     const costLine = `  💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`;
     if (stream) {
+      const finalSnapshot = stream.getLines() + "\n" + costLine;
       // Show final transcript + cost via the tool's own update callback, NOT via postOutput.
       // postOutput() calls pi.sendMessage() which, while isStreaming=true, enqueues the message
       // as a steer. Each steer triggers an extra inner-loop LLM call. After
@@ -116,7 +117,12 @@ export async function startChildSession({
       // The live onUpdate display already showed the transcript incrementally.
       // Using onUpdate here for the final state shows it in the tool-update area (during tool
       // execution) without triggering a steer or an extra LLM call.
-      onUpdate?.({ content: [{ type: "text", text: stream.getLines() + "\n" + costLine }], details: undefined });
+      onUpdate?.({ content: [{ type: "text", text: finalSnapshot }], details: undefined });
+      if (outcome === "aborted") {
+        // User-triggered abort clears transient tool-update UI. Re-post the final child snapshot
+        // as a display-only custom message so the nested transcript stays visible like a normal run.
+        postOutput(finalSnapshot);
+      }
     } else {
       postOutput(costLine);
     }
