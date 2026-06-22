@@ -130,6 +130,49 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     },
   });
 
+  pi.registerTool({
+    name: "ask_sensei",
+    label: "Ask Sensei",
+    description: "Ask the user a single question via pi UI and return the answer. Use this to relay DMD/ADR questions verbatim, one at a time.",
+    parameters: Type.Object({
+      question: Type.String({ description: "The single question to ask the user." }),
+      context: Type.Optional(Type.String({ description: "Optional brief context shown above the question." })),
+      options: Type.Optional(Type.Array(Type.String(), { description: "Optional multiple-choice options." })),
+      freeText: Type.Optional(Type.Boolean({ description: "If true and options are provided, also offer an 'Other…' choice for free-text input." })),
+      placeholder: Type.Optional(Type.String({ description: "Optional placeholder for free-text input." })),
+    }),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      if (!ctx.hasUI) {
+        return {
+          content: [{ type: "text", text: "Error: UI not available" }],
+          details: { answer: null, cancelled: true },
+        };
+      }
+
+      const prompt = params.context ? `${params.context}\n\n${params.question}` : params.question;
+      const options = params.options?.filter(option => option.length > 0) ?? [];
+
+      const done = (answer: string | null, cancelled = false) => ({
+        content: [{ type: "text", text: answer ?? "(cancelled)" }],
+        details: { answer, cancelled },
+      });
+
+      if (options.length === 0) {
+        const answer = await ctx.ui.input(prompt, params.placeholder ?? "");
+        return done(answer ?? null, answer === undefined);
+      }
+
+      const otherOption = "Other…";
+      const selectableOptions = params.freeText ? [...options, otherOption] : options;
+      const selected = await ctx.ui.select(prompt, selectableOptions);
+      if (selected === undefined) return done(null, true);
+      if (selected !== otherOption) return done(selected);
+
+      const answer = await ctx.ui.input(prompt, params.placeholder ?? "");
+      return done(answer ?? null, answer === undefined);
+    },
+  });
+
   // -------------------------------------------------------------------------
   // Task tools
   // -------------------------------------------------------------------------

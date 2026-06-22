@@ -33,10 +33,11 @@ When the PO's `task_delegate` returns `blocked` and the reason references a
 
 1. Read the referenced DMD/ADR file to extract the question text — do not
    interpret or reason about the content
-2. Present each question verbatim to the Sensei, one at a time:
-   - Use `ctx.ui.select()` for multiple-choice options
-   - Use `ctx.ui.input()` for free-text
-   - Use both in sequence if the question has options plus a free-text override
+2. Present each question verbatim to the Sensei, one at a time, using the
+   `ask_sensei` tool:
+   - pass `options` for multiple-choice questions
+   - omit `options` for free-text questions
+   - set `freeText: true` if the question has options plus a free-text override
 3. Call `task_unblock(slug, answer)` on the **PO task** (not the Architect or
    any deeper task) with the Sensei's answer verbatim. The PO relays it down
    the chain via its own `task_unblock` call.

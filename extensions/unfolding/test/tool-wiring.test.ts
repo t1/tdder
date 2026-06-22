@@ -14,6 +14,12 @@ function loadSrc() { return loadIndexSrc(); }
 // ---------------------------------------------------------------------------
 
 describe("structural wiring", () => {
+  it("ask_sensei tool is registered", () => {
+    const block = toolBlock(loadSrc(), 'name: "ask_sensei"');
+    assert.ok(block.includes("ctx.ui.select"), "must use select for multiple-choice questions");
+    assert.ok(block.includes("ctx.ui.input"), "must use input for free-text questions");
+  });
+
   it("task_finished tool wiring is extracted to createChildTaskTools", () => {
     const src = readFileSync(new URL("../child-task-tools.ts", import.meta.url).pathname, "utf8");
     assert.ok(src.includes("task_finished"), "child-task-tools must inject task_finished");

@@ -24,6 +24,95 @@ function setupPi(activeSessions?: Map<string, any>) {
 }
 
 describe("registered task tools", () => {
+  it("ask_sensei uses select for multiple-choice questions", async () => {
+    const { tools } = setupPi();
+    const tool = tools.get("ask_sensei");
+    assert.ok(tool, "ask_sensei tool must be registered");
+
+    const calls: Array<{ prompt: string; options: string[] }> = [];
+    const result = await tool.execute(
+      "1",
+      { question: "Choose one", context: "Feature: Login", options: ["A", "B"] },
+      undefined,
+      undefined,
+      {
+        cwd: ".",
+        hasUI: true,
+        ui: {
+          async select(prompt: string, options: string[]) {
+            calls.push({ prompt, options });
+            return "B";
+          },
+        },
+      },
+    );
+
+    assert.deepEqual(calls, [{ prompt: "Feature: Login\n\nChoose one", options: ["A", "B"] }]);
+    assert.equal(result.content[0].text, "B");
+    assert.equal(result.details.answer, "B");
+    assert.equal(result.details.cancelled, false);
+  });
+
+  it("ask_sensei uses input for free-text questions", async () => {
+    const { tools } = setupPi();
+    const tool = tools.get("ask_sensei");
+    assert.ok(tool, "ask_sensei tool must be registered");
+
+    const result = await tool.execute(
+      "1",
+      { question: "Why?", placeholder: "type answer" },
+      undefined,
+      undefined,
+      {
+        cwd: ".",
+        hasUI: true,
+        ui: {
+          async input(prompt: string, placeholder: string) {
+            assert.equal(prompt, "Why?");
+            assert.equal(placeholder, "type answer");
+            return "Because";
+          },
+        },
+      },
+    );
+
+    assert.equal(result.content[0].text, "Because");
+    assert.equal(result.details.answer, "Because");
+    assert.equal(result.details.cancelled, false);
+  });
+
+  it("ask_sensei offers free-text override when requested", async () => {
+    const { tools } = setupPi();
+    const tool = tools.get("ask_sensei");
+    assert.ok(tool, "ask_sensei tool must be registered");
+
+    const result = await tool.execute(
+      "1",
+      { question: "Pick or type", options: ["A", "B"], freeText: true, placeholder: "other" },
+      undefined,
+      undefined,
+      {
+        cwd: ".",
+        hasUI: true,
+        ui: {
+          async select(_prompt: string, options: string[]) {
+            assert.deepEqual(options, ["A", "B", "Other…"]);
+            return "Other…";
+          },
+          async input(prompt: string, placeholder: string) {
+            assert.equal(prompt, "Pick or type");
+            assert.equal(placeholder, "other");
+            return "C";
+          },
+        },
+      },
+    );
+
+    assert.equal(result.content[0].text, "C");
+    assert.equal(result.details.answer, "C");
+    assert.equal(result.details.cancelled, false);
+  });
+
   it("task_rollback tool rolls back a finished task", async () => {
     const { cwd, head: baseSha } = makeTestGitRepo("index-tools");
     try {

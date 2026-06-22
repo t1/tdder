@@ -22,6 +22,7 @@ Used by the orchestrator and delegate sub-sessions to coordinate work:
 | `task_reopen`   | orchestrator | Send a finished task back with a reason; child resumes             |
 | `task_unblock`  | orchestrator | Unblock a blocked task, optionally with context; child resumes     |
 | `task_rollback` | orchestrator | Restore the workspace to its pre-delegation state and delete task  |
+| `ask_sensei`    | orchestrator | Ask the human a single question via pi UI and return the answer    |
 | `task_finished` | delegate     | Mark own task finished; blocks until orchestrator accepts/reopens  |
 | `task_block`    | delegate     | Mark own task blocked with reason; blocks until orchestrator acts  |
 
