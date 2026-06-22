@@ -23,6 +23,9 @@ import { resumeDelegatedTask } from "./task-resume.ts";
 import { filterDisplayOnlyMessages } from "./display-only.ts";
 import { makeTaskDelegateDefinition } from "./task-delegate-tool.ts";
 import { askSenseiViaUi, createAskSenseiFn } from "./ask-sensei.ts";
+import { abortAllActiveSessions, renderAbortSummary } from "./abort-flow.ts";
+import { FatalChildSessionError } from "./task-delegate.ts";
+import { isUnfoldingFatalError } from "./fatal-error.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -166,8 +169,9 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       placeholder: Type.Optional(Type.String({ description: "Optional placeholder for free-text input." })),
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
-      (pi as any).__unfoldingAskSensei = createAskSenseiFn(ctx);
-      const result = await askSenseiViaUi(params, ctx.ui);
+      const askSensei = createAskSenseiFn(ctx);
+      (pi as any).__unfoldingAskSensei = askSensei;
+      const result = await askSensei(params);
       return {
         content: [{ type: "text", text: result.answer ?? "(cancelled)" }],
         details: result,
@@ -247,29 +251,41 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     async execute(_id, params, signal, onUpdate, ctx) {
       (pi as any).__unfoldingAskSensei = createAskSenseiFn(ctx);
       postOutput(`  🔄 task_reopen: ${params.slug} — ${params.reason}`);
-      const outcome = await resumeDelegatedTask({
-        action: "reopen",
-        cwd: ctx.cwd,
-        slug: params.slug,
-        reason: params.reason,
-        activeSessions,
-        signal,
-        onUpdate,
-        postOutput,
-        mutateTask: taskReopen,
-        pi,
-        model: ctx.model,
-        modelRegistry: ctx.modelRegistry,
-      });
+      try {
+        const outcome = await resumeDelegatedTask({
+          action: "reopen",
+          cwd: ctx.cwd,
+          slug: params.slug,
+          reason: params.reason,
+          activeSessions,
+          signal,
+          onUpdate,
+          postOutput,
+          mutateTask: taskReopen,
+          pi,
+          model: ctx.model,
+          modelRegistry: ctx.modelRegistry,
+        });
 
-      if (outcome === "aborted") {
-        activeSessions.delete(params.slug);
+        if (outcome === "aborted") {
+          activeSessions.delete(params.slug);
+        }
+
+        return {
+          content: [{ type: "text", text: `Task "${params.slug}" reopened. Outcome: ${outcome}` }],
+          details: {},
+        };
+      } catch (err: unknown) {
+        if (err instanceof FatalChildSessionError || isUnfoldingFatalError(err)) {
+          const reason = err instanceof FatalChildSessionError
+            ? `fatal child session failure in ${err.slug}: ${err.detail}`
+            : err.message;
+          await abortAllActiveSessions(activeSessions);
+          postOutput(renderAbortSummary(ctx.cwd, reason, activeSessions));
+          ctx.abort();
+        }
+        throw err;
       }
-
-      return {
-        content: [{ type: "text", text: `Task "${params.slug}" reopened. Outcome: ${outcome}` }],
-        details: {},
-      };
     },
   });
 
@@ -284,29 +300,41 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     async execute(_id, params, signal, onUpdate, ctx) {
       (pi as any).__unfoldingAskSensei = createAskSenseiFn(ctx);
       postOutput(`  🔓 task_unblock: ${params.slug}${params.reason ? ` — ${params.reason}` : ""}`);
-      const outcome = await resumeDelegatedTask({
-        action: "unblock",
-        cwd: ctx.cwd,
-        slug: params.slug,
-        reason: params.reason,
-        activeSessions,
-        signal,
-        onUpdate,
-        postOutput,
-        mutateTask: taskUnblock,
-        pi,
-        model: ctx.model,
-        modelRegistry: ctx.modelRegistry,
-      });
+      try {
+        const outcome = await resumeDelegatedTask({
+          action: "unblock",
+          cwd: ctx.cwd,
+          slug: params.slug,
+          reason: params.reason,
+          activeSessions,
+          signal,
+          onUpdate,
+          postOutput,
+          mutateTask: taskUnblock,
+          pi,
+          model: ctx.model,
+          modelRegistry: ctx.modelRegistry,
+        });
 
-      if (outcome === "aborted") {
-        activeSessions.delete(params.slug);
+        if (outcome === "aborted") {
+          activeSessions.delete(params.slug);
+        }
+
+        return {
+          content: [{ type: "text", text: `Task "${params.slug}" unblocked. Outcome: ${outcome}` }],
+          details: {},
+        };
+      } catch (err: unknown) {
+        if (err instanceof FatalChildSessionError || isUnfoldingFatalError(err)) {
+          const reason = err instanceof FatalChildSessionError
+            ? `fatal child session failure in ${err.slug}: ${err.detail}`
+            : err.message;
+          await abortAllActiveSessions(activeSessions);
+          postOutput(renderAbortSummary(ctx.cwd, reason, activeSessions));
+          ctx.abort();
+        }
+        throw err;
       }
-
-      return {
-        content: [{ type: "text", text: `Task "${params.slug}" unblocked. Outcome: ${outcome}` }],
-        details: {},
-      };
     },
   });
 

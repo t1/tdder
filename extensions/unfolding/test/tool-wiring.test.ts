@@ -16,8 +16,8 @@ function loadSrc() { return loadIndexSrc(); }
 describe("structural wiring", () => {
   it("ask_sensei tool is registered", () => {
     const block = toolBlock(loadSrc(), 'name: "ask_sensei"');
-    assert.ok(block.includes("askSenseiViaUi"), "root ask_sensei should delegate to the shared UI helper");
     assert.ok(block.includes("createAskSenseiFn"), "root ask_sensei should capture a reusable UI callback for child sessions");
+    assert.ok(block.includes("await askSensei(params)"), "root ask_sensei should execute through the shared fatal-aware wrapper");
   });
 
   it("task_finished tool wiring is extracted to createChildTaskTools", () => {

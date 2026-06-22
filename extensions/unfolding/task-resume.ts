@@ -72,35 +72,39 @@ export async function resumeDelegatedTask({
   const stream = onUpdate
     ? streamChildSession(session, shortRole, slug, onUpdate, { sessionFile: task?.session_file })
     : undefined;
-  const unsubscribeCheckpointRecovery = installCheckpointRecovery(session, cwd, slug, {
+  const checkpointRecovery = installCheckpointRecovery(session, cwd, slug, {
     onRecoveryNote: stream?.append,
   });
-  session.prompt(`${task?.resume_message ?? action}\n\n${CHILD_FIXED_INSTRUCTION}`, { streamingBehavior: "followUp" }).catch((err: unknown) => {
-    const stack = err instanceof Error ? err.stack : String(err);
-    console.error(`[unfolding] resumed child session for task "${slug}" failed:`, stack);
-  });
+  try {
+    session.prompt(`${task?.resume_message ?? action}\n\n${CHILD_FIXED_INSTRUCTION}`, { streamingBehavior: "followUp" }).catch((err: unknown) => {
+      const stack = err instanceof Error ? err.stack : String(err);
+      console.error(`[unfolding] resumed child session for task "${slug}" failed:`, stack);
+    });
 
-  const outcome = await waitForChildDecision(
-    async () => readTask(cwd, slug),
-    (_status: string, blocked_reason?: string) => {
-      stream?.append(`  ⏸ blocked: ${blocked_reason ?? "(no reason given)"}`);
-    },
-    undefined,
-    signal,
-  );
-  unsubscribeCheckpointRecovery();
-  stream?.unsubscribe();
-  const stats = session.getSessionStats();
-  const costLine = `  💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`;
-  if (stream) {
-    // Use onUpdate (tool update callback) instead of postOutput to avoid a steer.
-    // postOutput → pi.sendMessage while isStreaming=true → steer → extra LLM call →
-    // after filterDisplayOnlyMessages the context may end with an assistant message →
-    // 400 "does not support assistant message prefill" on Anthropic/Bedrock.
-    onUpdate?.({ content: [{ type: "text", text: stream.getLines() + "\n" + costLine }], details: undefined });
-  } else {
-    postOutput(costLine);
+    const outcome = await waitForChildDecision(
+      async () => readTask(cwd, slug),
+      (_status: string, blocked_reason?: string) => {
+        stream?.append(`  ⏸ blocked: ${blocked_reason ?? "(no reason given)"}`);
+      },
+      undefined,
+      signal,
+      checkpointRecovery.getFatalError,
+    );
+    const stats = session.getSessionStats();
+    const costLine = `  💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`;
+    if (stream) {
+      // Use onUpdate (tool update callback) instead of postOutput to avoid a steer.
+      // postOutput → pi.sendMessage while isStreaming=true → steer → extra LLM call →
+      // after filterDisplayOnlyMessages the context may end with an assistant message →
+      // 400 "does not support assistant message prefill" on Anthropic/Bedrock.
+      onUpdate?.({ content: [{ type: "text", text: stream.getLines() + "\n" + costLine }], details: undefined });
+    } else {
+      postOutput(costLine);
+    }
+
+    return outcome;
+  } finally {
+    checkpointRecovery.unsubscribe();
+    stream?.unsubscribe();
   }
-
-  return outcome;
 }

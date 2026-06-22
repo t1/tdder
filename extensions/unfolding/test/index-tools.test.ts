@@ -144,6 +144,31 @@ describe("registered task tools", () => {
     assert.equal(result.details.cancelled, false);
   });
 
+  it("root ask_sensei fails hard when UI is unavailable", async () => {
+    const {tools} = setupPi();
+    const tool = tools.get("ask_sensei");
+    assert.ok(tool, "ask_sensei tool must be registered");
+
+    await assert.rejects(
+      () => tool.execute("1", {question: "Why?"}, undefined, undefined, {cwd: ".", hasUI: false, ui: {}}),
+      /ask_sensei failed: UI is not available in this session/,
+    );
+  });
+
+  it("child ask_sensei fails hard when the commissioner callback is missing", async () => {
+    const [tool] = createChildTaskTools(".", "child", {name: "task_delegate"} as any, {
+      activeSessions: new Map() as any,
+      postOutput: () => {
+      },
+      pi: {} as any,
+    }).filter(tool => tool.name === "ask_sensei");
+
+    await assert.rejects(
+      () => tool.execute("1", {question: "2+3?"}),
+      /ask_sensei failed: no commissioner UI callback is available for this child session/,
+    );
+  });
+
   it("task_rollback tool rolls back a finished task", async () => {
     const {cwd, head: baseSha} = makeTestGitRepo("index-tools");
     try {
@@ -368,6 +393,7 @@ describe("registered task tools", () => {
       cleanupTestTempDir(sessionDir);
     }
   });
+
 
   it("does not export html when debug mode is off", async () => {
     const {cwd} = makeTestGitRepo("index-tools");

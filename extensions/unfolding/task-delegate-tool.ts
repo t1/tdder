@@ -3,6 +3,9 @@ import { AgentSession } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { startChildSession } from "./session-factory.ts";
 import { createAskSenseiFn } from "./ask-sensei.ts";
+import { abortAllActiveSessions, renderAbortSummary } from "./abort-flow.ts";
+import { FatalChildSessionError } from "./task-delegate.ts";
+import { isUnfoldingFatalError } from "./fatal-error.ts";
 
 export function makeTaskDelegateDefinition(
   from: string,
@@ -55,6 +58,17 @@ export function makeTaskDelegateDefinition(
         };
       } catch (err: unknown) {
         activeSessions.delete(params.slug);
+
+        if (err instanceof FatalChildSessionError || isUnfoldingFatalError(err)) {
+          const reason = err instanceof FatalChildSessionError
+            ? `fatal child session failure in ${err.slug}: ${err.detail}`
+            : err.message;
+          await abortAllActiveSessions(activeSessions);
+          postOutput(renderAbortSummary(ctx.cwd, reason, activeSessions));
+          ctx.abort();
+          throw err;
+        }
+
         const stack = err instanceof Error ? err.stack ?? err.message : String(err);
         throw new Error(`task_delegate failed:\n${stack}`);
       }

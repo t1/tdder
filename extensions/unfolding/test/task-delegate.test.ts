@@ -9,7 +9,7 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
-import {loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON, CHILD_SESSION_FAILURE_BLOCKED_REASON} from "../task-delegate.ts";
+import {loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON, CHILD_SESSION_FAILURE_BLOCKED_REASON, FatalChildSessionError} from "../task-delegate.ts";
 
 const rolesDir = resolve(new URL("../roles", import.meta.url).pathname);
 
@@ -737,6 +737,15 @@ describe("waitForChildDecision", () => {
     const readStatus = async () => ({status: "in_progress"});
     const result = await waitForChildDecision(readStatus, undefined, 0, controller.signal);
     assert.equal(result, "aborted");
+  });
+
+  it("throws a latched fatal child error before returning a normal outcome", async () => {
+    const fatal = new FatalChildSessionError("child-a", "ask_sensei failed: UI is not available in this session");
+    const readStatus = async () => ({status: "in_progress"});
+    await assert.rejects(
+      () => waitForChildDecision(readStatus, undefined, 0, undefined, () => fatal),
+      /fatal child session error in "child-a": ask_sensei failed: UI is not available in this session/,
+    );
   });
 });
 

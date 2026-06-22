@@ -2,6 +2,14 @@
 
 Status: in progress
 
+Abort-on-fatal follow-up:
+
+- [x] Treat `ask_sensei` infrastructure failures as fatal extension errors, not synthetic cancellations
+- [x] Propagate fatal child-session failures upward to the root unfolding session
+- [x] Reuse the root abort-style teardown/reporting phase for child-originated fatal failures
+- [x] Add tests for fatal upward propagation and root abort summary output
+- [x] Re-run unfolding validation after the fatal-abort change
+
 ## Goal
 
 Switch the **pi unfolding runtime** from orchestrator-relayed ADR/DMD questioning to direct role questioning:
@@ -169,3 +177,5 @@ Still pending:
 - [x] Reviewed semantic leftovers in the rewritten docs
 - [x] Prepared the final direct-questioning commit
 - [x] Keep this file current as implementation progresses
+- [x] Reclassified `ask_sensei` UI/proxy failures from fake cancellation to fatal runtime errors
+- [x] Wired fatal child-session failures to propagate upward and terminate at the root with an abort summary

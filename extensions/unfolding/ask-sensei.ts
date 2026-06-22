@@ -1,4 +1,5 @@
 import type { ExtensionContext, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import { UnfoldingFatalError } from "./fatal-error.ts";
 
 export interface AskSenseiParams {
   question: string;
@@ -39,7 +40,21 @@ export async function askSenseiViaUi(
 
 export function createAskSenseiFn(ctx: Pick<ExtensionContext, "hasUI" | "ui">): AskSenseiFn {
   return async (params: AskSenseiParams) => {
-    if (!ctx.hasUI) return { answer: null, cancelled: true };
-    return askSenseiViaUi(params, ctx.ui);
+    if (!ctx.hasUI) {
+      throw new UnfoldingFatalError(
+        "ASK_SENSEI_UI_UNAVAILABLE",
+        "ask_sensei failed: UI is not available in this session",
+      );
+    }
+    try {
+      return await askSenseiViaUi(params, ctx.ui);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new UnfoldingFatalError(
+        "ASK_SENSEI_UI_FAILED",
+        `ask_sensei failed while interacting with the UI: ${detail}`,
+        detail,
+      );
+    }
   };
 }

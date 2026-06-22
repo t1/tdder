@@ -359,7 +359,7 @@ describe("startChildSession groundwork", () => {
     }
   });
 
-  it("blocks immediately on child-session failure instead of treating it as a missing checkpoint", async () => {
+  it("fails immediately on child-session failure instead of treating it as a missing checkpoint", async () => {
     const {cwd} = makeTestGitRepo("session-factory");
     const provider = `session-child-failure-${Date.now()}`;
     const faux = registerFauxProvider({
@@ -373,27 +373,29 @@ describe("startChildSession groundwork", () => {
     authStorage.setRuntimeApiKey(provider, "test-key");
     const modelRegistry = ModelRegistry.inMemory(authStorage);
     try {
-      const result = await startChildSession({
-        cwd,
-        from: "orchestrator",
-        role: "coder",
-        slug: "coder-child-failure",
-        body: "Do work.",
-        activeSessions: new Map() as any,
-        pi: {} as any,
-        postOutput: () => {
-        },
-        nestedDelegateToolFactory,
-        model: faux.getModel(),
-        authStorage,
-        modelRegistry,
-      });
+      await assert.rejects(
+        () => startChildSession({
+          cwd,
+          from: "orchestrator",
+          role: "coder",
+          slug: "coder-child-failure",
+          body: "Do work.",
+          activeSessions: new Map() as any,
+          pi: {} as any,
+          postOutput: () => {
+          },
+          nestedDelegateToolFactory,
+          model: faux.getModel(),
+          authStorage,
+          modelRegistry,
+        }),
+        /fatal child session error in "coder-child-failure": Connection error\./,
+      );
 
-      assert.equal(result.outcome, "blocked");
       const snapshot = readTaskSnapshot(cwd, "coder-child-failure");
-      assert.match(snapshot?.blocked_reason ?? "", new RegExp(`^${CHILD_SESSION_FAILURE_BLOCKED_REASON.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
-      assert.match(snapshot?.blocked_reason ?? "", /Last failure: Connection error\./);
-      assert.equal(faux.state.callCount, 1, "should block immediately on child-session failure");
+      assert.equal(snapshot?.status, "in_progress", "fatal child failure should leave persisted task status unchanged");
+      assert.equal(snapshot?.blocked_reason, undefined);
+      assert.equal(faux.state.callCount, 1, "should fail immediately on child-session failure");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

@@ -491,7 +491,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
     }
   });
 
-  it("task_unblock blocks immediately on child-session failure during the resumed run", async () => {
+  it("task_unblock fails immediately on child-session failure during the resumed run", async () => {
     const {cwd} = makeTestGitRepo("resume-task");
     const provider = `resume-child-failure-${Date.now()}`;
     const faux = registerFauxProvider({
@@ -530,26 +530,29 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       assert.equal(started.outcome, "blocked");
       activeSessions.delete("coder-resume-child-failure");
 
-      const outcome = await resumeDelegatedTask({
-        action: "unblock",
-        cwd,
-        slug: "coder-resume-child-failure",
-        reason: "continue",
-        activeSessions,
-        postOutput: () => {
-        },
-        mutateTask: taskUnblock,
-        pi: {} as any,
-        model: faux.getModel(),
-        authStorage,
-        modelRegistry,
-      });
+      await assert.rejects(
+        () => resumeDelegatedTask({
+          action: "unblock",
+          cwd,
+          slug: "coder-resume-child-failure",
+          reason: "continue",
+          activeSessions,
+          postOutput: () => {
+          },
+          mutateTask: taskUnblock,
+          pi: {} as any,
+          model: faux.getModel(),
+          authStorage,
+          modelRegistry,
+        }),
+        /fatal child session error in "coder-resume-child-failure": Connection error\./,
+      );
 
-      assert.equal(outcome, "blocked");
       const task = readTask(cwd, "coder-resume-child-failure");
-      assert.match(task?.blocked_reason ?? "", new RegExp(`^${CHILD_SESSION_FAILURE_BLOCKED_REASON.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
-      assert.match(task?.blocked_reason ?? "", /Last failure: Connection error\./);
-      assert.equal(faux.state.callCount, 3, "should block immediately on child-session failure during resumed run");
+      assert.equal(task?.status, "in_progress", "fatal resumed child failure should leave persisted task status unchanged");
+      assert.equal(task?.blocked_reason, undefined);
+      assert.match(task?.resume_message ?? "", /^unblocked: continue$/);
+      assert.equal(faux.state.callCount, 3, "should fail immediately on child-session failure during resumed run");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

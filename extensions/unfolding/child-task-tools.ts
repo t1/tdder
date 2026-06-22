@@ -5,6 +5,7 @@ import { taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock, taskRollb
 import { waitForChildDecision, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
 import { readTask } from "./task-store.ts";
 import type { AskSenseiFn, AskSenseiParams } from "./ask-sensei.ts";
+import { UnfoldingFatalError } from "./fatal-error.ts";
 
 export interface ChildCommissionerContext {
   activeSessions: Map<string, AgentSession>;
@@ -56,10 +57,10 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
       }),
       async execute(_id: string, params: AskSenseiParams) {
         if (!commissionerCtx.askSensei) {
-          return {
-            content: [{ type: "text", text: "Error: UI not available" }],
-            details: { answer: null, cancelled: true },
-          };
+          throw new UnfoldingFatalError(
+            "ASK_SENSEI_PROXY_UNAVAILABLE",
+            "ask_sensei failed: no commissioner UI callback is available for this child session",
+          );
         }
         const result = await commissionerCtx.askSensei(params);
         return {

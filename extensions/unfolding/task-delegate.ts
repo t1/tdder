@@ -17,6 +17,18 @@ export const MISSING_CHECKPOINT_BLOCKED_REASON =
 export const CHILD_SESSION_FAILURE_BLOCKED_REASON =
   "Automatic recovery blocked the child task after a child-session failure before it reached a checkpoint.";
 
+export class FatalChildSessionError extends Error {
+  readonly slug: string;
+  readonly detail: string;
+
+  constructor(slug: string, detail: string) {
+    super(`fatal child session error in \"${slug}\": ${detail}`);
+    this.name = "FatalChildSessionError";
+    this.slug = slug;
+    this.detail = detail;
+  }
+}
+
 const TRUNCATION_RECOVERY_PROMPT =
   "Your last response was truncated before you reached a checkpoint. Continue in smaller concrete steps, or call task_block with a workflow-level reason if you cannot continue.";
 
@@ -428,20 +440,26 @@ export interface CheckpointRecoveryOptions {
   onRecoveryNote?: (line: string) => void;
 }
 
+export interface CheckpointRecoveryHandle {
+  unsubscribe: () => void;
+  getFatalError: () => FatalChildSessionError | undefined;
+}
+
 export function installCheckpointRecovery(
   session: AgentSession,
   cwd: string,
   slug: string,
   options: CheckpointRecoveryOptions = {},
-): () => void {
+): CheckpointRecoveryHandle {
   let truncationRecoveryAttempted = false;
   let missingCheckpointRecoveryAttempted = false;
   let sawLengthTruncationThisTurn = false;
   let terminalFailureThisTurn: string | undefined;
   let assistantStopReasonThisTurn: string | undefined;
+  let fatalError: FatalChildSessionError | undefined;
   const onRecoveryNote = options.onRecoveryNote;
 
-  return session.subscribe((event) => {
+  const unsubscribe = session.subscribe((event) => {
     if (event.type === "message_end") {
       if (event.message.role !== "assistant") return;
       assistantStopReasonThisTurn = event.message.stopReason;
@@ -487,8 +505,8 @@ export function installCheckpointRecovery(
       const detail = terminalFailureThisTurn;
       terminalFailureThisTurn = undefined;
       assistantStopReasonThisTurn = undefined;
-      onRecoveryNote?.(`  ⚠ child session failed before a checkpoint; blocking the child task — ${truncateSummary(compactWhitespace(detail))}`);
-      updateTaskStatus(cwd, slug, "blocked", childSessionFailureBlockedReason(detail));
+      onRecoveryNote?.(`  ⚠ child session failed before a checkpoint — ${truncateSummary(compactWhitespace(detail))}`);
+      fatalError = new FatalChildSessionError(slug, detail);
       return;
     }
 
@@ -512,6 +530,11 @@ export function installCheckpointRecovery(
     onRecoveryNote?.("  ⚠ automatic recovery failed after repeated missing checkpoints; blocking the child task");
     updateTaskStatus(cwd, slug, "blocked", MISSING_CHECKPOINT_BLOCKED_REASON);
   });
+
+  return {
+    unsubscribe,
+    getFatalError: () => fatalError,
+  };
 }
 
 const POLL_INTERVAL_MS = 500;
@@ -521,9 +544,12 @@ export async function waitForChildDecision(
   onPoll?: (status: string, blocked_reason?: string) => void,
   pollIntervalMs = POLL_INTERVAL_MS,
   signal?: AbortSignal,
+  getFatalError?: () => FatalChildSessionError | undefined,
 ): Promise<"finished" | "blocked" | "aborted"> {
   while (true) {
     if (signal?.aborted) return "aborted";
+    const fatalError = getFatalError?.();
+    if (fatalError) throw fatalError;
     const task = await readStatus();
     const status = task?.status ?? null;
     if (status === "finished") return "finished";
