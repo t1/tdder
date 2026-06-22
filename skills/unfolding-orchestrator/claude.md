@@ -51,9 +51,11 @@ for an unusually long time. Redundant nudges cause duplicate messages.
 
 Watch the task list for `[DMD]` and `[ADR]` tasks. When you see one:
 
-1. Read the draft DMD/ADR file referenced in the task description
-2. Use `AskUserQuestion` to present the question. Map the agent's options
-   to question choices. Always offer a free-text option.
+1. Read the referenced DMD/ADR file to extract the question text — do not
+   interpret or reason about the content
+2. Use `AskUserQuestion` to present each question verbatim to the Sensei,
+   one at a time. Map the agent's options to question choices.
+   Always offer a free-text option.
 3. Add only brief context (Feature/Task name) — do not rephrase the questions
 4. Wait for the Sensei's answer
 5. Send the answer to the requesting agent via `SendMessage` — verbatim.

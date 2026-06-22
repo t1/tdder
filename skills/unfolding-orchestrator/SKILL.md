@@ -86,12 +86,13 @@ and let the process drive discovery.
 
 Watch for blocked tasks with `[DMD]` or `[ADR]` task prefixes. When you see one:
 
-1. Read the draft DMD/ADR file referenced in the task description
-2. Present the question to the Sensei (see platform file for how)
+1. Read the referenced DMD/ADR file to extract the question text — do not
+   interpret or reason about the content
+2. Present each question to the Sensei verbatim, one at a time (see platform
+   file for how to use TUI question widgets)
 3. Add only brief context about what the agent was working on (Feature/Task name)
-4. Do not rephrase or summarize the agent's questions — use them as-is
-5. Wait for the Sensei's answer
-6. Resume the **PO** (not the Architect) with the answer verbatim — the PO will
+4. Wait for the Sensei's answer
+5. Resume the **PO** (not the Architect) with the answer verbatim — the PO will
    relay it to the Architect via `task_unblock`. Do not interpret,
    summarize, or add implications. If the answer feels incomplete, the agent
    will ask follow-up questions — never fill in gaps yourself.

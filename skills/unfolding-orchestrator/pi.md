@@ -31,10 +31,12 @@ If resuming, create a task for the appropriate role per the phase table in
 When the PO's `task_delegate` returns `blocked` and the reason references a
 `[DMD]` task, or the Architect's delegation surfaces an `[ADR]`:
 
-1. Read the draft file
-2. Present the question using `ctx.ui.select()` for multiple-choice options,
-   `ctx.ui.input()` for free-text, or both in sequence if the DMD/ADR has
-   options plus a free-text override
+1. Read the referenced DMD/ADR file to extract the question text — do not
+   interpret or reason about the content
+2. Present each question verbatim to the Sensei, one at a time:
+   - Use `ctx.ui.select()` for multiple-choice options
+   - Use `ctx.ui.input()` for free-text
+   - Use both in sequence if the question has options plus a free-text override
 3. Call `task_unblock(slug, answer)` on the **PO task** (not the Architect or
    any deeper task) with the Sensei's answer verbatim. The PO relays it down
    the chain via its own `task_unblock` call.
