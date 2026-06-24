@@ -2,21 +2,22 @@
 
 ## Tools
 
-| Abstract action | Tool |
-|---|---|
-| Spawn an agent | `Agent(subagent_type, team_name, name, prompt)` |
-| Create a team | `TeamCreate(name)` |
-| Send a message to an agent | `SendMessage(agent, type, content)` |
-| Ask the Sensei | `AskUserQuestion(question, choices)` |
-| Shut down an agent | `SendMessage(agent, type: "shutdown_request")` |
-| Stop a background process | `TaskStop(task_id)` |
+| Abstract action            | Tool                                            |
+|----------------------------|-------------------------------------------------|
+| Spawn an agent             | `Agent(subagent_type, team_name, name, prompt)` |
+| Create a team              | `TeamCreate(name)`                              |
+| Send a message to an agent | `SendMessage(agent, type, content)`             |
+| Ask the Sensei             | `AskUserQuestion(question, choices)`            |
+| Shut down an agent         | `SendMessage(agent, type: "shutdown_request")`  |
+| Stop a background process  | `TaskStop(task_id)`                             |
 
 ## Startup
 
 1. `TeamCreate("unfolding")`
 2. Read or create `docs/state.yaml`
 3. Create the initial `[PO]` task with the Sensei guidance
-4. `Agent(subagent_type="unfolding-po", team_name="unfolding", name="po", prompt="Pick up your [PO] task from the task list and begin.")`
+4.
+`Agent(subagent_type="unfolding-po", team_name="unfolding", name="po", prompt="Pick up your [PO] task from the task list and begin.")`
 
 If resuming, create a task for the appropriate role per the phase table in
 `SKILL.md` and spawn the agent.
@@ -34,6 +35,7 @@ their first message in a new commissioning cycle. When you receive such a reques
    instructions in the prompt (they're in the agent definition)
 
 Spawn prompts should contain only:
+
 - An instruction to pick up the relevant task from the task list
 - **Sensei guidance** if provided
 
@@ -69,15 +71,15 @@ When an agent blocks, treat it as a genuine commissioner issue:
 
 Shut down each agent when their direct commissioner is satisfied:
 
-| Agent         | Shut down when                       |
-|---------------|--------------------------------------|
-| Coder         | Architect confirms STs pass          |
-| Code Reviewer | Coder confirms review is done        |
-| UI Expert     | Architect accepts the mapping        |
-| UX Designer   | PO accepts the design AND UX review  |
-| API Designer  | PO accepts the API spec              |
-| Architect     | PO verifies ATs pass                 |
-| PO            | Feature verified (ATs pass)          |
+| Agent         | Shut down when                      |
+|---------------|-------------------------------------|
+| Coder         | Architect confirms STs pass         |
+| Code Reviewer | Coder confirms review is done       |
+| UI Expert     | Architect accepts the mapping       |
+| UX Designer   | PO accepts the design AND UX review |
+| API Designer  | PO accepts the API spec             |
+| Architect     | PO verifies ATs pass                |
+| PO            | Feature verified (ATs pass)         |
 
 Use `SendMessage(type: "shutdown_request")`. If a later failure requires the
 same role, spawn a fresh agent.

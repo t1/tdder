@@ -48,7 +48,8 @@ If it doesn't, this is a fresh project — create `docs/state.yaml` and launch t
 1. Create `docs/state.yaml` with `phase: defining`
 2. Create a `[PO]` task with the Sensei guidance as the body
 3. Spawn the PO with the Sensei guidance as the `task_delegate` body
-4. On a genuinely empty project, tell the PO explicitly that there is no existing code or tech stack to explore and that it should start planning artifacts directly instead of probing the workspace
+4. On a genuinely empty project, tell the PO explicitly that there is no existing code or tech stack to explore and that
+   it should start planning artifacts directly instead of probing the workspace
 
 ### Resuming
 
@@ -56,12 +57,12 @@ The phase in `docs/state.yaml` tells you which agent to spawn — do not read
 any other files (code, ATs, ADRs, specs, etc.). Create a task referencing
 the phase, spawn the agent, and let it analyse the current state itself.
 
-| Phase | Agent to spawn |
-|---|---|
-| `selecting` | PO — to pick the next feature (omit `name`/`slug` from state) |
-| `defining` | PO — to continue defining the current feature |
-| `implementing` | Architect — to continue implementing the current feature |
-| `verifying` | PO — to run ATs and report failures to Architect |
+| Phase          | Agent to spawn                                                |
+|----------------|---------------------------------------------------------------|
+| `selecting`    | PO — to pick the next feature (omit `name`/`slug` from state) |
+| `defining`     | PO — to continue defining the current feature                 |
+| `implementing` | Architect — to continue implementing the current feature      |
+| `verifying`    | PO — to run ATs and report failures to Architect              |
 
 ## Process Overview
 
@@ -151,22 +152,22 @@ After major milestones (Feature complete, AT verified):
 
 ## Artifact Locations
 
-| Artifact                    | Location              | Owned by     |
-|-----------------------------|-----------------------|--------------|
-| Product brief               | `docs/product.md`     | PO           |
-| Domain Model Decisions      | `docs/dmd/`           | PO           |
-| Architecture Decision Records | `docs/adr/`         | Architect    |
-| Process state               | `docs/state.yaml`     | Orchestrator |
-| Acceptance Tests (ATs)      | `docs/ats/`           | PO           |
-| AT index (incl. Roles)      | `docs/ats/INDEX.md`   | PO           |
-| AT step catalog             | `docs/ats/steps/`     | PO           |
-| Business Rules              | `docs/rules/`         | PO           |
-| Business Rules index        | `docs/rules/INDEX.md` | PO           |
-| Business Rule step catalog  | `docs/rules/steps/`   | PO           |
-| UX component catalog        | `docs/ux/`            | UX Designer  |
-| UX tech mappings            | `docs/ux-mapping/`    | Architect    |
-| API resource catalog        | `docs/api/`           | API Designer |
-| System Tests (STs)          | In code               | Architect    |
+| Artifact                      | Location              | Owned by     |
+|-------------------------------|-----------------------|--------------|
+| Product brief                 | `docs/product.md`     | PO           |
+| Domain Model Decisions        | `docs/dmd/`           | PO           |
+| Architecture Decision Records | `docs/adr/`           | Architect    |
+| Process state                 | `docs/state.yaml`     | Orchestrator |
+| Acceptance Tests (ATs)        | `docs/ats/`           | PO           |
+| AT index (incl. Roles)        | `docs/ats/INDEX.md`   | PO           |
+| AT step catalog               | `docs/ats/steps/`     | PO           |
+| Business Rules                | `docs/rules/`         | PO           |
+| Business Rules index          | `docs/rules/INDEX.md` | PO           |
+| Business Rule step catalog    | `docs/rules/steps/`   | PO           |
+| UX component catalog          | `docs/ux/`            | UX Designer  |
+| UX tech mappings              | `docs/ux-mapping/`    | Architect    |
+| API resource catalog          | `docs/api/`           | API Designer |
+| System Tests (STs)            | In code               | Architect    |
 
 **Isolation rules:**
 

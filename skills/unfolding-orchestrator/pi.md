@@ -2,12 +2,12 @@
 
 ## Tools
 
-| Abstract action | Tool |
-|---|---|
-| Spawn an agent | `task_delegate(role, slug, body)` |
-| Resume a blocked agent | `task_unblock(slug, resume_message)` |
+| Abstract action          | Tool                                                 |
+|--------------------------|------------------------------------------------------|
+| Spawn an agent           | `task_delegate(role, slug, body)`                    |
+| Resume a blocked agent   | `task_unblock(slug, resume_message)`                 |
 | Block waiting for Sensei | `task_block(reason)` — on your own orchestrator task |
-| Read task state | `task_list` / `task_read` |
+| Read task state          | `task_list` / `task_read`                            |
 
 There is no team, no shutdown, no idle notification. When a `task_delegate`
 call returns, the sub-agent has either finished (`finished`) or blocked
@@ -21,7 +21,9 @@ the agents themselves.
 task_delegate(role="po", slug="po-<feature-slug>", body="<Sensei guidance>")
 ```
 
-If the workspace is genuinely empty, include that explicitly in the body, e.g. that there is no existing code or tech stack to explore and the PO should start with `docs/product.md`, ATs, rules, indexes, and any needed DMDs directly.
+If the workspace is genuinely empty, include that explicitly in the body,
+e.g. that there is no existing code or tech stack to explore and the PO should start
+with `docs/product.md`, ATs, rules, indexes, and any needed DMDs directly.
 
 If resuming, create a task for the appropriate role per the phase table in
 `SKILL.md` and call `task_delegate` with that role.

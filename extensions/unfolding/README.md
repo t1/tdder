@@ -91,6 +91,11 @@ For Architect → PO escalation: the PO may answer only PO-scope business questi
 without an ADR, the PO sends it back and requires the Architect to raise one. Mixed questions must be split into
 business and technical parts.
 
+For PO → Architect handoff: the PO may pass product intent, scope, business rules, user-visible behavior, and delivery
+channel. The PO must not add technical instructions or recommendations of their own. If technical guidance is passed
+through from the Sensei or from an existing ADR, it must be clearly labeled as such. The Architect must refuse unlabeled
+or unsupported technical steering from the PO and block for a cleaned handoff or proper ADR/Sensei backing.
+
 Decision ownership is strict:
 
 - **PO** owns **DMDs**
