@@ -296,7 +296,11 @@ files each time you add or modify ATs. Group related scenarios logically
 and use clear, consistent file names.
 
 Write all tests and rules as **Gherkin `.feature` files** using pure business
-language. Step patterns must describe *what* should happen, not *how*:
+language. Business rule files are still ordinary Gherkin `.feature` files —
+**never** invent a `.rule` extension. Every such file must start with a
+top-level `Feature:`. Use `Rule:` only **inside** a `.feature` file to group
+related scenarios; `Rule:` is not a file replacement for `Feature:`.
+Step patterns must describe *what* should happen, not *how*:
 
 - Good: `Given an owner named {string} with phone {string}` — "The clinic has this owner."
 - Bad: `Given I insert an owner into the database` — leaks technical details.
@@ -394,7 +398,7 @@ and a body containing:
 
 - The Feature description (without the ATs)
 - The Feature **slug**
-- Any context the Architect needs
+- Any context the Architect needs, **except** private AT scenarios or references to `docs/ats/*.feature`
 - The **new, changed, and removed step patterns** since the last commission,
   from `docs/ats/steps/` and `docs/rules/steps/`. If this is the first
   Feature, all patterns are new.
@@ -406,6 +410,9 @@ and a body containing:
   resource files in `docs/api/`)
 
 The step catalog is just a vocabulary — do NOT pass the ATs themselves to the Architect.
+Do **not** pass AT feature files, AT scenario text, or even references/paths to `docs/ats/*.feature`.
+The Architect may see only the AT step catalog (`docs/ats/steps/`) and the shared business rule `.feature`
+files in `docs/rules/`.
 
 Do **not** add technical instructions, implementation ideas, stack suggestions, or architectural recommendations to the
 `[ARCH]` task. Your handoff is strictly product scope, business rules, user-visible behavior, and references to
