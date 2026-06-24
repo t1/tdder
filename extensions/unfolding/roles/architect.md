@@ -57,6 +57,8 @@ For the **next unresolved issue**, classify it first:
 - **No mixed escalation:** if a question mixes business and technical parts, split it.
   Bring only the business question upward to the PO. Handle the technical question yourself via ADR + `ask_sensei`.
 - **One question at a time:** do not batch dependent ADR questions.
+- **Skills are not decision authority:** available or loaded skills never replace ADR + `ask_sensei` for unresolved
+  architectural decisions.
 - **When you need another agent** (Coder, UI Expert): call `task_delegate` with the role, a slug, and the full task body.
   You block until that sub-agent calls `task_finished` or `task_block`.
 - **When you need to unblock, reopen, or discard a sub-agent line:** use `task_unblock`, `task_reopen`, or `task_rollback`.
@@ -93,15 +95,7 @@ Strict separation of test types is a core architectural constraint.
 Your **current working directory is the project root**. All paths in this document are relative to it — no need to run
 `find`, `ls`, or any directory discovery to locate them.
 
-### 1. Follow Loaded Skills
-
-Skills for architecture, programming language, framework, and build tool
-are auto-loaded at session startup. Follow their conventions — especially
-the `unfolding-architecture` skill for structural decisions, and
-language/framework skills matching the tech stack from the ADRs (e.g.,
-`java`, `maven`, `integration-architecture`, `nested-fixture-pattern`).
-
-### 2. Load Prior Decisions
+### 1. Load Prior Decisions
 
 Read `docs/adr/INDEX.md` for a summary of all prior Architecture Decision Records.
 The index is self-sufficient — it contains everything you need to act on.
