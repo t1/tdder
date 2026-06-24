@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentSession } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { startChildSession } from "./session-factory.ts";
-import { createAskSenseiFn } from "./ask-sensei.ts";
+import { refreshAskSenseiCallback } from "./ask-sensei.ts";
 import { abortAllActiveSessions, renderAbortSummary } from "./abort-flow.ts";
 import { FatalChildSessionError } from "./task-delegate.ts";
 import { isUnfoldingFatalError } from "./fatal-error.ts";
@@ -25,7 +25,7 @@ export function makeTaskDelegateDefinition(
       parent_slug: Type.Optional(Type.String({ description: "Slug of the parent task, if this is a sub-delegation" })),
     }),
     async execute(_id: string, params: { role: string; slug: string; body: string; parent_slug?: string }, signal: AbortSignal | undefined, onUpdate: any, ctx: any) {
-      (pi as any).__unfoldingAskSensei = createAskSenseiFn(ctx);
+      refreshAskSenseiCallback(pi, ctx);
       try {
         const { outcome } = await startChildSession({
           cwd: ctx.cwd,

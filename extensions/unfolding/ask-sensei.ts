@@ -1,4 +1,4 @@
-import type { ExtensionContext, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { UnfoldingFatalError } from "./fatal-error.ts";
 
 export interface AskSenseiParams {
@@ -57,4 +57,9 @@ export function createAskSenseiFn(ctx: Pick<ExtensionContext, "hasUI" | "ui">): 
       );
     }
   };
+}
+
+export function refreshAskSenseiCallback(pi: ExtensionAPI, ctx: Pick<ExtensionContext, "hasUI" | "ui">): void {
+  if (!ctx.hasUI) return;
+  (pi as any).__unfoldingAskSensei = createAskSenseiFn(ctx);
 }

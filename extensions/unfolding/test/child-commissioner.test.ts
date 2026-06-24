@@ -251,4 +251,51 @@ describe("child commissioner tools", () => {
       cleanupTestTempDir(cwd);
     }
   });
+
+  it("task_delegate preserves the existing ask_sensei callback when the delegating session has no UI", async () => {
+    const { cwd } = makeTestGitRepo("child-commissioner");
+    const { faux, auth, modelRegistry } = sharedFauxSetup("nested-ask-sensei");
+    const asks: any[] = [];
+    const pi = {
+      __unfoldingAskSensei: async (params: any) => {
+        asks.push(params);
+        return { answer: "WORKS", cancelled: false };
+      },
+    } as any;
+    try {
+      faux.setResponses([
+        fauxAssistantMessage([fauxToolCall("ask_sensei", { question: "Nested question?" })], { stopReason: "toolUse" }),
+        fauxAssistantMessage("thanks"),
+        fauxAssistantMessage([fauxToolCall("task_finished", {})], { stopReason: "toolUse" }),
+      ]);
+
+      const activeSessions = new Map<string, any>();
+      const tool = makeTaskDelegateDefinition("architect", activeSessions, pi, () => {});
+      const result = await tool.execute(
+        "1",
+        {
+          role: "coder",
+          slug: "gc-ask-sensei",
+          body: "Immediately call ask_sensei with the question 'Nested question?' and then call task_finished.",
+        },
+        AbortSignal.timeout(3000),
+        undefined,
+        {
+          cwd,
+          hasUI: false,
+          ui: {},
+          model: faux.getModel(),
+          authStorage: auth,
+          modelRegistry,
+          abort() {},
+        },
+      );
+
+      assert.match(result.content[0].text, /Outcome: finished/);
+      assert.deepEqual(asks, [{ question: "Nested question?" }]);
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
 });
