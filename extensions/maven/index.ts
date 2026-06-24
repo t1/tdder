@@ -279,10 +279,10 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "maven_lookup_version",
     label: "Maven Lookup Version",
-    description: "Looks up the latest authoritative version for an exact Maven coordinate from Maven Central. Use this instead of guessing versions.",
-    promptSnippet: "Look up the latest version for a Maven artifact from Maven Central",
+    description: "Looks up the latest authoritative version for an exact Maven coordinate from Maven Central. Use this instead of guessing dependency or plugin versions.",
+    promptSnippet: "Look up the latest version for a Maven artifact or plugin from Maven Central",
     promptGuidelines: [
-      "Use maven_lookup_version before suggesting any Maven dependency version. Never guess or invent artifact versions.",
+      "Use maven_lookup_version before suggesting any Maven dependency or plugin version. Never guess or invent artifact versions.",
     ],
     parameters: Type.Object({
       groupId: Type.String({ description: "Maven groupId, e.g. org.assertj" }),

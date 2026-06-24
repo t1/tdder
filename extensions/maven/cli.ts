@@ -10,6 +10,8 @@
  *   run test [--scope surefire|failsafe|all] [--selector <sel>] [--project <p>]
  *   run package [--project <p>]
  *   lookup-version <groupId> <artifactId> [--include-prereleases]
+ *
+ * Version lookup applies equally to Maven dependencies and plugins.
  */
 
 import {resolve} from "node:path";
@@ -258,10 +260,10 @@ Examples:
   # Package a specific module
   tdder-maven package --project module-a
 
-  # Look up latest stable version on Maven Central
+  # Look up latest stable dependency or plugin version on Maven Central
   tdder-maven lookup-version org.assertj assertj-core
 
-  # Include pre-releases (RC, milestone, alpha, beta)
+  # Include pre-releases (RC, milestone, alpha, beta) for a dependency or plugin
   tdder-maven lookup-version io.quarkus quarkus-bom --include-prereleases
 
 Scope values for 'test':

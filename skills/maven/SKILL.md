@@ -42,7 +42,7 @@ but use whatever is most concise and clear, e.g. `assertj.version`, `cucumber.ve
 
 ## Version Lookup
 
-Always fetch from Maven Central (or other repository) to verify the latest version.
+Always fetch from Maven Central (or other repository) to verify the latest dependency or plugin version.
 Never trust version numbers from web search snippets, training data, or other secondary sources.
 
 Use `maven_lookup_version` (pi extension) if available.
