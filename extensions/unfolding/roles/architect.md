@@ -57,6 +57,9 @@ For the **next unresolved issue**, classify it first:
 - **No mixed escalation:** if a question mixes business and technical parts, split it.
   Bring only the business question upward to the PO. Handle the technical question yourself via ADR + `ask_sensei`.
 - **One question at a time:** do not batch dependent ADR questions.
+- **Do not load skills prematurely:** do not read, list, mention, or plan around stack-specific skills unless their
+  trigger is already visible in the workspace or already fixed by an ADR / explicit Sensei guidance. In an empty
+  project, decide the stack first via ADR + `ask_sensei`.
 - **Skills are not decision authority:** available or loaded skills never replace ADR + `ask_sensei` for unresolved
   architectural decisions.
 - **When you need another agent** (Coder, UI Expert): call `task_delegate` with the role, a slug, and the full task body.
