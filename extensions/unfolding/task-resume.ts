@@ -19,6 +19,7 @@ export interface ResumeDelegatedTaskParams {
   model?: Model<any>;
   authStorage?: AuthStorage;
   modelRegistry?: ModelRegistry;
+  exportDebugHtml?: (cwd: string, slug: string) => Promise<void> | void;
 }
 
 function missingSessionMessage(action: "reopen" | "unblock", slug: string): string {
@@ -43,6 +44,7 @@ export async function resumeDelegatedTask({
   model,
   authStorage,
   modelRegistry,
+  exportDebugHtml,
 }: ResumeDelegatedTaskParams): Promise<"finished" | "blocked" | "aborted"> {
   let session = activeSessions.get(slug);
   if (!session) {
@@ -52,7 +54,7 @@ export async function resumeDelegatedTask({
       activeSessions,
       pi,
       postOutput,
-      (shortRole: string) => makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput),
+      (shortRole: string) => makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput, undefined, exportDebugHtml),
       model,
       authStorage,
       modelRegistry,
@@ -108,6 +110,7 @@ export async function resumeDelegatedTask({
       postOutput(costLine);
     }
 
+    await exportDebugHtml?.(cwd, slug);
     return outcome;
   } finally {
     checkpointRecovery.unsubscribe();

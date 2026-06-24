@@ -10,6 +10,8 @@ import { fauxAssistantMessage, fauxToolCall, registerFauxProvider } from "./faux
 import { startChildSession } from "../session-factory.ts";
 import { makeTaskDelegateDefinition } from "../task-delegate-tool.ts";
 import { makeTestGitRepo } from "./test-git-repo.ts";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { cleanupTestTempDir } from "./test-temp.ts";
 
 /**
@@ -248,6 +250,45 @@ describe("child commissioner tools", () => {
     } finally {
       childFaux.unregister();
       gcFaux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("child commissioner debug mode exports grandchild session html on handover", async () => {
+    const { cwd } = makeTestGitRepo("child-commissioner");
+    const { faux, auth, modelRegistry } = sharedFauxSetup("child-debug-export");
+    const pi = {
+      __unfoldingDebugExportsEnabled: true,
+    } as any;
+    try {
+      faux.setResponses([
+        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "coder", slug: "gc-debug", body: "do something" })], { stopReason: "toolUse" }),
+        fauxAssistantMessage([fauxToolCall("task_finished", {})], { stopReason: "toolUse" }),
+        fauxAssistantMessage([fauxToolCall("task_accept", { slug: "gc-debug" })], { stopReason: "toolUse" }),
+        fauxAssistantMessage([fauxToolCall("task_finished", {})], { stopReason: "toolUse" }),
+      ]);
+
+      const activeSessions = new Map<string, any>();
+      const result = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "po",
+        slug: "child-debug-export",
+        body: "delegate to a coder, accept the result, then finish",
+        activeSessions,
+        pi,
+        postOutput: () => {},
+        nestedDelegateToolFactory: (shortRole) =>
+          makeTaskDelegateDefinition(shortRole, activeSessions, pi, () => {}),
+        model: faux.getModel(),
+        authStorage: auth,
+        modelRegistry,
+      });
+
+      assert.equal(result.outcome, "finished");
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "gc-debug.html")), true);
+    } finally {
+      faux.unregister();
       cleanupTestTempDir(cwd);
     }
   });

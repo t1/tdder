@@ -73,6 +73,7 @@ export async function createChildAgentSession({
       askSensei: (pi as any).__unfoldingAskSensei,
       model: selectedModel,
       modelRegistry,
+      debugExportsEnabled: (pi as any).__unfoldingDebugExportsEnabled === true,
     }),
   });
   activeSessions.set(slug, session);

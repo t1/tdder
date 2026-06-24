@@ -3,6 +3,7 @@ import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@ea
 import { Type } from "typebox";
 import { taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock, taskRollback } from "./task-tools.ts";
 import { waitForChildDecision, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
+import { exportTaskDebugHtmlIfEnabled, exportTaskSessionHtml } from "./debug-export.ts";
 import { readTask } from "./task-store.ts";
 import type { AskSenseiFn, AskSenseiParams } from "./ask-sensei.ts";
 import { UnfoldingFatalError } from "./fatal-error.ts";
@@ -15,6 +16,7 @@ export interface ChildCommissionerContext {
   model?: Model<any>;
   authStorage?: AuthStorage;
   modelRegistry?: ModelRegistry;
+  debugExportsEnabled?: boolean;
 }
 
 export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTool: any, commissionerCtx: ChildCommissionerContext): any[] {
@@ -26,6 +28,7 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
       parameters: Type.Object({}),
       async execute(_id: string, _params: {}, _signal: any, _onUpdate: any, ctx: any) {
         taskFinished(cwd, slug);
+        await exportTaskDebugHtmlIfEnabled(cwd, slug, commissionerCtx.debugExportsEnabled ?? false);
         ctx.abort();
         return { content: [{ type: "text", text: "task finished" }], details: {} };
       },
@@ -39,6 +42,7 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
       }),
       async execute(_id: string, blockParams: { blocked_reason: string }, _signal: any, _onUpdate: any, ctx: any) {
         taskBlock(cwd, slug, blockParams.blocked_reason);
+        await exportTaskDebugHtmlIfEnabled(cwd, slug, commissionerCtx.debugExportsEnabled ?? false);
         ctx.abort();
         return { content: [{ type: "text", text: "task blocked" }], details: {} };
       },
@@ -102,6 +106,7 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
           signal,
         );
 
+        await exportTaskDebugHtmlIfEnabled(cwd, params.slug, commissionerCtx.debugExportsEnabled ?? false);
         if (outcome === "aborted") commissionerCtx.activeSessions.delete(params.slug);
 
         return {
@@ -142,6 +147,7 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
           signal,
         );
 
+        await exportTaskDebugHtmlIfEnabled(cwd, params.slug, commissionerCtx.debugExportsEnabled ?? false);
         if (outcome === "aborted") commissionerCtx.activeSessions.delete(params.slug);
 
         return {
@@ -160,6 +166,9 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
         if (childSession) await childSession.abort().catch(() => {});
         commissionerCtx.activeSessions.delete(params.slug);
         taskRollback(cwd, params.slug);
+        if (commissionerCtx.debugExportsEnabled ?? false) {
+          await exportTaskSessionHtml(cwd, params.slug, task?.session_file);
+        }
         return {
           content: [{ type: "text", text: `Task "${params.slug}" rolled back.` }],
           details: {},
@@ -173,6 +182,7 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
       parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
       async execute(_id: string, params: { slug: string }) {
         commissionerCtx.postOutput(`  ✅ task_accept: ${params.slug}`);
+        await exportTaskDebugHtmlIfEnabled(cwd, params.slug, commissionerCtx.debugExportsEnabled ?? false);
         taskAccept(cwd, params.slug);
         commissionerCtx.activeSessions.delete(params.slug);
         return { content: [{ type: "text", text: `Task "${params.slug}" accepted.` }], details: {} };

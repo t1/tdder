@@ -8,11 +8,9 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentSession } from "@earendil-works/pi-coding-agent";
-import { exportFromFile } from "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/index.js";
 import { Box, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
@@ -26,6 +24,7 @@ import { askSenseiViaUi, createAskSenseiFn, refreshAskSenseiCallback } from "./a
 import { abortAllActiveSessions, renderAbortSummary } from "./abort-flow.ts";
 import { FatalChildSessionError } from "./task-delegate.ts";
 import { isUnfoldingFatalError } from "./fatal-error.ts";
+import { exportTaskDebugHtmlIfEnabled, exportTaskSessionHtml } from "./debug-export.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -57,20 +56,6 @@ function loadStateYaml(cwd: string): string | null {
 // ---------------------------------------------------------------------------
 
 const UNFOLDING_CHILD_OUTPUT_TYPE = "unfolding-child-output";
-const UNFOLDING_EXPORTS_DIR = ".pi/unfolding/exports";
-
-async function exportTaskSessionHtml(cwd: string, slug: string, sessionFile?: string): Promise<void> {
-  if (!sessionFile) return;
-  const dir = join(cwd, UNFOLDING_EXPORTS_DIR);
-  await mkdir(dir, { recursive: true });
-  await exportFromFile(sessionFile, join(dir, `${slug}.html`));
-}
-
-async function exportTaskDebugHtmlIfEnabled(cwd: string, slug: string, enabled: boolean): Promise<void> {
-  if (!enabled) return;
-  const task = readTask(cwd, slug);
-  await exportTaskSessionHtml(cwd, slug, task?.session_file);
-}
 
 function makePostOutput(pi: ExtensionAPI) {
   return (lines: string) =>
@@ -79,6 +64,7 @@ function makePostOutput(pi: ExtensionAPI) {
 
 export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<string, AgentSession> }) {
   (pi as any).__unfoldingAskSensei = undefined;
+  (pi as any).__unfoldingDebugExportsEnabled = false;
 
   pi.on("context", async (event) =>
     filterDisplayOnlyMessages(event, UNFOLDING_CHILD_OUTPUT_TYPE) as { messages?: any[] } | undefined,
@@ -144,6 +130,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       // Arm the system-prompt injection for the upcoming turn.
       pendingSkillInjection = skill;
       debugExportsEnabled = debug;
+      (pi as any).__unfoldingDebugExportsEnabled = debug;
 
       pi.sendUserMessage(message);
     },
@@ -215,11 +202,8 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     activeSessions,
     pi,
     postOutput,
-    async (cwd, slug, outcome) => {
-      if (outcome === "aborted") {
-        await exportTaskDebugHtmlIfEnabled(cwd, slug, debugExportsEnabled);
-      }
-    },
+    undefined,
+    (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, debugExportsEnabled),
   ));
 
   pi.registerTool({
@@ -265,6 +249,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           pi,
           model: ctx.model,
           modelRegistry: ctx.modelRegistry,
+          exportDebugHtml: (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, debugExportsEnabled),
         });
 
         if (outcome === "aborted") {
@@ -314,6 +299,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           pi,
           model: ctx.model,
           modelRegistry: ctx.modelRegistry,
+          exportDebugHtml: (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, debugExportsEnabled),
         });
 
         if (outcome === "aborted") {

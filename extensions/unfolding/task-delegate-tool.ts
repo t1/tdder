@@ -13,6 +13,7 @@ export function makeTaskDelegateDefinition(
   pi: ExtensionAPI,
   postOutput: (lines: string) => void,
   onChildOutcome?: (cwd: string, slug: string, outcome: "finished" | "blocked" | "aborted") => Promise<void> | void,
+  exportDebugHtml?: (cwd: string, slug: string) => Promise<void> | void,
 ): any {
   return {
     name: "task_delegate",
@@ -38,7 +39,7 @@ export function makeTaskDelegateDefinition(
           pi,
           postOutput,
           nestedDelegateToolFactory: (shortRole: string) =>
-            makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput, onChildOutcome),
+            makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput, onChildOutcome, exportDebugHtml),
           signal,
           onUpdate,
           model: ctx.model,
@@ -46,6 +47,7 @@ export function makeTaskDelegateDefinition(
         });
 
         await onChildOutcome?.(ctx.cwd, params.slug, outcome);
+        await exportDebugHtml?.(ctx.cwd, params.slug);
 
         if (outcome === "aborted") {
           activeSessions.delete(params.slug);

@@ -171,6 +171,80 @@ describe("registered task tools", () => {
     );
   });
 
+  it("child task_finished exports html when debug mode is enabled", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    try {
+      const sessionFile = join(cwd, "child-finished-session.jsonl");
+      writeFileSync(sessionFile, [
+        JSON.stringify({type: "session", version: 3, id: "sess-child-finished", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
+      ].join("\n") + "\n");
+      createTask(cwd, {
+        slug: "child-finished",
+        from: "orchestrator",
+        to: "po",
+        body: "Done",
+        session_file: sessionFile,
+      });
+
+      const [tool] = createChildTaskTools(cwd, "child-finished", {name: "task_delegate"} as any, {
+        activeSessions: new Map() as any,
+        postOutput: () => {
+        },
+        pi: {} as any,
+        debugExportsEnabled: true,
+      }).filter(tool => tool.name === "task_finished");
+
+      let aborted = false;
+      await tool.execute("1", {}, undefined, undefined, {
+        abort() {
+          aborted = true;
+        },
+      });
+
+      assert.equal(aborted, true);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "child-finished.html")), true);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("child task_block exports html when debug mode is enabled", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    try {
+      const sessionFile = join(cwd, "child-blocked-session.jsonl");
+      writeFileSync(sessionFile, [
+        JSON.stringify({type: "session", version: 3, id: "sess-child-blocked", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
+      ].join("\n") + "\n");
+      createTask(cwd, {
+        slug: "child-blocked",
+        from: "orchestrator",
+        to: "po",
+        body: "Blocked",
+        session_file: sessionFile,
+      });
+
+      const [tool] = createChildTaskTools(cwd, "child-blocked", {name: "task_delegate"} as any, {
+        activeSessions: new Map() as any,
+        postOutput: () => {
+        },
+        pi: {} as any,
+        debugExportsEnabled: true,
+      }).filter(tool => tool.name === "task_block");
+
+      let aborted = false;
+      await tool.execute("1", {blocked_reason: "need help"}, undefined, undefined, {
+        abort() {
+          aborted = true;
+        },
+      });
+
+      assert.equal(aborted, true);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "child-blocked.html")), true);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("task_rollback tool rolls back a finished task", async () => {
     const {cwd, head: baseSha} = makeTestGitRepo("index-tools");
     try {
@@ -425,6 +499,124 @@ describe("registered task tools", () => {
     }
   });
 
+
+  it("task_unblock exports html when /unfold --debug enabled", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    const sessionDir = makeTestTempDir("index-tools-session");
+    try {
+      const sessionFile = join(sessionDir, "fake-session.jsonl");
+      writeFileSync(sessionFile, [
+        JSON.stringify({type: "session", version: 3, id: "sess-5", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
+        JSON.stringify({
+          type: "message",
+          id: "m1",
+          parentId: null,
+          timestamp: "2026-06-22T00:00:01.000Z",
+          message: {role: "user", content: [{type: "text", text: "hello"}], timestamp: 1}
+        }),
+      ].join("\n") + "\n");
+      createTask(cwd, {
+        slug: "unblock-debug",
+        from: "orchestrator",
+        to: "coder",
+        body: "Do work",
+        session_file: sessionFile,
+      });
+      updateTaskStatus(cwd, "unblock-debug", "blocked", "waiting");
+
+      const activeSessions = new Map<string, any>();
+      let promptCount = 0;
+      activeSessions.set("unblock-debug", {
+        isStreaming: false,
+        prompt: async () => {
+          promptCount += 1;
+          updateTaskStatus(cwd, "unblock-debug", "finished");
+        },
+        getSessionStats: () => ({cost: 0, tokens: {input: 0, output: 0}}),
+      });
+
+      const {tools, commands} = setupPi(activeSessions);
+      const unfold = commands.get("unfold");
+      assert.ok(unfold, "unfold command must be registered");
+      await unfold.handler("--debug", {
+        cwd,
+        isIdle: () => true,
+        ui: {
+          notify() {
+          }
+        },
+      });
+
+      const tool = tools.get("task_unblock");
+      assert.ok(tool, "task_unblock tool must be registered");
+      await tool.execute("1", {slug: "unblock-debug", reason: "continue"}, undefined, undefined, {cwd});
+
+      assert.equal(promptCount, 1);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "unblock-debug.html")), true);
+    } finally {
+      cleanupTestTempDir(cwd);
+      cleanupTestTempDir(sessionDir);
+    }
+  });
+
+  it("task_reopen exports html when /unfold --debug enabled", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    const sessionDir = makeTestTempDir("index-tools-session");
+    try {
+      const sessionFile = join(sessionDir, "fake-session.jsonl");
+      writeFileSync(sessionFile, [
+        JSON.stringify({type: "session", version: 3, id: "sess-6", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
+        JSON.stringify({
+          type: "message",
+          id: "m1",
+          parentId: null,
+          timestamp: "2026-06-22T00:00:01.000Z",
+          message: {role: "user", content: [{type: "text", text: "hello"}], timestamp: 1}
+        }),
+      ].join("\n") + "\n");
+      createTask(cwd, {
+        slug: "reopen-debug",
+        from: "orchestrator",
+        to: "coder",
+        body: "Do work",
+        session_file: sessionFile,
+      });
+      updateTaskStatus(cwd, "reopen-debug", "finished");
+
+      const activeSessions = new Map<string, any>();
+      let promptCount = 0;
+      activeSessions.set("reopen-debug", {
+        isStreaming: false,
+        prompt: async () => {
+          promptCount += 1;
+          updateTaskStatus(cwd, "reopen-debug", "finished");
+        },
+        getSessionStats: () => ({cost: 0, tokens: {input: 0, output: 0}}),
+      });
+
+      const {tools, commands} = setupPi(activeSessions);
+      const unfold = commands.get("unfold");
+      assert.ok(unfold, "unfold command must be registered");
+      await unfold.handler("--debug", {
+        cwd,
+        isIdle: () => true,
+        ui: {
+          notify() {
+          }
+        },
+      });
+
+      const tool = tools.get("task_reopen");
+      assert.ok(tool, "task_reopen tool must be registered");
+      await tool.execute("1", {slug: "reopen-debug", reason: "redo"}, undefined, undefined, {cwd});
+
+      assert.equal(promptCount, 1);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "reopen-debug.html")), true);
+    } finally {
+      cleanupTestTempDir(cwd);
+      cleanupTestTempDir(sessionDir);
+    }
+  });
 
   it("does not export html when debug mode is off", async () => {
     const {cwd} = makeTestGitRepo("index-tools");

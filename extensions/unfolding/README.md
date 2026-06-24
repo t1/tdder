@@ -10,7 +10,8 @@ checkpoints, and assembles the results.
 starts the Unfolding Specs process. Run it in any project where you want to unfold a feature.
 
 Pass `--debug` to export child sessions to HTML for inspection. Debug exports are written to
-`.pi/unfolding/exports/<slug>.html` when a child task is accepted, rolled back, or ends aborted.
+`.pi/unfolding/exports/<slug>.html` on every handover checkpoint, including `task_delegate`
+outcomes, `task_finished`, `task_block`, `task_accept`, `task_reopen`, `task_unblock`, and `task_rollback`.
 
 ## Task tools
 
