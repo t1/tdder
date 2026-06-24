@@ -407,9 +407,7 @@ and a body containing:
 
 - The Feature description in product/business terms only
 - The Feature **slug**
-- The **new, changed, and removed step patterns** since the last commission,
-  from `docs/ats/steps/` and `docs/rules/steps/`. If this is the first
-  Feature, all patterns are new.
+- References to the shared step catalogs in `docs/ats/steps/` and `docs/rules/steps/`
 - References to the shared business rule `.feature` files in `docs/rules/`
 - For UI Features: the **UX spec** (component references and interaction
   flow) and the **UX change summary** (new, changed, removed, renamed
@@ -424,10 +422,12 @@ Do **not** pass AT feature files, AT scenario text, AT intent, or even reference
 The Architect may see only the AT step catalog (`docs/ats/steps/`) and the shared business rule `.feature`
 files in `docs/rules/`.
 
-Do **not** add technical instructions, implementation ideas, stack suggestions, or architectural recommendations to the
-`[ARCH]` task. Your handoff is strictly product scope, business rules, user-visible behavior, and references to
-already-decided business artifacts. If you must pass through technical guidance that came from the Sensei, label the
-source explicitly and quote it faithfully instead of rephrasing it as your own recommendation.
+Do **not** add technical instructions, implementation ideas, stack suggestions, architectural recommendations, or
+Conscious Deferrals to the `[ARCH]` task. Your handoff is strictly current product scope, business rules,
+user-visible behavior, and references to already-decided business artifacts. If a deferral imposes a concrete limit on
+this Feature, state only that current limit, not the deferral itself. If you must pass through technical guidance that
+came from the Sensei, label the source explicitly and quote it faithfully instead of rephrasing it as your own
+recommendation.
 
 Do **not** call `task_finished` after handing work to the Architect — the Architect is your delegate and must be able to
 bring business questions back to you directly. As soon as the current Feature is specified well enough for the Architect,
