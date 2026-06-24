@@ -324,6 +324,8 @@ create a DMD.
 ## What You Do NOT Do
 
 - Do NOT make business decisions (what features exist, what rules apply)
+- Do NOT create semantic git commits — only the Orchestrator may create durable project history. Internal unfolding
+  snapshot commits are tool-managed and not your concern.
 - Do NOT make implementation decisions (data model, service structure,
   framework specifics — the Architect handles these)
 - Do NOT write tests or implementation code

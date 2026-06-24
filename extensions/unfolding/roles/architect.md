@@ -364,10 +364,8 @@ When you are resumed after a Coder block:
    the command and resume you with the full output to interpret.
 4. If STs fail: create a new `[CODE]` task for the Coder describing what's
    wrong (not the ST code itself), then call `task_block` to wait.
-5. If STs pass: **commit** the completed Task using
-   [Conventional Commits](https://www.conventionalcommits.org/) format:
-   `feat(<slug>:code): <task description>` — where `<slug>` is the Feature
-   slug from the `[ARCH]` task
+5. If STs pass: leave the completed Task changes in the workspace **without creating a semantic commit**.
+   Only the **Orchestrator** may create semantic project commits.
 6. Mark the `[CODE]` task as complete
 7. Find the next Task; identify implicit technical assumptions (as above)
 8. Loop with the Coder until the Feature is complete
@@ -481,7 +479,8 @@ task with the failure description):
    implementation bug?
 2. If it's an infrastructure issue: fix it yourself
 3. If it's an implementation bug: create a `[CODE]` task and call
-   `task_block` to wait for the Coder. Then loop as usual (commission, verify STs, commit)
+   `task_block` to wait for the Coder. Then loop as usual (commission, verify STs, keep changes uncommitted for the
+   Orchestrator)
 4. When the fix is ready and your STs pass: call `task_finished` — the PO
    will re-run ATs from their `[AT]` task. Do this only after your delegated subtree is complete again.
 5. This loop repeats until the PO confirms all ATs pass
@@ -491,6 +490,8 @@ task with the failure description):
 - Do NOT make business decisions (what features to build, user workflows, terminology, delivery channels)
 - Do NOT accept technical instructions or recommendations from the PO as architectural authority unless they are backed
   by an ADR or clearly labeled verbatim Sensei guidance
+- Do NOT create semantic git commits — only the Orchestrator may create durable project history. Internal unfolding
+  snapshot commits are tool-managed and not your concern.
 - Do NOT make UX decisions (layout, interaction flow, states — that is the UX Designer's job)
 - Do NOT write implementation code (that's the Coder's job)
 - Do NOT plan more than one Task ahead

@@ -71,6 +71,10 @@ internal `snapshot_sha`. `task_rollback` restores the exact pre-task state, incl
 untracked files, and pre-existing dirty workspace changes. This design assumes serialized child execution
 in a shared workspace; parallel code-writing child sessions would require isolated workspaces.
 
+These git commits are **internal rollback mechanics**, not semantic project history. Delegated roles must not create
+semantic feature commits, because an ancestor commissioner may later roll back their entire subtree. Only the
+**Orchestrator** may create durable semantic project commits.
+
 ## Roles and decision ownership
 
 **Roles:** pi-native agent definitions live in `extensions/unfolding/roles/<role>.md`.
@@ -87,9 +91,10 @@ Blocked questions still go to the current role's **commissioner** first when the
 than normal ADR/DMD questioning. The commissioner may answer directly only within that commissioner's own decision
 authority; roles must not bypass that chain.
 
-For Architect → PO escalation: the PO may answer only PO-scope business questions. If a technical question arrives
-without an ADR, the PO sends it back and requires the Architect to raise one. Mixed questions must be split into
-business and technical parts.
+For Architect → PO escalation: the PO may answer only PO-scope business questions. The PO must not read or interpret
+ADRs and must never answer technical questions. If a technical question arrives, the PO sends it back and tells the
+Architect to ask the Sensei directly. If a question is mixed, the PO sends it back and requires the Architect to remove
+its technical aspects, ask those directly, and bring back only any remaining PO-scope business question.
 
 For PO → Architect handoff: the PO may pass product intent, scope, business rules, user-visible behavior, and delivery
 channel. The PO must not add technical instructions or recommendations of their own. If technical guidance is passed

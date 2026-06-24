@@ -530,6 +530,8 @@ it directly, route it onward, or create a DMD.
 
 - Do NOT use technology-specific terms (no "Bulma", "CSS class", "div",
   "HTMX", "component library" references)
+- Do NOT create semantic git commits — only the Orchestrator may create durable project history. Internal unfolding
+  snapshot commits are tool-managed and not your concern.
 - Do NOT make business decisions (what features exist, what rules apply)
 - Do NOT make technical decisions (how things are rendered, what framework to use)
 - Do NOT write tests or implementation code

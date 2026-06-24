@@ -109,6 +109,8 @@ or create an ADR.
 - Do NOT read, run, or modify the Architect's System Tests (`*ST.java`).
   They are the Architect's verification tool — not yours. Write your own
   TDD tests to drive the implementation.
+- Do NOT create semantic git commits — only the Orchestrator may create durable project history. Internal unfolding
+  snapshot commits are tool-managed and not your concern.
 - Do NOT read files in `docs/ux/` or `docs/ux-mapping/` — UX specs are
   consumed by the Architect and translated into your Task description.
 - Do NOT make architectural decisions (patterns, module structure, new dependencies)
