@@ -186,9 +186,9 @@ describe("task_delegate wiring", () => {
     assert.ok(delegateSrc.includes("activeSessions.delete"), "must remove session from activeSessions on abort/error");
   });
 
-  it("allows the aborted child outcome to trigger extension-level follow-up handling", () => {
+  it("routes aborted child outcomes through tooling-controlled stack abort handling", () => {
     const delegateSrc = readFileSync(new URL("../task-delegate-tool.ts", import.meta.url).pathname, "utf8");
     assert.ok(delegateSrc.includes("outcome === \"aborted\""), "must branch on aborted child outcome");
-    assert.ok(delegateSrc.includes("onChildOutcome"), "must expose a callback seam for extension-level aborted handling");
+    assert.ok(delegateSrc.includes("abortSessionStack"), "must abort the full active session stack in tooling");
   });
 });

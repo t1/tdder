@@ -496,7 +496,7 @@ describe("startChildSession groundwork", () => {
         slug: "architect-tools",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
-        pi: { __unfoldingAskSensei: async () => ({ answer: "5", cancelled: false }) } as any,
+        pi: { __unfoldingAskSensei: async () => "5" } as any,
         postOutput: () => {},
         nestedDelegateToolFactory,
         model: faux.getModel(),
@@ -542,7 +542,7 @@ describe("startChildSession groundwork", () => {
         activeSessions: new Map() as any,
         pi: { __unfoldingAskSensei: async (params: any) => {
           asks.push(params);
-          return { answer: "B", cancelled: false };
+          return "B";
         } } as any,
         postOutput: () => {},
         nestedDelegateToolFactory,
@@ -587,7 +587,7 @@ describe("startChildSession groundwork", () => {
         activeSessions: new Map() as any,
         pi: { __unfoldingAskSensei: async (params: any) => {
           asks.push(params);
-          return { answer: "Because", cancelled: false };
+          return "Because";
         } } as any,
         postOutput: () => {},
         nestedDelegateToolFactory,

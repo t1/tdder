@@ -4,7 +4,7 @@ import { Type } from "typebox";
 import { startChildSession } from "./session-factory.ts";
 import { refreshAskSenseiCallback } from "./ask-sensei.ts";
 import { readTask } from "./task-store.ts";
-import { abortAllActiveSessions, renderAbortSummary } from "./abort-flow.ts";
+import { abortSessionStack } from "./abort-flow.ts";
 import { FatalChildSessionError } from "./task-delegate.ts";
 import { isUnfoldingFatalError } from "./fatal-error.ts";
 
@@ -51,8 +51,10 @@ export function makeTaskDelegateDefinition(
         await exportDebugHtml?.(ctx.cwd, params.slug);
 
         if (outcome === "aborted") {
-          activeSessions.delete(params.slug);
-          return { content: [{ type: "text", text: `Task "${params.slug}" aborted.` }], details: {} };
+          const reason = `task "${params.slug}" was aborted`;
+          await abortSessionStack(ctx.cwd, reason, activeSessions, postOutput);
+          ctx.abort();
+          throw new Error(reason);
         }
 
         const blockedReason = outcome === "blocked" ? readTask(ctx.cwd, params.slug)?.blocked_reason : undefined;
@@ -70,8 +72,7 @@ export function makeTaskDelegateDefinition(
           const reason = err instanceof FatalChildSessionError
             ? `fatal child session failure in ${err.slug}: ${err.detail}`
             : err.message;
-          await abortAllActiveSessions(activeSessions);
-          postOutput(renderAbortSummary(ctx.cwd, reason, activeSessions));
+          await abortSessionStack(ctx.cwd, reason, activeSessions, postOutput);
           ctx.abort();
           throw err;
         }

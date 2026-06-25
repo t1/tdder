@@ -32,7 +32,7 @@ For the **next unresolved issue**, classify it first:
    - Immediately ask the Sensei with `ask_sensei`, one question at a time, using the ADR question/options verbatim.
    - Do **not** write the ADR `Decision` section yourself, do **not** choose an option yourself, and do **not** continue
      implementation past that decision point until `ask_sensei` has answered.
-   - If `ask_sensei` is unavailable or cancelled and you truly cannot proceed safely, call `task_block` with the honest reason.
+   - If `ask_sensei` is unavailable, call `task_block` only when the issue is truly a commissioner problem. If the Sensei aborts the dialog, that abort stops the current session stack.
 
 3. **Obvious, low-risk technical detail**
    - Decide locally and continue.
@@ -255,7 +255,7 @@ Do **not** stop merely because an ADR is needed. An open ADR means: write or upd
 Use `task_block` only for genuine commissioner issues, for example:
 
 - you need a PO-scope business answer
-- `ask_sensei` is unavailable or cancelled and you truly cannot proceed safely
+- `ask_sensei` is unavailable and you truly cannot proceed safely
 - an environmental/setup issue must be solved by your commissioner
 - the input is malformed in a way your commissioner must correct
 - the PO handoff contains technical instructions or recommendations that must be removed or explicitly backed by an ADR

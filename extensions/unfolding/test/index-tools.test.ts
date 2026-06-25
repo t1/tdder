@@ -70,7 +70,6 @@ describe("registered task tools", () => {
     ]);
     assert.equal(result.content[0].text, "B, but keep the build minimal");
     assert.equal(result.details.answer, "B, but keep the build minimal");
-    assert.equal(result.details.cancelled, false);
   });
 
   it("ask_sensei uses input for free-text questions", async () => {
@@ -98,7 +97,6 @@ describe("registered task tools", () => {
 
     assert.equal(result.content[0].text, "Because");
     assert.equal(result.details.answer, "Because");
-    assert.equal(result.details.cancelled, false);
   });
 
   it("ask_sensei lets rpc users replace a selected option in the editor", async () => {
@@ -131,7 +129,6 @@ describe("registered task tools", () => {
 
     assert.equal(result.content[0].text, "C");
     assert.equal(result.details.answer, "C");
-    assert.equal(result.details.cancelled, false);
   });
 
   it("child ask_sensei proxies through commissioner callback", async () => {
@@ -143,7 +140,7 @@ describe("registered task tools", () => {
       pi: {} as any,
       askSensei: async (params) => {
         asks.push(params);
-        return {answer: "5", cancelled: false};
+        return "5";
       },
     }).filter(tool => tool.name === "ask_sensei");
 
@@ -152,7 +149,26 @@ describe("registered task tools", () => {
     assert.deepEqual(asks, [{question: "2+3?"}]);
     assert.equal(result.content[0].text, "5");
     assert.equal(result.details.answer, "5");
-    assert.equal(result.details.cancelled, false);
+  });
+
+  it("root ask_sensei treats dialog cancellation as a normal abort", async () => {
+    const {tools} = setupPi();
+    const tool = tools.get("ask_sensei");
+    assert.ok(tool, "ask_sensei tool must be registered");
+
+    await assert.rejects(
+      () => tool.execute("1", {question: "Why?"}, undefined, undefined, {
+        cwd: ".",
+        hasUI: true,
+        mode: "rpc",
+        ui: {
+          async input() {
+            return undefined;
+          },
+        },
+      }),
+      /request was aborted/,
+    );
   });
 
   it("root ask_sensei fails hard when UI is unavailable", async () => {
@@ -426,7 +442,7 @@ describe("registered task tools", () => {
     }
   });
 
-  it("task_delegate keeps the final nested transcript visible when the child outcome is aborted", async () => {
+  it("task_delegate aborts the full session stack when the child outcome is aborted and keeps the final nested transcript visible", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
     try {
       const {tools, sentMessages} = setupPi();
@@ -436,15 +452,19 @@ describe("registered task tools", () => {
       const tool = tools.get("task_delegate");
       assert.ok(tool, "task_delegate tool must be registered");
 
-      const result = await tool.execute("1", {
-        role: "coder",
-        slug: "aborted-transcript",
-        body: "Do work"
-      }, controller.signal, (update: any) => {
-        updates.push(update.content[0].text);
-      }, {cwd});
+      let aborted = false;
+      await assert.rejects(
+        () => tool.execute("1", {
+          role: "coder",
+          slug: "aborted-transcript",
+          body: "Do work"
+        }, controller.signal, (update: any) => {
+          updates.push(update.content[0].text);
+        }, {cwd, abort() { aborted = true; }}),
+        /task "aborted-transcript" was aborted/,
+      );
 
-      assert.equal(result.content[0].text, 'Task "aborted-transcript" aborted.');
+      assert.equal(aborted, true);
       assert.ok(updates.some(text => text.includes("[coder/aborted-transcript]")), "transient nested transcript should be streamed before abort");
       const childOutput = sentMessages.find(message => message?.customType === "unfolding-child-output");
       assert.ok(childOutput, "aborted child should emit a durable display-only nested transcript snapshot");
@@ -455,7 +475,7 @@ describe("registered task tools", () => {
     }
   });
 
-  it("task_delegate exports html when the child outcome is aborted and /unfold --debug enabled", async () => {
+  it("task_delegate aborts the full session stack and exports html when the child outcome is aborted and /unfold --debug enabled", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
     const sessionDir = makeTestTempDir("index-tools-session");
     try {
@@ -494,13 +514,17 @@ describe("registered task tools", () => {
       controller.abort();
       const tool = tools.get("task_delegate");
       assert.ok(tool, "task_delegate tool must be registered");
-      const result = await tool.execute("1", {
-        role: "coder",
-        slug: "aborted-debug",
-        body: "Do work"
-      }, controller.signal, undefined, {cwd});
+      let aborted = false;
+      await assert.rejects(
+        () => tool.execute("1", {
+          role: "coder",
+          slug: "aborted-debug",
+          body: "Do work"
+        }, controller.signal, undefined, {cwd, abort() { aborted = true; }}),
+        /task "aborted-debug" was aborted/,
+      );
 
-      assert.equal(result.content[0].text, 'Task "aborted-debug" aborted.');
+      assert.equal(aborted, true);
       assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "aborted-debug.html")), true);
     } finally {
       cleanupTestTempDir(cwd);

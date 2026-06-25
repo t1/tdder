@@ -20,8 +20,8 @@ import type { SessionLike } from "./task-tools.ts";
 import { resumeDelegatedTask } from "./task-resume.ts";
 import { filterDisplayOnlyMessages } from "./display-only.ts";
 import { makeTaskDelegateDefinition } from "./task-delegate-tool.ts";
-import { askSenseiViaUi, createAskSenseiFn, refreshAskSenseiCallback } from "./ask-sensei.ts";
-import { abortAllActiveSessions, renderAbortSummary } from "./abort-flow.ts";
+import { createAskSenseiFn, refreshAskSenseiCallback } from "./ask-sensei.ts";
+import { abortSessionStack } from "./abort-flow.ts";
 import { FatalChildSessionError } from "./task-delegate.ts";
 import { isUnfoldingFatalError } from "./fatal-error.ts";
 import { exportTaskDebugHtmlIfEnabled, exportTaskSessionHtml } from "./debug-export.ts";
@@ -157,10 +157,10 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     async execute(_id, params, _signal, _onUpdate, ctx) {
       const askSensei = createAskSenseiFn(ctx);
       (pi as any).__unfoldingAskSensei = askSensei;
-      const result = await askSensei(params);
+      const answer = await askSensei(params);
       return {
-        content: [{ type: "text", text: result.answer ?? "(cancelled)" }],
-        details: result,
+        content: [{ type: "text", text: answer }],
+        details: { answer },
       };
     },
   });
@@ -252,7 +252,10 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
         });
 
         if (outcome === "aborted") {
-          activeSessions.delete(params.slug);
+          const reason = `task "${params.slug}" was aborted`;
+          await abortSessionStack(ctx.cwd, reason, activeSessions, postOutput);
+          ctx.abort();
+          throw new Error(reason);
         }
 
         const blockedReason = outcome === "blocked" ? readTask(ctx.cwd, params.slug)?.blocked_reason : undefined;
@@ -268,8 +271,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           const reason = err instanceof FatalChildSessionError
             ? `fatal child session failure in ${err.slug}: ${err.detail}`
             : err.message;
-          await abortAllActiveSessions(activeSessions);
-          postOutput(renderAbortSummary(ctx.cwd, reason, activeSessions));
+          await abortSessionStack(ctx.cwd, reason, activeSessions, postOutput);
           ctx.abort();
         }
         throw err;
@@ -306,7 +308,10 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
         });
 
         if (outcome === "aborted") {
-          activeSessions.delete(params.slug);
+          const reason = `task "${params.slug}" was aborted`;
+          await abortSessionStack(ctx.cwd, reason, activeSessions, postOutput);
+          ctx.abort();
+          throw new Error(reason);
         }
 
         const blockedReason = outcome === "blocked" ? readTask(ctx.cwd, params.slug)?.blocked_reason : undefined;
@@ -322,8 +327,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           const reason = err instanceof FatalChildSessionError
             ? `fatal child session failure in ${err.slug}: ${err.detail}`
             : err.message;
-          await abortAllActiveSessions(activeSessions);
-          postOutput(renderAbortSummary(ctx.cwd, reason, activeSessions));
+          await abortSessionStack(ctx.cwd, reason, activeSessions, postOutput);
           ctx.abort();
         }
         throw err;
@@ -340,19 +344,17 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       refreshAskSenseiCallback(pi, ctx);
-      postOutput(`  ↩️ task_rollback: ${params.slug}`);
+      postOutput(`  ↩ task_rollback: ${params.slug}`);
       const task = readTask(ctx.cwd, params.slug);
-      const session = activeSessions.get(params.slug);
-      if (session) await session.abort().catch(() => {});
-      activeSessions.delete(params.slug);
-      taskRollback(ctx.cwd, params.slug);
       if (debugExportsEnabled) {
         await exportTaskSessionHtml(ctx.cwd, params.slug, task?.session_file);
       }
-      return {
-        content: [{ type: "text", text: `Task "${params.slug}" rolled back.` }],
-        details: {},
-      };
+      const childSession = activeSessions.get(params.slug);
+      if (childSession) await childSession.abort().catch(() => {
+      });
+      activeSessions.delete(params.slug);
+      taskRollback(ctx.cwd, params.slug);
+      return { content: [{ type: "text", text: `Task "${params.slug}" rolled back.` }], details: {} };
     },
   });
 }

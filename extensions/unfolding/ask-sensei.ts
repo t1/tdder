@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Editor, type EditorTheme, Key, matchesKey, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { UnfoldingFatalError } from "./fatal-error.ts";
+import { isUnfoldingFatalError, UnfoldingFatalError } from "./fatal-error.ts";
 
 export interface AskSenseiParams {
   question: string;
@@ -9,25 +9,21 @@ export interface AskSenseiParams {
   placeholder?: string;
 }
 
-export interface AskSenseiResult {
-  answer: string | null;
-  cancelled: boolean;
-}
-
-export type AskSenseiFn = (params: AskSenseiParams) => Promise<AskSenseiResult>;
+export type AskSenseiFn = (params: AskSenseiParams) => Promise<string>;
 
 type AskSenseiContext = Pick<ExtensionContext, "mode" | "ui">;
 
 export async function askSenseiViaUi(
   params: AskSenseiParams,
   ctx: AskSenseiContext,
-): Promise<AskSenseiResult> {
+): Promise<string> {
   const prompt = params.context ? `${params.context}\n\n${params.question}` : params.question;
   const options = params.options?.filter(option => option.length > 0) ?? [];
 
   if (options.length === 0) {
     const answer = await ctx.ui.input(prompt, params.placeholder ?? "");
-    return { answer: answer ?? null, cancelled: answer === undefined };
+    if (answer === undefined) throw new UnfoldingFatalError("REQUEST_ABORTED", "request was aborted");
+    return answer;
   }
 
   if (ctx.mode === "tui") return askSenseiViaQuestionnaire(prompt, options, ctx);
@@ -38,20 +34,21 @@ async function askSenseiViaDialogs(
   prompt: string,
   options: string[],
   ctx: AskSenseiContext,
-): Promise<AskSenseiResult> {
+): Promise<string> {
   const selected = await ctx.ui.select(prompt, options);
-  if (selected === undefined) return { answer: null, cancelled: true };
+  if (selected === undefined) throw new UnfoldingFatalError("REQUEST_ABORTED", "request was aborted");
 
   const answer = await ctx.ui.editor(prompt, selected);
-  return { answer: answer ?? null, cancelled: answer === undefined };
+  if (answer === undefined) throw new UnfoldingFatalError("REQUEST_ABORTED", "request was aborted");
+  return answer;
 }
 
 async function askSenseiViaQuestionnaire(
   prompt: string,
   options: string[],
   ctx: AskSenseiContext,
-): Promise<AskSenseiResult> {
-  const result = await ctx.ui.custom<AskSenseiResult | null>((tui, theme, _kb, done) => {
+): Promise<string> {
+  const result = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
     let optionIndex = 0;
     let editMode = false;
     let cachedLines: string[] | undefined;
@@ -69,7 +66,7 @@ async function askSenseiViaQuestionnaire(
     const editor = new Editor(tui, editorTheme);
 
     editor.onSubmit = (value) => {
-      done({ answer: value, cancelled: false });
+      done(value);
     };
 
     function refresh() {
@@ -111,10 +108,10 @@ async function askSenseiViaQuestionnaire(
         return;
       }
       if (matchesKey(data, Key.enter)) {
-        done({ answer: options[optionIndex] ?? null, cancelled: false });
+        done(options[optionIndex] ?? "");
         return;
       }
-      if (matchesKey(data, Key.escape)) done({ answer: null, cancelled: true });
+      if (matchesKey(data, Key.escape)) done(null);
     }
 
     function render(width: number): string[] {
@@ -160,7 +157,7 @@ async function askSenseiViaQuestionnaire(
         lines.push("");
         addWrappedWithPrefix(" ", theme.fg("dim", "Enter to submit • Esc to return to the options"));
       } else {
-        addWrappedWithPrefix(" ", theme.fg("dim", "↑↓ navigate • Enter to accept • Tab/→ to edit or replace • Esc to cancel"));
+        addWrappedWithPrefix(" ", theme.fg("dim", "↑↓ navigate • Enter to accept • Tab/→ to edit or replace • Esc to abort"));
       }
       lines.push(theme.fg("accent", "─".repeat(renderWidth)));
 
@@ -177,7 +174,8 @@ async function askSenseiViaQuestionnaire(
     };
   });
 
-  return result ?? { answer: null, cancelled: true };
+  if (result === null) throw new UnfoldingFatalError("REQUEST_ABORTED", "request was aborted");
+  return result;
 }
 
 export function createAskSenseiFn(ctx: Pick<ExtensionContext, "hasUI" | "mode" | "ui">): AskSenseiFn {
@@ -191,6 +189,7 @@ export function createAskSenseiFn(ctx: Pick<ExtensionContext, "hasUI" | "mode" |
     try {
       return await askSenseiViaUi(params, ctx);
     } catch (error) {
+      if (isUnfoldingFatalError(error)) throw error;
       const detail = error instanceof Error ? error.message : String(error);
       throw new UnfoldingFatalError(
         "ASK_SENSEI_UI_FAILED",

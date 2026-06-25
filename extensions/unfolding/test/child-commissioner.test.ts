@@ -335,7 +335,7 @@ describe("child commissioner tools", () => {
     const pi = {
       __unfoldingAskSensei: async (params: any) => {
         asks.push(params);
-        return { answer: "WORKS", cancelled: false };
+        return "WORKS";
       },
     } as any;
     try {

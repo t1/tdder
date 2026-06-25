@@ -65,10 +65,10 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
             "ask_sensei failed: no commissioner UI callback is available for this child session",
           );
         }
-        const result = await commissionerCtx.askSensei(params);
+        const answer = await commissionerCtx.askSensei(params);
         return {
-          content: [{ type: "text", text: result.answer ?? "(cancelled)" }],
-          details: result,
+          content: [{ type: "text", text: answer }],
+          details: { answer },
         };
       },
     },

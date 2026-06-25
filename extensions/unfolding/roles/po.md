@@ -529,7 +529,7 @@ Do **not** stop merely because a DMD is needed. An open DMD means: write or upda
 Use `task_block` only for genuine commissioner issues, for example:
 
 - a lower role needs a PO-scope answer that you cannot yet give honestly
-- `ask_sensei` is unavailable or cancelled and you truly cannot proceed safely
+- `ask_sensei` is unavailable and you truly cannot proceed safely
 - an environmental/setup issue must be solved by your commissioner
 - the input is malformed in a way your commissioner must correct
 

@@ -251,7 +251,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         pi: {
           __unfoldingAskSensei: async (params: any) => {
             asks.push(params);
-            return {answer: "42", cancelled: false};
+            return "42";
           }
         } as any,
         postOutput: () => {
@@ -277,7 +277,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         pi: {
           __unfoldingAskSensei: async (params: any) => {
             asks.push(params);
-            return {answer: "42", cancelled: false};
+            return "42";
           }
         } as any,
         model: faux.getModel(),
