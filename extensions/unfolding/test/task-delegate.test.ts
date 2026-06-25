@@ -332,7 +332,7 @@ describe("streamChildSession", () => {
     assert.ok(last.includes("[po] ❌ provider exploded"), `expected assistant error line, got: ${last}`);
   });
 
-  it("shows reduced unexpected child events in the normal transcript with a log reference", () => {
+  it("skips queue_update protocol chatter", () => {
     const updates: string[] = [];
     let captured: ((e: any) => void) | undefined;
     const fakeSession = {
@@ -346,10 +346,12 @@ describe("streamChildSession", () => {
     streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text), {
       sessionFile: "/logs/child.jsonl",
     });
-    captured!({ type: "queue_update", steering: [], followUp: [] });
+    const before = updates[updates.length - 1];
 
-    const last = updates[updates.length - 1];
-    assert.ok(last.includes("[po] ⚠ unexpected child event for po/slug: type=queue_update — see /logs/child.jsonl"), `expected reduced unexpected-event notice, got: ${last}`);
+    captured!({ type: "queue_update", steer: [], followUp: [], nextTurn: [] });
+
+    const after = updates[updates.length - 1];
+    assert.equal(after, before, "did not expect queue_update to change the transcript");
   });
 
   it("shows successful tool executions with a trailing checkmark", () => {

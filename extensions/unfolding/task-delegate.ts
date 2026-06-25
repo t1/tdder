@@ -86,6 +86,7 @@ const INTENTIONALLY_SKIPPED_EVENT_TYPES = new Set([
   "agent_end",
   "turn_start",
   "message_start",
+  "queue_update",
 ]);
 
 const INTENTIONALLY_SKIPPED_ASSISTANT_MESSAGE_EVENT_TYPES = new Set([
