@@ -30,6 +30,19 @@ function setupPi(activeSessions?: Map<string, any>) {
     },
     sendUserMessage() {
     },
+    getAllTools() {
+      return [
+        {name: "task_delegate", sourceInfo: {baseDir: join(process.cwd(), "extensions", "unfolding")}},
+        {name: "maven_run", sourceInfo: {baseDir: join(process.cwd(), "extensions", "maven")}},
+        {name: "idea_search_symbol", sourceInfo: {baseDir: join(process.cwd(), "extensions", "idea")}},
+      ];
+    },
+    getCommands() {
+      return [
+        {name: "maven", source: "extension", sourceInfo: {baseDir: join(process.cwd(), "extensions", "maven")}},
+        {name: "quarkus", source: "extension", sourceInfo: {baseDir: join(process.cwd(), "extensions", "quarkus")}},
+      ];
+    },
   };
   initUnfolding(pi as any, {activeSessions} as any);
   return {tools, commands, sentMessages};

@@ -2,7 +2,7 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {mkdirSync, readFileSync, writeFileSync} from "node:fs";
 import {execFileSync} from "node:child_process";
-import {join} from "node:path";
+import {join, resolve} from "node:path";
 import {AuthStorage, ModelRegistry} from "@earendil-works/pi-coding-agent";
 import {readTaskSnapshot, startChildSession} from "../session-factory.ts";
 import { CHILD_SESSION_FAILURE_BLOCKED_REASON, MISSING_CHECKPOINT_BLOCKED_REASON } from "../task-delegate.ts";
@@ -484,7 +484,7 @@ describe("startChildSession groundwork", () => {
     }
   });
 
-  it("child sessions exclude root-only task tools and root ask_sensei", async () => {
+  it("child sessions exclude root-only task tools, keep ask_sensei, and load sibling pi extensions", async () => {
     const { cwd } = makeTestGitRepo("session-factory");
     const { faux, authStorage, modelRegistry } = fauxSessionSetup("session-tools");
     try {
@@ -496,7 +496,13 @@ describe("startChildSession groundwork", () => {
         slug: "architect-tools",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
-        pi: { __unfoldingAskSensei: async () => "5" } as any,
+        pi: {
+          __unfoldingAskSensei: async () => "5",
+          __unfoldingExtensionPaths: [
+            resolve(new URL("../../maven", import.meta.url).pathname),
+            resolve(new URL("../../idea", import.meta.url).pathname),
+          ],
+        } as any,
         postOutput: () => {},
         nestedDelegateToolFactory,
         model: faux.getModel(),
@@ -508,6 +514,9 @@ describe("startChildSession groundwork", () => {
       assert.equal(tools.includes("task_list"), false, "child session must not expose task_list");
       assert.equal(tools.includes("task_read"), false, "child session must not expose task_read");
       assert.equal(tools.includes("ask_sensei"), true, "child session should expose the proxied ask_sensei");
+      assert.equal(tools.includes("maven_project_info"), true, "child session should load sibling pi extensions such as maven");
+      assert.equal(tools.includes("maven_run"), true, "child session should load sibling pi extensions such as maven");
+      assert.equal(tools.includes("maven_lookup_version"), true, "child session should load sibling pi extensions such as maven");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

@@ -8,7 +8,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { resolve, join, dirname } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentSession } from "@earendil-works/pi-coding-agent";
 import { visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
@@ -51,6 +51,28 @@ function loadStateYaml(cwd: string): string | null {
   return readFileSync(path, "utf8").trim();
 }
 
+function inferInheritedExtensionPaths(pi: ExtensionAPI): string[] {
+  const toolSources = pi.getAllTools().map(tool => tool.sourceInfo);
+  const commandSources = pi.getCommands()
+    .filter(command => command.source === "extension")
+    .map(command => command.sourceInfo);
+
+  const seen = new Set<string>();
+  return [...toolSources, ...commandSources]
+    .flatMap(sourceInfo => {
+      const baseDir = sourceInfo.baseDir;
+      if (!baseDir) return [];
+      const extensionDir = dirname(baseDir);
+      return [extensionDir];
+    })
+    .filter(path => {
+      if (seen.has(path)) return false;
+      seen.add(path);
+      return true;
+    })
+    .sort();
+}
+
 // ---------------------------------------------------------------------------
 // Extension
 // ---------------------------------------------------------------------------
@@ -86,6 +108,7 @@ function renderChildOutput(lines: string, theme: { bg: (color: string, text: str
 export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<string, AgentSession> }) {
   (pi as any).__unfoldingAskSensei = undefined;
   (pi as any).__unfoldingDebugExportsEnabled = false;
+  (pi as any).__unfoldingExtensionPaths = inferInheritedExtensionPaths(pi);
 
   pi.on("context", async (event) =>
     filterDisplayOnlyMessages(event, UNFOLDING_CHILD_OUTPUT_TYPE) as { messages?: any[] } | undefined,

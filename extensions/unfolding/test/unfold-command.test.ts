@@ -131,6 +131,21 @@ describe("structural invariants", () => {
     );
   });
 
+  it("captures inherited extension paths from the current extension-loaded session", () => {
+    assert.ok(
+      src.includes("inferInheritedExtensionPaths(pi)"),
+      "index.ts should derive child-session extension paths from the parent session",
+    );
+    assert.ok(
+      src.includes("pi.getAllTools()"),
+      "index.ts should inspect loaded extension-owned tools",
+    );
+    assert.ok(
+      src.includes("pi.getCommands()"),
+      "index.ts should inspect loaded extension-owned commands",
+    );
+  });
+
   it("registers a message renderer for unfolding child output", () => {
     assert.ok(
       src.includes('registerMessageRenderer<{ lines?: string }>(UNFOLDING_CHILD_OUTPUT_TYPE'),

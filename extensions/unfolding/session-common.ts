@@ -1,4 +1,4 @@
-import {join, resolve} from "node:path";
+import {resolve} from "node:path";
 import type {Model} from "@earendil-works/pi-ai";
 import type {AgentSession, AuthStorage, ExtensionAPI, ModelRegistry} from "@earendil-works/pi-coding-agent";
 import {createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager} from "@earendil-works/pi-coding-agent";
@@ -25,6 +25,11 @@ export function resolveCurrentModel(_pi: ExtensionAPI): Model<any> | undefined {
   return undefined;
 }
 
+function inheritedExtensionPaths(pi: ExtensionAPI): string[] {
+  const paths = (pi as any).__unfoldingExtensionPaths;
+  return Array.isArray(paths) ? paths.filter((path): path is string => typeof path === "string" && path.length > 0) : [];
+}
+
 export async function createChildAgentSession({
                                                 cwd,
                                                 role,
@@ -46,12 +51,11 @@ export async function createChildAgentSession({
   const systemPrompt = loadAgentSystemPrompt(rolesDir, shortRole);
   if (!systemPrompt) throw new Error(`No agent definition found for role "${shortRole}" in ${rolesDir}`);
 
-  const tdderRoot = resolve(new URL(import.meta.url).pathname, "../../..");
   const loader = new DefaultResourceLoader({
     cwd,
     agentDir: getAgentDir(),
     noContextFiles: true,
-    additionalExtensionPaths: [join(tdderRoot, "extensions")],
+    additionalExtensionPaths: inheritedExtensionPaths(pi),
     systemPromptOverride: () => systemPrompt,
   });
   await loader.reload();
