@@ -136,6 +136,14 @@ describe("structural invariants", () => {
       src.includes('registerMessageRenderer<{ lines?: string }>(UNFOLDING_CHILD_OUTPUT_TYPE'),
       "index.ts must register a renderer for unfolding child output messages",
     );
+    assert.ok(
+      src.includes('render(width: number)'),
+      "index.ts renderer should wrap against the actual render width",
+    );
+    assert.ok(
+      src.includes('wrapTextWithAnsi'),
+      "index.ts renderer should preserve ANSI styling such as italic nested thinking",
+    );
   });
 
   it("documents unfolding details in the extension README and links to it from the root README", () => {

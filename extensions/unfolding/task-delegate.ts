@@ -107,6 +107,16 @@ type StreamRow =
   | { kind: "assistant"; rowKey: string; icon: "💬" | "🤔"; text: string }
   | { kind: "note"; text: string };
 
+const ANSI_ITALIC_ON = "\x1b[3m";
+const ANSI_ITALIC_OFF = "\x1b[23m";
+
+function renderAssistantRow(role: string, row: Extract<StreamRow, { kind: "assistant" }>): string {
+  const prefix = `  [${role}] ${row.icon} `;
+  return row.icon === "🤔"
+    ? `${prefix}${ANSI_ITALIC_ON}${row.text}${ANSI_ITALIC_OFF}`
+    : `${prefix}${row.text}`;
+}
+
 export interface StreamChildSessionOptions {
   now?: () => number;
   setIntervalFn?: (callback: () => void, ms: number) => ReturnType<typeof setInterval>;
@@ -266,7 +276,7 @@ export function streamChildSession(
     ...rows.flatMap(row => {
       switch (row.kind) {
         case "tool": return renderToolRow(row);
-        case "assistant": return [`  [${role}] ${row.icon} ${row.text}`];
+        case "assistant": return [renderAssistantRow(role, row)];
         case "note": return [row.text];
       }
     }),

@@ -11,7 +11,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentSession } from "@earendil-works/pi-coding-agent";
-import { Box, Text } from "@earendil-works/pi-tui";
+import { visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
 import { taskList, taskRead, taskAccept, taskReopen, taskUnblock, taskRollback } from "./task-tools.ts";
@@ -62,6 +62,27 @@ function makePostOutput(pi: ExtensionAPI) {
     pi.sendMessage({ customType: UNFOLDING_CHILD_OUTPUT_TYPE, content: "", display: true, details: { lines } });
 }
 
+function wrapPreservingBlankLines(text: string, width: number): string[] {
+  return text.split("\n").flatMap(line => {
+    if (line.length === 0) return [""];
+    const wrapped = wrapTextWithAnsi(line, width);
+    return wrapped.length > 0 ? wrapped : [""];
+  });
+}
+
+function padVisibleWidth(text: string, width: number): string {
+  const padding = Math.max(0, width - visibleWidth(text));
+  return `${text}${" ".repeat(padding)}`;
+}
+
+function renderChildOutput(lines: string, theme: { bg: (color: string, text: string) => string }, width: number): string[] {
+  const innerWidth = Math.max(1, width - 2);
+  const backgroundLine = theme.bg("customMessageBg", " ".repeat(innerWidth + 2));
+  const content = wrapPreservingBlankLines(lines, innerWidth)
+    .map(line => theme.bg("customMessageBg", ` ${padVisibleWidth(line, innerWidth)} `));
+  return [backgroundLine, ...content, backgroundLine];
+}
+
 export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<string, AgentSession> }) {
   (pi as any).__unfoldingAskSensei = undefined;
   (pi as any).__unfoldingDebugExportsEnabled = false;
@@ -71,10 +92,14 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
   );
 
   pi.registerMessageRenderer<{ lines?: string }>(UNFOLDING_CHILD_OUTPUT_TYPE, (message, _options, theme) => {
-    const box = new Box(1, 1, (t) => theme.bg("customMessageBg", t));
     const lines = message.details?.lines ?? message.content ?? "";
-    box.addChild(new Text(lines, 0, 0));
-    return box;
+    return {
+      render(width: number) {
+        return renderChildOutput(lines, theme, Math.max(1, width));
+      },
+      invalidate() {
+      },
+    };
   });
 
   /** Set when /unfold is invoked; cleared after the next before_agent_start fires. */

@@ -11,6 +11,9 @@ import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON, CHILD_SESSION_FAILURE_BLOCKED_REASON, FatalChildSessionError} from "../task-delegate.ts";
 
+const ANSI_ITALIC_ON = "\x1b[3m";
+const ANSI_ITALIC_OFF = "\x1b[23m";
+
 const rolesDir = resolve(new URL("../roles", import.meta.url).pathname);
 
 // ---------------------------------------------------------------------------
@@ -137,7 +140,7 @@ describe("streamChildSession", () => {
     captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: " first"}});
 
     const last = updates[updates.length - 1];
-    assert.ok(last.includes("[po] 🤔 plan first"), `expected accumulated thinking text, got: ${last}`);
+    assert.ok(last.includes(`[po] 🤔 ${ANSI_ITALIC_ON}plan first${ANSI_ITALIC_OFF}`), `expected italic accumulated thinking text, got: ${last}`);
   });
 
   it("keeps thinking and text on separate lines when deltas interleave", () => {
@@ -158,7 +161,7 @@ describe("streamChildSession", () => {
     captured!({type: "message_update", assistantMessageEvent: {type: "text_delta", contentIndex: 1, delta: " more"}});
 
     const last = updates[updates.length - 1];
-    assert.ok(last.includes("[po] 🤔 think more"), `expected thinking line, got: ${last}`);
+    assert.ok(last.includes(`[po] 🤔 ${ANSI_ITALIC_ON}think more${ANSI_ITALIC_OFF}`), `expected italic thinking line, got: ${last}`);
     assert.ok(last.includes("[po] 💬 say more"), `expected text line, got: ${last}`);
   });
 
