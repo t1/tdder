@@ -16,8 +16,8 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { setToolsActive } from "./vendor/tool-activation.ts";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { Type } from "typebox";
 import {
@@ -50,6 +50,31 @@ const FOOTER_KEY = "jdtls";
 const DIAGNOSTICS_QUIET_MS = 2000;
 const LSP_INVALID_REQUEST = -32600;
 const LSP_CODE_ACTION_TRIGGER_REQUESTED = 1;
+
+/** Path to the per-project jdtls settings file. */
+function settingsPath(cwd: string): string {
+  return join(cwd, ".pi", "settings", "jdtls.json");
+}
+
+interface JdtlsSettings {
+  enabled?: boolean;
+}
+
+function readSettings(cwd: string): JdtlsSettings | null {
+  const p = settingsPath(cwd);
+  if (!existsSync(p)) return null;
+  try {
+    return JSON.parse(readFileSync(p, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeSettings(cwd: string, settings: JdtlsSettings): void {
+  const p = settingsPath(cwd);
+  mkdirSync(join(cwd, ".pi", "settings"), { recursive: true });
+  writeFileSync(p, JSON.stringify(settings, null, 2) + "\n", "utf-8");
+}
 
 /** Return shape of every jdtls tool execute callback. */
 type JdtlsResult = {
@@ -558,12 +583,25 @@ export default function (pi: ExtensionAPI): void {
     setToolsActive(pi, JDTLS_TOOL_NAMES, status === "ready");
   }
 
-  pi.on("session_start", (_event, ctx) => {
+  pi.on("session_start", async (_event, ctx) => {
     cwd = ctx.cwd;
 
-    // Only activate for Java projects that have jdtls installed.
+    // Only consider Java projects that have jdtls installed.
     if (!isJavaProject(ctx.cwd)) return;
-    if (!findJdtls()) return;
+    const exe = findJdtls();
+    if (!exe) return;
+
+    // Check persisted preference first.
+    const settings = readSettings(ctx.cwd);
+    if (settings?.enabled === false) return; // previously declined — stay silent
+
+    // Ask the user whether to enable jdtls tools for this session.
+    const ok = await ctx.ui.confirm(
+      "Enable jdtls tools?",
+      `This project looks like a Java project and jdtls is installed. Enable Java language server tools (diagnostics, symbol search, rename, format)?`,
+    );
+    writeSettings(ctx.cwd, { enabled: ok });
+    if (!ok) return;
 
     server = new JdtlsServer((status: ServerStatus) => {
       ctx.ui.setStatus(FOOTER_KEY, footerLabel(status));
