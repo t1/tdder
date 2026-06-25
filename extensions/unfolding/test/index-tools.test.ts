@@ -14,8 +14,12 @@ function setupPi(activeSessions?: Map<string, any>) {
   const tools = new Map<string, any>();
   const commands = new Map<string, any>();
   const sentMessages: any[] = [];
+  const events = new Map<string, any[]>();
   const pi = {
-    on() {
+    on(name: string, handler: any) {
+      const list = events.get(name) ?? [];
+      list.push(handler);
+      events.set(name, list);
     },
     registerMessageRenderer() {
     },
@@ -45,7 +49,7 @@ function setupPi(activeSessions?: Map<string, any>) {
     },
   };
   initUnfolding(pi as any, {activeSessions} as any);
-  return {tools, commands, sentMessages};
+  return {tools, commands, sentMessages, events, pi};
 }
 
 describe("registered task tools", () => {

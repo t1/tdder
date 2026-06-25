@@ -108,7 +108,11 @@ function renderChildOutput(lines: string, theme: { bg: (color: string, text: str
 export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<string, AgentSession> }) {
   (pi as any).__unfoldingAskSensei = undefined;
   (pi as any).__unfoldingDebugExportsEnabled = false;
-  (pi as any).__unfoldingExtensionPaths = inferInheritedExtensionPaths(pi);
+  (pi as any).__unfoldingExtensionPaths = undefined;
+
+  pi.on("session_start", async () => {
+    (pi as any).__unfoldingExtensionPaths = inferInheritedExtensionPaths(pi);
+  });
 
   pi.on("context", async (event) =>
     filterDisplayOnlyMessages(event, UNFOLDING_CHILD_OUTPUT_TYPE) as { messages?: any[] } | undefined,

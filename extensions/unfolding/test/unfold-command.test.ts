@@ -131,7 +131,11 @@ describe("structural invariants", () => {
     );
   });
 
-  it("captures inherited extension paths from the current extension-loaded session", () => {
+  it("captures inherited extension paths after session start, once extension runtime is initialized", () => {
+    assert.ok(
+      src.includes('pi.on("session_start"'),
+      "index.ts should defer extension-path capture until session_start",
+    );
     assert.ok(
       src.includes("inferInheritedExtensionPaths(pi)"),
       "index.ts should derive child-session extension paths from the parent session",
