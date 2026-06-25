@@ -151,9 +151,8 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     parameters: Type.Object({
       question: Type.String({ description: "The single question to ask the user." }),
       context: Type.Optional(Type.String({ description: "Optional brief context shown above the question." })),
-      options: Type.Optional(Type.Array(Type.String(), { description: "Optional multiple-choice options." })),
-      freeText: Type.Optional(Type.Boolean({ description: "If true and options are provided, also offer an 'Other…' choice for free-text input." })),
-      placeholder: Type.Optional(Type.String({ description: "Optional placeholder for free-text input." })),
+      options: Type.Optional(Type.Array(Type.String(), { description: "Optional suggested answers. If you recommend one, put it first — the questionnaire defaults to the first option." })),
+      placeholder: Type.Optional(Type.String({ description: "Optional placeholder for free-text input when no options are provided." })),
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       const askSensei = createAskSenseiFn(ctx);

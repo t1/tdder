@@ -306,7 +306,9 @@ Example of good trade-offs (choosing a persistence library):
 2. Ask the Sensei directly with `ask_sensei`, using the ADR question verbatim.
    - Present only one ADR question at a time
    - Pass options when the ADR contains explicit options
-   - Use free text only when the decision genuinely needs it
+   - For ADR options, present 2–4 serious alternatives with real tradeoffs, not filler
+   - If you recommend one option, put it first — `ask_sensei` defaults to the first option
+   - Make each option decision-ready: short label first, then brief rationale / pros / cons
    - Do not add your own interpretation beyond brief task context if needed
    - Do **not** replace this step with your own recommendation or with a guessed `Decision`
 

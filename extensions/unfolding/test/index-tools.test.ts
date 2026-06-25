@@ -36,12 +36,12 @@ function setupPi(activeSessions?: Map<string, any>) {
 }
 
 describe("registered task tools", () => {
-  it("ask_sensei uses select for multiple-choice questions", async () => {
+  it("ask_sensei uses select plus editor for multiple-choice questions in rpc mode", async () => {
     const {tools} = setupPi();
     const tool = tools.get("ask_sensei");
     assert.ok(tool, "ask_sensei tool must be registered");
 
-    const calls: Array<{ prompt: string; options: string[] }> = [];
+    const calls: Array<{ method: string; prompt: string; options?: string[]; prefill?: string }> = [];
     const result = await tool.execute(
       "1",
       {question: "Choose one", context: "Feature: Login", options: ["A", "B"]},
@@ -50,18 +50,26 @@ describe("registered task tools", () => {
       {
         cwd: ".",
         hasUI: true,
+        mode: "rpc",
         ui: {
           async select(prompt: string, options: string[]) {
-            calls.push({prompt, options});
+            calls.push({method: "select", prompt, options});
             return "B";
+          },
+          async editor(prompt: string, prefill: string) {
+            calls.push({method: "editor", prompt, prefill});
+            return "B, but keep the build minimal";
           },
         },
       },
     );
 
-    assert.deepEqual(calls, [{prompt: "Feature: Login\n\nChoose one", options: ["A", "B"]}]);
-    assert.equal(result.content[0].text, "B");
-    assert.equal(result.details.answer, "B");
+    assert.deepEqual(calls, [
+      {method: "select", prompt: "Feature: Login\n\nChoose one", options: ["A", "B"]},
+      {method: "editor", prompt: "Feature: Login\n\nChoose one", prefill: "B"},
+    ]);
+    assert.equal(result.content[0].text, "B, but keep the build minimal");
+    assert.equal(result.details.answer, "B, but keep the build minimal");
     assert.equal(result.details.cancelled, false);
   });
 
@@ -93,27 +101,28 @@ describe("registered task tools", () => {
     assert.equal(result.details.cancelled, false);
   });
 
-  it("ask_sensei offers free-text override when requested", async () => {
+  it("ask_sensei lets rpc users replace a selected option in the editor", async () => {
     const {tools} = setupPi();
     const tool = tools.get("ask_sensei");
     assert.ok(tool, "ask_sensei tool must be registered");
 
     const result = await tool.execute(
       "1",
-      {question: "Pick or type", options: ["A", "B"], freeText: true, placeholder: "other"},
+      {question: "Pick or revise", options: ["A", "B"]},
       undefined,
       undefined,
       {
         cwd: ".",
         hasUI: true,
+        mode: "rpc",
         ui: {
           async select(_prompt: string, options: string[]) {
-            assert.deepEqual(options, ["A", "B", "Other…"]);
-            return "Other…";
+            assert.deepEqual(options, ["A", "B"]);
+            return "A";
           },
-          async input(prompt: string, placeholder: string) {
-            assert.equal(prompt, "Pick or type");
-            assert.equal(placeholder, "other");
+          async editor(prompt: string, prefill: string) {
+            assert.equal(prompt, "Pick or revise");
+            assert.equal(prefill, "A");
             return "C";
           },
         },
