@@ -45,8 +45,9 @@ Read `docs/adr/INDEX.md` to understand the tech stack, especially:
 - Interaction approach (e.g., HTMX, React)
 - Server-side rendering approach (e.g., template engine, Java HTML builder)
 
-Tech skills for the CSS framework and interaction approach (e.g., `bulma-java`)
-are auto-loaded at session startup. Follow their conventions.
+Load the skills that match the ADR-decided CSS framework, interaction
+approach, and server-side rendering approach before continuing (e.g.,
+`bulma-java`). Do not rely on startup-time auto-loading.
 
 ### 2. Load the Mapping Catalog
 

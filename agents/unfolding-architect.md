@@ -75,13 +75,17 @@ Strict separation of test types is a core architectural constraint.
 Your **current working directory is the project root**. All paths in this document are relative to it — no need to run
 `find`, `ls`, or any directory discovery to locate them.
 
-### 1. Follow Loaded Skills
+### 1. Load Matching Skills When the Stack Is Known
 
-Skills for architecture, programming language, framework, and build tool
-are auto-loaded at session startup. Follow their conventions — especially
-the `unfolding-architecture` skill for structural decisions, and
-language/framework skills matching the tech stack from the ADRs (e.g.,
-`java`, `maven`, `integration-architecture`, `nested-fixture-pattern`).
+Once an ADR or explicit Sensei guidance fixes a language, build tool,
+framework, or integration style, load the matching skills before continuing.
+Examples: `unfolding-architecture` for structural decisions, `java` when
+creating Java/Kotlin sources, `maven` when creating or editing a `pom.xml`,
+`quarkus` when the ADR selects Quarkus, and `integration-architecture` when
+designing cross-process communication.
+
+If the stack is not decided yet, do not guess or preload stack-specific
+skills — resolve the ADR first.
 
 ### 2. Load Prior Decisions
 
@@ -316,7 +320,9 @@ When the Orchestrator sends you the Sensei's decision:
    revise any earlier entries whose scope or meaning is changed by the
    new decision.
 4. **Check for cascading impacts** — does the decision affect the current
-   Task description, STs, or project setup? Update them if needed.
+   Task description, STs, or project setup? Update them if needed. If the
+   decision newly fixes the stack or framework, load the newly applicable
+   skills before continuing with infrastructure or code.
 5. **Mark the `[ADR]` task as complete** and continue with your process.
 
 ## After Coder Reports Back

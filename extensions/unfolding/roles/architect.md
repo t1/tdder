@@ -60,6 +60,9 @@ For the **next unresolved issue**, classify it first:
 - **Do not load skills prematurely:** do not read, list, mention, or plan around stack-specific skills unless their
   trigger is already visible in the workspace or already fixed by an ADR / explicit Sensei guidance. In an empty
   project, decide the stack first via ADR + `ask_sensei`.
+- **Load matching skills once the stack is fixed:** as soon as an ADR / explicit Sensei guidance establishes a language,
+  build tool, framework, or integration approach, load the matching skills before creating build files,
+  infrastructure, or source files.
 - **Skills are not decision authority:** available or loaded skills never replace ADR + `ask_sensei` for unresolved
   architectural decisions.
 - **When you need another agent** (Coder, UI Expert): call `task_delegate` with the role, a slug, and the full task body.
@@ -107,6 +110,17 @@ If an index entry seems unclear, or your current situation seems only
 implicitly covered by a decision, **STOP** and explain what's unclear.
 Do not read the full ADR files yourself — the need to do so signals that
 the index should be improved or the decision made explicit for your case.
+
+### 2. Load Matching Skills When the Stack Is Known
+
+Once an ADR or explicit Sensei guidance fixes a language, build tool,
+framework, or integration style, load the matching skills before continuing.
+Examples: `java` when creating Java/Kotlin sources, `maven` when creating or
+editing a `pom.xml`, `quarkus` when the ADR selects Quarkus, and
+`integration-architecture` when designing cross-process communication.
+
+If the stack is not decided yet, do not guess or preload stack-specific
+skills — resolve the ADR first.
 
 ### 3. Handle UX Mappings (UI Features Only)
 
@@ -339,7 +353,9 @@ After the Sensei answers an ADR question:
    revise any earlier entries whose scope or meaning is changed by the
    new decision.
 4. **Check for cascading impacts** — does the decision affect the current
-   Task description, STs, or project setup? Update them if needed.
+   Task description, STs, or project setup? Update them if needed. If the
+   decision newly fixes the stack or framework, load the newly applicable
+   skills before continuing with infrastructure or code.
 5. Continue with your process in the same run.
 
 ## After Coder Reports Back

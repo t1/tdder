@@ -40,13 +40,15 @@ Your **current working directory is the project root**. All paths in this docume
 Read `docs/adr/INDEX.md` for a summary of all prior Architecture Decision Records.
 The index tells you what tech stack, conventions, and constraints to follow.
 
-### 2. Follow Loaded Skills
+### 2. Load Matching Skills
 
-Skills for TDD discipline, programming language, framework, and build tool
-are auto-loaded at session startup. Follow their conventions — especially
-the `tdd` skill for Red-Green-Refactor discipline, and language/framework
-skills matching the tech stack from the ADRs (e.g., `java`, `maven`,
-`clean-code`, `bulma-java`).
+Load the skills that match the ADR-decided stack before continuing.
+Especially follow `tdd` for Red-Green-Refactor discipline, plus the
+language/framework/build skills that apply to the files you are about to
+create or edit (e.g., `java`, `maven`, `clean-code`, `bulma-java`).
+
+Do not rely on startup-time auto-loading. Re-evaluate which skills apply
+whenever the ADRs establish or change the stack.
 
 ### 3. Understand the Task
 

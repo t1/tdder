@@ -1,6 +1,8 @@
 ---
 name: java
-description: Always load this skill when writing or modifying Java or Kotlin source code, regardless of how the user phrases the request.
+description: >
+  Always load this skill when writing, modifying, creating, or moving Java or Kotlin source code,
+  or when project setup has already chosen Java/Kotlin as the implementation language.
 version: 0.3.0
 ---
 

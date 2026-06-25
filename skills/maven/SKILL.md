@@ -1,7 +1,8 @@
 ---
 name: maven
 description: >
-  Always load this skill when a pom.xml file exists in the project. It provides Maven-specific
+  Always load this skill when a pom.xml file exists in the project, when creating or editing a
+  pom.xml, or when setting up Maven project structure in a new project. It provides Maven-specific
   conventions for running tests, building, managing dependencies, and project structure.
 version: 0.1.0
 ---
