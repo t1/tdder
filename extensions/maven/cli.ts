@@ -10,6 +10,7 @@
  *   run test [--scope surefire|failsafe|all] [--selector <sel>] [--project <p>]
  *   run package [--project <p>]
  *   lookup-version <groupId> <artifactId> [--include-prereleases]
+ *   available-java-versions                 – Adoptium Java release info
  *
  * Version lookup applies equally to Maven dependencies and plugins.
  */
@@ -24,8 +25,9 @@ import {
   type MavenRunOptions,
 } from "./maven-project.ts";
 import {buildMetadataUrl, fetchMetadata, selectVersion} from "./version-lookup.ts";
+import {fetchAvailableJavaVersions, ADOPTIUM_AVAILABLE_RELEASES_URL} from "./java-version-lookup.ts";
 import {INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE} from "./guidance.ts";
-import type {MavenRunJson, VersionLookupJson} from "./tool-types.ts";
+import type {JavaVersionLookupJson, MavenRunJson, VersionLookupJson} from "./tool-types.ts";
 import {toMavenRunJson, toProjectInfoJson} from "./tool-types.ts";
 
 // ---------------------------------------------------------------------------
@@ -218,6 +220,26 @@ async function cmdLookupVersion(args: Record<string, string | boolean>): Promise
   console.log(JSON.stringify(result, null, 2));
 }
 
+async function cmdAvailableJavaVersions(args: Record<string, string | boolean>): Promise<void> {
+  const unknownError = checkUnknownFlags(args, []);
+  if (unknownError) {
+    console.error(unknownError);
+    process.exitCode = 1;
+    return;
+  }
+
+  const versions = await fetchAvailableJavaVersions();
+  const result: JavaVersionLookupJson = {
+    availableLtsReleases: versions.availableLtsReleases,
+    availableReleases: versions.availableReleases,
+    latestFeatureRelease: versions.mostRecentFeatureRelease,
+    latestLtsRelease: versions.mostRecentLts,
+    metadataUrl: ADOPTIUM_AVAILABLE_RELEASES_URL,
+  };
+
+  console.log(JSON.stringify(result, null, 2));
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -266,6 +288,9 @@ Examples:
   # Include pre-releases (RC, milestone, alpha, beta) for a dependency or plugin
   tdder-maven lookup-version io.quarkus quarkus-bom --include-prereleases
 
+  # Show available Java versions from Adoptium
+  tdder-maven available-java-versions
+
 Scope values for 'test':
   surefire   Unit tests only          (mvn test)
   failsafe   Integration tests only   (mvn verify -Dskip.surefire.tests=true -DskipITs=false)
@@ -292,6 +317,8 @@ async function main(): Promise<void> {
       return cmdPackage(args);
     case "lookup-version":
       return cmdLookupVersion(args);
+    case "available-java-versions":
+      return cmdAvailableJavaVersions(args);
     default:
       console.error(USAGE);
       process.exitCode = command ? 1 : 0;

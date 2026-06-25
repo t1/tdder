@@ -113,10 +113,10 @@ role/commissioner rules, and extension-specific test instructions, see:
 
 ### maven
 
-Structured Maven execution with test report parsing, compilation error extraction, and
-Maven Central version lookup.
+Structured Maven execution with test report parsing, compilation error extraction,
+Maven Central version lookup, and Adoptium Java release lookup.
 
-**pi extension:** registers `maven_run`, `maven_project_info`, and `maven_lookup_version` tools
+**pi extension:** registers `maven_run`, `maven_project_info`, `maven_lookup_version`, and `maven_available_java_versions` tools
 plus a `/maven` slash command with live progress widget.
 
 **CLI (`tdder-maven`):** the same functionality as a standalone command, usable from any agent

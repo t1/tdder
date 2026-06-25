@@ -20,9 +20,10 @@ export function renderMavenMessage(
   const kind = details.kind as string | undefined;
 
   switch (kind) {
-    case "info":    return renderInfo(details, theme, expanded);
-    case "version": return renderVersion(details, theme);
-    case "run":     return renderRun(details, theme);
+    case "info":        return renderInfo(details, theme, expanded);
+    case "version":     return renderVersion(details, theme);
+    case "javaVersion": return renderJavaVersion(details, theme);
+    case "run":         return renderRun(details, theme);
     case "error":   return renderError(details, theme);
     case "usage":   return renderUsage(details, theme);
     default:        return new Text(String(details.message ?? ""), 0, 0);
@@ -96,6 +97,27 @@ function renderVersion(details: Record<string, unknown>, theme: Theme): Text {
   const arrow  = theme.fg("dim", " → ");
   const ver    = theme.fg("success", theme.bold(selectedVersion));
   return new Text(coord + arrow + ver, 0, 0);
+}
+
+function renderJavaVersion(details: Record<string, unknown>, theme: Theme): Text {
+  const latestFeatureRelease = String(details.latestFeatureRelease ?? "?");
+  const latestLtsRelease = String(details.latestLtsRelease ?? "?");
+  const availableReleases = Array.isArray(details.availableReleases)
+    ? (details.availableReleases as unknown[]).join(", ")
+    : "";
+  const availableLtsReleases = Array.isArray(details.availableLtsReleases)
+    ? (details.availableLtsReleases as unknown[]).join(", ")
+    : "";
+
+  const lines = [
+    theme.fg("accent", theme.bold("Java versions")),
+    `${label(theme, "latest GA")} ${theme.fg("success", theme.bold(latestFeatureRelease))}`.trimEnd(),
+    `${label(theme, "latest LTS")} ${theme.fg("success", theme.bold(latestLtsRelease))}`.trimEnd(),
+    availableReleases ? label(theme, "available") + theme.fg("text", availableReleases) : "",
+    availableLtsReleases ? label(theme, "LTS") + theme.fg("text", availableLtsReleases) : "",
+  ].filter(Boolean);
+
+  return new Text(lines.join("\n"), 0, 0);
 }
 
 function renderRun(details: Record<string, unknown>, theme: Theme): Text {

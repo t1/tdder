@@ -7,6 +7,10 @@ import {
   parseMetadata,
   selectVersion,
 } from "../version-lookup.ts";
+import {
+  ADOPTIUM_AVAILABLE_RELEASES_URL,
+  normalizeAvailableJavaVersions,
+} from "../java-version-lookup.ts";
 
 const fixturesDir = join(import.meta.dirname, "fixtures/metadata");
 
@@ -82,5 +86,42 @@ describe("selectVersion", () => {
     const result = selectVersion("1.2.0-SNAPSHOT", versions, false);
     assert.equal(result.selectedVersion, "1.1.0");
     assert.equal(result.prereleaseFiltered, true);
+  });
+});
+
+describe("normalizeAvailableJavaVersions", () => {
+  it("returns the canonical Adoptium URL constant", () => {
+    assert.equal(ADOPTIUM_AVAILABLE_RELEASES_URL, "https://api.adoptium.net/v3/info/available_releases");
+  });
+
+  it("maps Adoptium available releases to the internal shape", () => {
+    const result = normalizeAvailableJavaVersions({
+      available_lts_releases: [8, 11, 17, 21],
+      available_releases: [8, 11, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+      most_recent_feature_release: 25,
+      most_recent_feature_version: 26,
+      most_recent_lts: 21,
+      tip_version: 26,
+    });
+
+    assert.deepEqual(result.availableLtsReleases, [8, 11, 17, 21]);
+    assert.deepEqual(result.availableReleases, [8, 11, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]);
+    assert.equal(result.mostRecentFeatureRelease, 25);
+    assert.equal(result.mostRecentFeatureVersion, 26);
+    assert.equal(result.mostRecentLts, 21);
+    assert.equal(result.tipVersion, 26);
+  });
+
+  it("fails when a required field is missing or malformed", () => {
+    assert.throws(
+      () => normalizeAvailableJavaVersions({
+        available_lts_releases: [17],
+        available_releases: [17, 21],
+        most_recent_feature_version: 22,
+        most_recent_lts: 21,
+        tip_version: 22,
+      }),
+      /most_recent_feature_release/,
+    );
   });
 });

@@ -36,6 +36,14 @@ export interface VersionLookupJson {
   metadataUrl: string;
 }
 
+export interface JavaVersionLookupJson {
+  availableLtsReleases: number[];
+  availableReleases: number[];
+  latestFeatureRelease: number;
+  latestLtsRelease: number;
+  metadataUrl: string;
+}
+
 export function toMavenRunJson(run: MavenRun): MavenRunJson {
   return {
     success: run.success,

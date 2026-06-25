@@ -123,6 +123,10 @@ describe("extension loading", () => {
     assert.ok(mavenExtension.tools.has("maven_lookup_version"), "maven_lookup_version not registered");
   });
 
+  it("registers the maven_available_java_versions tool", () => {
+    assert.ok(mavenExtension.tools.has("maven_available_java_versions"), "maven_available_java_versions not registered");
+  });
+
   it("registers the /maven command", () => {
     assert.ok(mavenExtension.commands.has("maven"), "/maven command not registered");
   });
@@ -228,6 +232,49 @@ describe("maven_lookup_version tool", () => {
     const v: string = json.selectedVersion;
     const prereleasePattern = /[-.]?(SNAPSHOT|alpha|beta|RC\d*|M\d*|milestone)/i;
     assert.ok(!prereleasePattern.test(v), `selectedVersion "${v}" looks like a prerelease`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// maven_available_java_versions — real Adoptium network call
+// ---------------------------------------------------------------------------
+
+describe("maven_available_java_versions tool", () => {
+  before(setup);
+
+  it("returns a structured result with latest feature and LTS releases", async () => {
+    const tool = mavenExtension.tools.get("maven_available_java_versions")!;
+    const ctx = makeCtx(process.cwd());
+    const result = await tool.definition.execute(
+      "tc-java-1",
+      {},
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    const json = JSON.parse((result.content[0] as { type: string; text: string }).text);
+    assert.ok(Number.isInteger(json.latestFeatureRelease), "latestFeatureRelease should be an integer");
+    assert.ok(Number.isInteger(json.latestLtsRelease), "latestLtsRelease should be an integer");
+    assert.ok(Array.isArray(json.availableReleases), "availableReleases should be an array");
+    assert.ok(Array.isArray(json.availableLtsReleases), "availableLtsReleases should be an array");
+    assert.equal(json.metadataUrl, "https://api.adoptium.net/v3/info/available_releases");
+  });
+
+  it("latest feature release is included in the available releases list", async () => {
+    const tool = mavenExtension.tools.get("maven_available_java_versions")!;
+    const ctx = makeCtx(process.cwd());
+    const result = await tool.definition.execute(
+      "tc-java-2",
+      {},
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    const json = JSON.parse((result.content[0] as { type: string; text: string }).text);
+    assert.ok(json.availableReleases.includes(json.latestFeatureRelease),
+      `availableReleases should include latestFeatureRelease ${json.latestFeatureRelease}`);
   });
 });
 

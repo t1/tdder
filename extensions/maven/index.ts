@@ -1,10 +1,11 @@
 /**
  * Maven Extension for pi
  *
- * Registers three LLM-callable tools and a /maven command:
- *   maven_project_info   – project detection and tree
- *   maven_run            – structured Maven execution
- *   maven_lookup_version – Maven Central version lookup
+ * Registers four LLM-callable tools and a /maven command:
+ *   maven_project_info          – project detection and tree
+ *   maven_run                   – structured Maven execution
+ *   maven_lookup_version        – Maven Central version lookup
+ *   maven_available_java_versions – Adoptium Java release info
  */
 
 import { existsSync } from "node:fs";
@@ -23,7 +24,8 @@ import { MavenProjectInfo, MavenRun, spawnMaven, type MavenRunOptions, type RawR
 import { loadJarSkills } from "./jar-skills.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { buildMetadataUrl, fetchMetadata, selectVersion } from "./version-lookup.ts";
-import type { MavenRunJson, VersionLookupJson } from "./tool-types.ts";
+import { fetchAvailableJavaVersions, ADOPTIUM_AVAILABLE_RELEASES_URL } from "./java-version-lookup.ts";
+import type { JavaVersionLookupJson, MavenRunJson, VersionLookupJson } from "./tool-types.ts";
 import { toMavenRunJson, toProjectInfoJson } from "./tool-types.ts";
 import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
 import { INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE } from "./guidance.ts";
@@ -315,15 +317,49 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
+  // ── maven_available_java_versions ─────────────────────────────────────────
+
+  pi.registerTool({
+    name: "maven_available_java_versions",
+    label: "Maven Available Java Versions",
+    description: "Returns available Java releases from Adoptium. Use this to find the latest GA Java version and latest LTS Java version.",
+    promptSnippet: "Get the available Java versions from Adoptium",
+    promptGuidelines: [
+      "Use maven_available_java_versions when asked for the latest Java version, available Java releases, or the latest LTS Java version.",
+      "For factual 'latest available Java version' questions, use latestFeatureRelease.",
+      "For recommendation questions like 'what Java version should I use?', prefer latestLtsRelease unless the user explicitly wants the newest non-LTS release.",
+      "Do not treat 'latest' and 'recommended' as synonyms, and do not guess Java release numbers from memory.",
+    ],
+    parameters: Type.Object({}),
+
+    async execute(_toolCallId, _params, signal, onUpdate) {
+      onUpdate?.({ content: [{ type: "text" as const, text: `Fetching ${ADOPTIUM_AVAILABLE_RELEASES_URL}…` }], details: undefined });
+
+      const versions = await fetchAvailableJavaVersions(signal);
+      const result: JavaVersionLookupJson = {
+        availableLtsReleases: versions.availableLtsReleases,
+        availableReleases: versions.availableReleases,
+        latestFeatureRelease: versions.mostRecentFeatureRelease,
+        latestLtsRelease: versions.mostRecentLts,
+        metadataUrl: ADOPTIUM_AVAILABLE_RELEASES_URL,
+      };
+
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        details: result,
+      };
+    },
+  });
+
   // ── /maven command ────────────────────────────────────────────────────────
 
-  const SUBCOMMANDS = ["info", "test", "package", "version"] as const;
+  const SUBCOMMANDS = ["info", "test", "package", "version", "java-versions"] as const;
   type Subcommand = (typeof SUBCOMMANDS)[number];
   const TEST_SCOPES = ["all", "surefire", "failsafe"] as const;
   type TestScopeArg = (typeof TEST_SCOPES)[number];
 
   pi.registerCommand("maven", {
-    description: "Maven actions: info | test [all|surefire|failsafe] [selector] | package | version <groupId>:<artifactId>",
+    description: "Maven actions: info | test [all|surefire|failsafe] [selector] | package | version <groupId>:<artifactId> | java-versions",
 
     getArgumentCompletions: (prefix: string) => {
       const items = SUBCOMMANDS.filter((s) => s.startsWith(prefix)).map((s) => ({
@@ -334,6 +370,7 @@ export default function (pi: ExtensionAPI) {
           test:    "Run tests (default: all)",
           package: "Package without tests",
           version: "Look up artifact version",
+          "java-versions": "Show available Java versions",
         }[s],
       }));
       return items.length > 0 ? items : null;
@@ -362,6 +399,22 @@ export default function (pi: ExtensionAPI) {
           mavenMessage({ kind: "version", groupId, artifactId, selectedVersion });
         } catch (err) {
           mavenMessage({ kind: "error", message: `Version lookup failed: ${(err as Error).message}` });
+        }
+        return;
+      }
+
+      if (sub === "java-versions") {
+        try {
+          const versions = await fetchAvailableJavaVersions();
+          mavenMessage({
+            kind: "javaVersion",
+            availableLtsReleases: versions.availableLtsReleases,
+            availableReleases: versions.availableReleases,
+            latestFeatureRelease: versions.mostRecentFeatureRelease,
+            latestLtsRelease: versions.mostRecentLts,
+          });
+        } catch (err) {
+          mavenMessage({ kind: "error", message: `Java version lookup failed: ${(err as Error).message}` });
         }
         return;
       }
