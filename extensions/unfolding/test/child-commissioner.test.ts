@@ -254,6 +254,41 @@ describe("child commissioner tools", () => {
     }
   });
 
+  it("child delegate result includes blocked_reason for blocked grandchild", async () => {
+    const { cwd } = makeTestGitRepo("child-commissioner");
+    const { faux, auth, modelRegistry } = sharedFauxSetup("blocked-reason");
+    try {
+      faux.setResponses([
+        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "coder", slug: "gc-blocked", body: "do something" })], { stopReason: "toolUse" }),
+        fauxAssistantMessage([fauxToolCall("task_block", { blocked_reason: "technical blocker" })], { stopReason: "toolUse" }),
+        fauxAssistantMessage([fauxToolCall("task_finished", {})], { stopReason: "toolUse" }),
+      ]);
+
+      const activeSessions = new Map<string, any>();
+      const tool = makeTaskDelegateDefinition("po", activeSessions, {} as any, () => {});
+      const result = await tool.execute(
+        "1",
+        { role: "coder", slug: "gc-blocked", body: "do something" },
+        AbortSignal.timeout(3000),
+        undefined,
+        {
+          cwd,
+          model: faux.getModel(),
+          authStorage: auth,
+          modelRegistry,
+          abort() {},
+        },
+      );
+
+      assert.match(result.content[0].text, /Outcome: blocked/);
+      assert.match(result.content[0].text, /blocked_reason: technical blocker/);
+      assert.equal(result.details?.blocked_reason, "technical blocker");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("child commissioner debug mode exports grandchild session html on handover", async () => {
     const { cwd } = makeTestGitRepo("child-commissioner");
     const { faux, auth, modelRegistry } = sharedFauxSetup("child-debug-export");

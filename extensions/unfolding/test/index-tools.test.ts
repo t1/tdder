@@ -500,6 +500,36 @@ describe("registered task tools", () => {
   });
 
 
+  it("task_delegate includes blocked_reason for blocked children", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    try {
+      createTask(cwd, {
+        slug: "blocked-child",
+        from: "orchestrator",
+        to: "coder",
+        body: "Do work",
+      });
+      updateTaskStatus(cwd, "blocked-child", "blocked", "need architecture decision");
+
+      const {tools} = setupPi();
+      const controller = new AbortController();
+      controller.abort();
+      const tool = tools.get("task_delegate");
+      assert.ok(tool, "task_delegate tool must be registered");
+      const result = await tool.execute("1", {
+        role: "coder",
+        slug: "blocked-child",
+        body: "Do work"
+      }, undefined, undefined, {cwd});
+
+      assert.match(result.content[0].text, /Outcome: blocked/);
+      assert.match(result.content[0].text, /blocked_reason: need architecture decision/);
+      assert.equal(result.details?.blocked_reason, "need architecture decision");
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("task_unblock exports html when /unfold --debug enabled", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
     const sessionDir = makeTestTempDir("index-tools-session");
@@ -549,9 +579,10 @@ describe("registered task tools", () => {
 
       const tool = tools.get("task_unblock");
       assert.ok(tool, "task_unblock tool must be registered");
-      await tool.execute("1", {slug: "unblock-debug", reason: "continue"}, undefined, undefined, {cwd});
+      const result = await tool.execute("1", {slug: "unblock-debug", reason: "continue"}, undefined, undefined, {cwd});
 
       assert.equal(promptCount, 1);
+      assert.match(result.content[0].text, /Outcome: finished/);
       assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "unblock-debug.html")), true);
     } finally {
       cleanupTestTempDir(cwd);
@@ -608,9 +639,10 @@ describe("registered task tools", () => {
 
       const tool = tools.get("task_reopen");
       assert.ok(tool, "task_reopen tool must be registered");
-      await tool.execute("1", {slug: "reopen-debug", reason: "redo"}, undefined, undefined, {cwd});
+      const result = await tool.execute("1", {slug: "reopen-debug", reason: "redo"}, undefined, undefined, {cwd});
 
       assert.equal(promptCount, 1);
+      assert.match(result.content[0].text, /Outcome: finished/);
       assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "reopen-debug.html")), true);
     } finally {
       cleanupTestTempDir(cwd);

@@ -109,9 +109,13 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
         await exportTaskDebugHtmlIfEnabled(cwd, params.slug, commissionerCtx.debugExportsEnabled ?? false);
         if (outcome === "aborted") commissionerCtx.activeSessions.delete(params.slug);
 
+        const blockedReason = outcome === "blocked" ? readTask(cwd, params.slug)?.blocked_reason : undefined;
+        const outcomeText = outcome === "blocked"
+          ? `Task "${params.slug}" reopened. Outcome: blocked. blocked_reason: ${blockedReason ?? "(no reason given)"}`
+          : `Task "${params.slug}" reopened. Outcome: ${outcome}`;
         return {
-          content: [{ type: "text", text: `Task "${params.slug}" reopened. Outcome: ${outcome}` }],
-          details: {},
+          content: [{ type: "text", text: outcomeText }],
+          details: blockedReason ? { blocked_reason: blockedReason } : {},
         };
       },
     },
@@ -150,9 +154,13 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
         await exportTaskDebugHtmlIfEnabled(cwd, params.slug, commissionerCtx.debugExportsEnabled ?? false);
         if (outcome === "aborted") commissionerCtx.activeSessions.delete(params.slug);
 
+        const blockedReason = outcome === "blocked" ? readTask(cwd, params.slug)?.blocked_reason : undefined;
+        const outcomeText = outcome === "blocked"
+          ? `Task "${params.slug}" unblocked. Outcome: blocked. blocked_reason: ${blockedReason ?? "(no reason given)"}`
+          : `Task "${params.slug}" unblocked. Outcome: ${outcome}`;
         return {
-          content: [{ type: "text", text: `Task "${params.slug}" unblocked. Outcome: ${outcome}` }],
-          details: {},
+          content: [{ type: "text", text: outcomeText }],
+          details: blockedReason ? { blocked_reason: blockedReason } : {},
         };
       },
     },
@@ -162,6 +170,7 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
       description: "Roll back a delegated task to its pre-delegation workspace state and delete the task.",
       parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
       async execute(_id: string, params: { slug: string }) {
+        const task = readTask(cwd, params.slug);
         const childSession = commissionerCtx.activeSessions.get(params.slug);
         if (childSession) await childSession.abort().catch(() => {});
         commissionerCtx.activeSessions.delete(params.slug);

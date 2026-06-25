@@ -256,9 +256,13 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           activeSessions.delete(params.slug);
         }
 
+        const blockedReason = outcome === "blocked" ? readTask(ctx.cwd, params.slug)?.blocked_reason : undefined;
+        const outcomeText = outcome === "blocked"
+          ? `Task "${params.slug}" reopened. Outcome: blocked. blocked_reason: ${blockedReason ?? "(no reason given)"}`
+          : `Task "${params.slug}" reopened. Outcome: ${outcome}`;
         return {
-          content: [{ type: "text", text: `Task "${params.slug}" reopened. Outcome: ${outcome}` }],
-          details: {},
+          content: [{ type: "text", text: outcomeText }],
+          details: blockedReason ? { blocked_reason: blockedReason } : {},
         };
       } catch (err: unknown) {
         if (err instanceof FatalChildSessionError || isUnfoldingFatalError(err)) {
@@ -306,9 +310,13 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           activeSessions.delete(params.slug);
         }
 
+        const blockedReason = outcome === "blocked" ? readTask(ctx.cwd, params.slug)?.blocked_reason : undefined;
+        const outcomeText = outcome === "blocked"
+          ? `Task "${params.slug}" unblocked. Outcome: blocked. blocked_reason: ${blockedReason ?? "(no reason given)"}`
+          : `Task "${params.slug}" unblocked. Outcome: ${outcome}`;
         return {
-          content: [{ type: "text", text: `Task "${params.slug}" unblocked. Outcome: ${outcome}` }],
-          details: {},
+          content: [{ type: "text", text: outcomeText }],
+          details: blockedReason ? { blocked_reason: blockedReason } : {},
         };
       } catch (err: unknown) {
         if (err instanceof FatalChildSessionError || isUnfoldingFatalError(err)) {

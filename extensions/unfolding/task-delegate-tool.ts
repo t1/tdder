@@ -3,6 +3,7 @@ import { AgentSession } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { startChildSession } from "./session-factory.ts";
 import { refreshAskSenseiCallback } from "./ask-sensei.ts";
+import { readTask } from "./task-store.ts";
 import { abortAllActiveSessions, renderAbortSummary } from "./abort-flow.ts";
 import { FatalChildSessionError } from "./task-delegate.ts";
 import { isUnfoldingFatalError } from "./fatal-error.ts";
@@ -54,9 +55,13 @@ export function makeTaskDelegateDefinition(
           return { content: [{ type: "text", text: `Task "${params.slug}" aborted.` }], details: {} };
         }
 
+        const blockedReason = outcome === "blocked" ? readTask(ctx.cwd, params.slug)?.blocked_reason : undefined;
+        const outcomeText = outcome === "blocked"
+          ? `Task "${params.slug}" delegated to ${params.role}. Outcome: blocked. blocked_reason: ${blockedReason ?? "(no reason given)"}`
+          : `Task "${params.slug}" delegated to ${params.role}. Outcome: ${outcome}`;
         return {
-          content: [{ type: "text", text: `Task "${params.slug}" delegated to ${params.role}. Outcome: ${outcome}` }],
-          details: {},
+          content: [{ type: "text", text: outcomeText }],
+          details: blockedReason ? { blocked_reason: blockedReason } : {},
         };
       } catch (err: unknown) {
         activeSessions.delete(params.slug);
