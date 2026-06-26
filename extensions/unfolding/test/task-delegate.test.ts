@@ -13,7 +13,7 @@ import {createTask, readTask} from "../task-store.ts";
 import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
 import {installCheckpointRecovery, loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON, CHILD_SESSION_FAILURE_BLOCKED_REASON, FatalChildSessionError} from "../task-delegate.ts";
 
-import { ANSI_ITALIC_ON, ANSI_ITALIC_OFF, childOutputHeader } from "../child-output.ts";
+import { ANSI_ITALIC_ON, ANSI_ITALIC_OFF, childOutputHeader, formatElapsedDuration } from "../child-output.ts";
 
 const rolesDir = resolve(new URL("../roles", import.meta.url).pathname);
 
@@ -68,6 +68,16 @@ describe("streamChildSession", () => {
     captured!({type: "tool_execution_start", toolCallId: "x", toolName: "read", args: {}});
     const last = updates[updates.length - 1];
     assert.ok(last.includes("[architect] ⚙ read — 0s"), `expected timed tool line, got: ${last}`);
+  });
+
+  it("formats elapsed durations for human consumption", () => {
+    assert.equal(formatElapsedDuration(0), "0s");
+    assert.equal(formatElapsedDuration(59), "59s");
+    assert.equal(formatElapsedDuration(60), "1m 0s");
+    assert.equal(formatElapsedDuration(61), "1m 1s");
+    assert.equal(formatElapsedDuration(3600), "1h 0m 0s");
+    assert.equal(formatElapsedDuration(3603), "1h 0m 3s");
+    assert.equal(formatElapsedDuration(3661), "1h 1m 1s");
   });
 
   it("accumulates text_delta onto a single line", () => {
@@ -320,6 +330,49 @@ describe("streamChildSession", () => {
 
     const last = updates[updates.length - 1];
     assert.ok(last.includes("[po] ❌ request was aborted"), `expected aborted assistant failure line, got: ${last}`);
+  });
+
+  it("suppresses the synthetic aborted assistant tail after a successful task_finished checkpoint", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text));
+
+    captured!({
+      type: "tool_execution_start",
+      toolCallId: "checkpoint-1",
+      toolName: "task_finished",
+      args: {},
+    });
+    captured!({
+      type: "tool_execution_end",
+      toolCallId: "checkpoint-1",
+      toolName: "task_finished",
+      isError: false,
+      result: { content: [{ type: "text", text: "task finished" }] },
+    });
+
+    const beforeAbortTail = updates[updates.length - 1];
+    captured!({
+      type: "message_end",
+      parentId: "checkpoint-1",
+      message: {
+        role: "assistant",
+        stopReason: "aborted",
+        content: [],
+        errorMessage: "Request was aborted.",
+      },
+    });
+
+    const afterAbortTail = updates[updates.length - 1];
+    assert.equal(afterAbortTail, beforeAbortTail, "synthetic checkpoint abort tail should not change the transcript");
+    assert.ok(!afterAbortTail.includes("❌ request was aborted"), `did not expect synthetic abort failure line, got: ${afterAbortTail}`);
   });
 
   it("shows reduced unexpected child events in the normal transcript with a log reference", () => {
@@ -684,6 +737,38 @@ describe("streamChildSession", () => {
     const last = updates[updates.length - 1];
     assert.ok(last.includes("[po] ⚙ read foo.txt — 4s"), `expected ticking timer update, got: ${last}`);
     assert.ok(last.includes("[po] ⏱ total — 4s"), `expected total timer update, got: ${last}`);
+  });
+
+  it("shows minutes and hours instead of raw seconds when durations get larger", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    let intervalCallback: (() => void) | undefined;
+    let nowMs = 0;
+    let nextTimerId = 0;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text), {
+      now: () => nowMs,
+      setIntervalFn: (callback: () => void) => {
+        intervalCallback = callback;
+        return ++nextTimerId as any;
+      },
+      clearIntervalFn: () => {
+      },
+    });
+
+    captured!({ type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: { path: "foo.txt" } });
+    nowMs = 3_661_000;
+    intervalCallback?.();
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] ⚙ read foo.txt — 1h 1m 1s"), `expected human-readable tool duration, got: ${last}`);
+    assert.ok(last.includes("[po] ⏱ total — 1h 1m 1s"), `expected human-readable total duration, got: ${last}`);
   });
 
   it("freezes elapsed time for completed tools while other tools are still pending", () => {

@@ -6,6 +6,7 @@ import {
   childOutputNote,
   childOutputTool,
   childOutputTotal,
+  formatElapsedDuration,
   type ChildOutputDetails,
   type ChildOutputEvent,
   ANSI_ITALIC_OFF,
@@ -264,7 +265,7 @@ export function streamChildSession(
   const renderToolRow = (row: Extract<StreamRow, { kind: "tool" }>): string[] => {
     const endedAt = row.finishedAt ?? now();
     const elapsedSeconds = Math.max(0, Math.floor((endedAt - row.startedAt) / 1000));
-    let line = `  [${role}] ⚙ ${row.summary} — ${elapsedSeconds}s`;
+    let line = `  [${role}] ⚙ ${row.summary} — ${formatElapsedDuration(elapsedSeconds)}`;
     if (row.status === "success") line += " ✓";
     if (row.status === "error") line += " ✗";
     if (row.errorSummary) line += ` — ${row.errorSummary}`;
@@ -278,7 +279,7 @@ export function streamChildSession(
 
   const renderTotalLine = () => {
     const totalSeconds = Math.max(0, Math.floor(((endedAt ?? now()) - startedAt) / 1000));
-    return `  [${role}] ⏱ total — ${totalSeconds}s`;
+    return `  [${role}] ⏱ total — ${formatElapsedDuration(totalSeconds)}`;
   };
 
   const getOutputEvents = (): ChildOutputEvent[] => [
@@ -367,6 +368,22 @@ export function streamChildSession(
     pendingBlockWhitespace.clear();
   };
 
+  const latestCheckpointToolCallId = (): string | undefined => {
+    const checkpointToolIds = [...toolRows.values()]
+      .filter(row => row.status === "success" && (row.summary === "task_finished" || row.summary === "task_block"))
+      .map(row => row.toolCallId);
+    return checkpointToolIds.at(-1);
+  };
+
+  const isCheckpointAbortTail = (event: AgentSessionEvent): boolean => {
+    if (event.type !== "message_end") return false;
+    if (event.message.role !== "assistant") return false;
+    if (event.message.stopReason !== "aborted") return false;
+    const parentId = (event as { parentId?: string }).parentId;
+    const checkpointToolCallId = latestCheckpointToolCallId();
+    return !!checkpointToolCallId && parentId === checkpointToolCallId;
+  };
+
   const handleEvent = (event: AgentSessionEvent) => {
     if (event.type === "tool_execution_start") {
       const row: Extract<StreamRow, { kind: "tool" }> = {
@@ -444,7 +461,7 @@ export function streamChildSession(
       const seconds = Math.max(1, Math.ceil(event.delayMs / 1000));
       rows.push({
         kind: "note",
-        text: `  [${role}] ↻ auto-retry ${event.attempt}/${event.maxAttempts} in ${seconds}s — ${truncateSummary(summarizeRetryError(event.errorMessage))}`,
+        text: `  [${role}] ↻ auto-retry ${event.attempt}/${event.maxAttempts} in ${formatElapsedDuration(seconds)} — ${truncateSummary(summarizeRetryError(event.errorMessage))}`,
       });
       flush();
       return;
@@ -466,6 +483,7 @@ export function streamChildSession(
     }
 
     if (isTerminalAssistantFailure(event)) {
+      if (isCheckpointAbortTail(event)) return;
       rows.push({ kind: "note", text: `  [${role}] ❌ ${summarizeTerminalAssistantFailure(event.message)}` });
       flush();
       return;

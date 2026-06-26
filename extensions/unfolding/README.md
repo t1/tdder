@@ -40,7 +40,7 @@ long-term workflow history: `task_accept` and `task_rollback` both delete the ta
 ## Child-session live output
 
 Delegated child progress forwarded into the commissioner session includes
-live tool rows (`⚙`) with in-place elapsed timers plus terminal markers (`✓` / `✗`), a total running-time line
+live tool rows (`⚙`) with in-place human-readable elapsed timers (`59s`, `1m 5s`, `2h 3m 4s`) plus terminal markers (`✓` / `✗`), a total running-time line
 at the end (`[role] ⏱ total`), nested delegated-task live updates, assistant text (`💬`), assistant thinking (`🤔`, rendered italic),
 assistant stream errors (`❌`), terminal child-session failures surfaced from assistant `message_end`
 (such as connection/stream aborts), and an explicit warning when a thinking-bearing assistant message is truncated

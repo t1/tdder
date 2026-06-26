@@ -74,6 +74,17 @@ export function childOutputTotal(elapsedSeconds: number): TotalChildOutputEvent 
   return { type: "total", elapsedSeconds };
 }
 
+export function formatElapsedDuration(elapsedSeconds: number): string {
+  const seconds = Math.max(0, elapsedSeconds);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+
+  if (hours > 0) return `${hours}h ${minutes}m ${remainingSeconds}s`;
+  if (minutes > 0) return `${minutes}m ${remainingSeconds}s`;
+  return `${remainingSeconds}s`;
+}
+
 function renderAssistantLine(role: string, icon: "💬" | "🤔", text: string): string {
   const prefix = `  [${role}] ${icon} `;
   return icon === "🤔"
@@ -82,7 +93,7 @@ function renderAssistantLine(role: string, icon: "💬" | "🤔", text: string):
 }
 
 function renderToolLines(role: string, event: ToolChildOutputEvent): string[] {
-  let line = `  [${role}] ⚙ ${event.summary} — ${event.elapsedSeconds}s`;
+  let line = `  [${role}] ⚙ ${event.summary} — ${formatElapsedDuration(event.elapsedSeconds)}`;
   if (event.status === "success") line += " ✓";
   if (event.status === "error") line += " ✗";
   if (event.errorSummary) line += ` — ${event.errorSummary}`;
@@ -90,7 +101,7 @@ function renderToolLines(role: string, event: ToolChildOutputEvent): string[] {
 }
 
 function renderTotalLine(role: string, elapsedSeconds: number): string {
-  return `  [${role}] ⏱ total — ${elapsedSeconds}s`;
+  return `  [${role}] ⏱ total — ${formatElapsedDuration(elapsedSeconds)}`;
 }
 
 export function renderChildOutputPlainText(role: string, events: ChildOutputEvent[]): string {
