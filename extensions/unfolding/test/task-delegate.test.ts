@@ -145,27 +145,6 @@ describe("streamChildSession", () => {
     assert.ok(last.includes(`[po] 🤔 ${ANSI_ITALIC_ON}plan first${ANSI_ITALIC_OFF}`), `expected italic accumulated thinking text, got: ${last}`);
   });
 
-  it("emits an ansi probe note for thinking rows in debug mode", () => {
-    const updates: string[] = [];
-    let captured: ((e: any) => void) | undefined;
-    const fakeSession = {
-      subscribe: (h: any) => {
-        captured = h;
-        return () => {
-        };
-      }
-    } as any;
-    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text), {
-      debugAnsiProbe: true,
-    });
-
-    captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "plan first"}});
-
-    const last = updates[updates.length - 1];
-    assert.ok(last.includes("[po] 🧪 ansi probe — italicOn=true italicOff=true"), `expected ansi probe flags, got: ${last}`);
-    assert.ok(last.includes('rendered="  [po] 🤔 \\x1b[3mplan first\\x1b[23m"'), `expected escaped rendered thinking row, got: ${last}`);
-  });
-
   it("keeps thinking and text on separate lines when deltas interleave", () => {
     const updates: string[] = [];
     let captured: ((e: any) => void) | undefined;

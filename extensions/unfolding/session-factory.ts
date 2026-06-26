@@ -86,7 +86,9 @@ export async function startChildSession({
   }
 
   signal?.addEventListener("abort", () => { session.abort().catch(() => {}); });
-  const stream = onUpdate ? streamChildSession(session, shortRole, slug, onUpdate, { sessionFile: session.sessionFile }) : undefined;
+  const stream = onUpdate ? streamChildSession(session, shortRole, slug, onUpdate, {
+    sessionFile: session.sessionFile,
+  }) : undefined;
   const checkpointRecovery = installCheckpointRecovery(session, cwd, slug, {
     onRecoveryNote: stream?.append,
   });

@@ -2,7 +2,7 @@
  * Tests for the /unfold command helpers and structural invariants.
  */
 
-import { describe, it, before, after } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 

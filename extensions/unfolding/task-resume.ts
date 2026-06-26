@@ -72,7 +72,9 @@ export async function resumeDelegatedTask({
   const shortRole = task?.to.replace(/^unfolding-/, "") ?? slug;
 
   const stream = onUpdate
-    ? streamChildSession(session, shortRole, slug, onUpdate, { sessionFile: task?.session_file })
+    ? streamChildSession(session, shortRole, slug, onUpdate, {
+      sessionFile: task?.session_file,
+    })
     : undefined;
   const checkpointRecovery = installCheckpointRecovery(session, cwd, slug, {
     onRecoveryNote: stream?.append,

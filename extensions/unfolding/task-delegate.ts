@@ -128,7 +128,6 @@ export interface StreamChildSessionOptions {
   clearIntervalFn?: (interval: ReturnType<typeof setInterval>) => void;
   tickMs?: number;
   sessionFile?: string;
-  debugAnsiProbe?: boolean;
 }
 
 /**
@@ -152,14 +151,6 @@ function truncateSummary(text: string, max = 140): string {
 
 function sessionLogSuffix(sessionFile?: string): string {
   return sessionFile ? ` — see ${sessionFile}` : "";
-}
-
-function escapeAnsiForDebug(text: string): string {
-  return text
-    .replace(/\x1b\[3m/g, "\\x1b[3m")
-    .replace(/\x1b\[23m/g, "\\x1b[23m")
-    .replace(/\x1b/g, "\\x1b")
-    .replace(/\n/g, "\\n");
 }
 
 const MAX_TOOL_OUTPUT_LINES = 5;
@@ -261,7 +252,6 @@ export function streamChildSession(
   const clearIntervalFn = options.clearIntervalFn ?? ((interval) => clearInterval(interval));
   const tickMs = options.tickMs ?? 1000;
   const sessionFile = options.sessionFile;
-  const debugAnsiProbe = options.debugAnsiProbe ?? false;
   const startedAt = now();
   let endedAt: number | undefined;
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -336,13 +326,6 @@ export function streamChildSession(
     assistantRows.set(key, row);
     pendingBlockWhitespace.delete(key);
     rows.push(row);
-    if (debugAnsiProbe && kind === "thinking") {
-      const rendered = renderAssistantRow(role, row);
-      rows.push({
-        kind: "note",
-        text: `  [${role}] 🧪 ansi probe — italicOn=${rendered.includes(ANSI_ITALIC_ON)} italicOff=${rendered.includes(ANSI_ITALIC_OFF)} rendered="${escapeAnsiForDebug(rendered)}"`,
-      });
-    }
     flush();
   };
 
