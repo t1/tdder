@@ -29,7 +29,7 @@ export function makeTaskDelegateDefinition(
     async execute(_id: string, params: { role: string; slug: string; body: string; parent_slug?: string }, signal: AbortSignal | undefined, onUpdate: any, ctx: any) {
       refreshAskSenseiCallback(pi, ctx);
       try {
-        const { outcome } = await startChildSession({
+        const { outcome, finalSnapshot } = await startChildSession({
           cwd: ctx.cwd,
           from,
           role: params.role,
@@ -52,9 +52,17 @@ export function makeTaskDelegateDefinition(
 
         if (outcome === "aborted") {
           const reason = `task "${params.slug}" was aborted`;
-          await abortSessionStack(ctx.cwd, reason, activeSessions, postOutput);
-          ctx.abort();
-          throw new Error(reason);
+          const abortSummary = await abortSessionStack(ctx.cwd, reason, activeSessions);
+          const parts = [
+            `Task "${params.slug}" aborted.`,
+            finalSnapshot,
+            abortSummary,
+          ].filter(Boolean);
+          return {
+            content: [{ type: "text", text: parts.join("\n\n") }],
+            details: { aborted: true, finalSnapshot, abortSummary },
+            terminate: true,
+          };
         }
 
         const blockedReason = outcome === "blocked" ? readTask(ctx.cwd, params.slug)?.blocked_reason : undefined;
@@ -73,7 +81,7 @@ export function makeTaskDelegateDefinition(
             ? `fatal child session failure in ${err.slug}: ${err.detail}`
             : err.message;
           await abortSessionStack(ctx.cwd, reason, activeSessions, postOutput);
-          ctx.abort();
+          ctx.abort?.();
           throw err;
         }
 

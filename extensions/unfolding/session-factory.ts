@@ -9,6 +9,7 @@ import { buildChildInitialMessage, createChildAgentSession, type NestedDelegateT
 export interface ChildSessionRunResult {
   session: AgentSession;
   outcome: "finished" | "blocked" | "aborted";
+  finalSnapshot?: string;
 }
 
 export interface StartChildSessionParams {
@@ -121,9 +122,7 @@ export async function startChildSession({
       // execution) without triggering a steer or an extra LLM call.
       onUpdate?.({ content: [{ type: "text", text: finalSnapshot }], details: undefined });
       if (outcome === "aborted") {
-        // User-triggered abort clears transient tool-update UI. Re-post the final child snapshot
-        // as a display-only custom message so the nested transcript stays visible like a normal run.
-        postOutput(finalSnapshot);
+        return { session, outcome, finalSnapshot };
       }
     } else {
       postOutput(costLine);

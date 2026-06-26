@@ -3,12 +3,23 @@ import assert from "node:assert/strict";
 import {execFileSync} from "node:child_process";
 import {existsSync, readFileSync, writeFileSync} from "node:fs";
 import {join} from "node:path";
+import {AuthStorage, ModelRegistry} from "@earendil-works/pi-coding-agent";
 import initUnfolding from "../index.ts";
 import {createTask, readTask, updateTaskStatus} from "../task-store.ts";
 import {createSnapshotCommit} from "../git-task-state.ts";
 import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
 import {makeTestGitRepo} from "./test-git-repo.ts";
 import {createChildTaskTools} from "../child-task-tools.ts";
+import {fauxAssistantMessage, fauxToolCall, registerFauxProvider} from "./faux-provider.ts";
+
+function fauxSetup(name: string) {
+  const provider = `${name}-${Date.now()}`;
+  const faux = registerFauxProvider({provider, models: [{id: "test-model"}]});
+  const authStorage = AuthStorage.inMemory();
+  authStorage.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = ModelRegistry.inMemory(authStorage);
+  return {faux, authStorage, modelRegistry};
+}
 
 function setupPi(activeSessions?: Map<string, any>) {
   const tools = new Map<string, any>();
@@ -469,24 +480,22 @@ describe("registered task tools", () => {
       const tool = tools.get("task_delegate");
       assert.ok(tool, "task_delegate tool must be registered");
 
-      let aborted = false;
-      await assert.rejects(
-        () => tool.execute("1", {
-          role: "coder",
-          slug: "aborted-transcript",
-          body: "Do work"
-        }, controller.signal, (update: any) => {
-          updates.push(update.content[0].text);
-        }, {cwd, abort() { aborted = true; }}),
-        /task "aborted-transcript" was aborted/,
-      );
+      const result = await tool.execute("1", {
+        role: "coder",
+        slug: "aborted-transcript",
+        body: "Do work"
+      }, controller.signal, (update: any) => {
+        updates.push(update.content[0].text);
+      }, {cwd, abort() {
+      }});
 
-      assert.equal(aborted, true);
+      assert.match(result.content[0].text, /^Task "aborted-transcript" aborted\./);
+      assert.equal(result.details?.aborted, true);
+      assert.equal(result.terminate, true);
       assert.ok(updates.some(text => text.includes("[coder/aborted-transcript]")), "transient nested transcript should be streamed before abort");
-      const childOutput = sentMessages.find(message => message?.customType === "unfolding-child-output");
-      assert.ok(childOutput, "aborted child should emit a durable display-only nested transcript snapshot");
-      assert.match(childOutput.details?.lines ?? "", /\[coder\/aborted-transcript\]/);
-      assert.match(childOutput.details?.lines ?? "", /💰 \$/);
+      assert.match(result.content[0].text, /\[coder\/aborted-transcript\]/);
+      assert.match(result.content[0].text, /💰 \$/);
+      assert.match(result.content[0].text, /⛔ unfolding aborted/);
     } finally {
       cleanupTestTempDir(cwd);
     }
@@ -531,17 +540,17 @@ describe("registered task tools", () => {
       controller.abort();
       const tool = tools.get("task_delegate");
       assert.ok(tool, "task_delegate tool must be registered");
-      let aborted = false;
-      await assert.rejects(
-        () => tool.execute("1", {
-          role: "coder",
-          slug: "aborted-debug",
-          body: "Do work"
-        }, controller.signal, undefined, {cwd, abort() { aborted = true; }}),
-        /task "aborted-debug" was aborted/,
-      );
+      const result = await tool.execute("1", {
+        role: "coder",
+        slug: "aborted-debug",
+        body: "Do work"
+      }, controller.signal, undefined, {cwd, abort() {
+      }});
 
-      assert.equal(aborted, true);
+      assert.match(result.content[0].text, /^Task "aborted-debug" aborted\./);
+      assert.equal(result.details?.aborted, true);
+      assert.equal(result.terminate, true);
+      assert.match(result.content[0].text, /⛔ unfolding aborted/);
       assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "aborted-debug.html")), true);
     } finally {
       cleanupTestTempDir(cwd);
@@ -552,15 +561,34 @@ describe("registered task tools", () => {
 
   it("task_delegate includes blocked_reason for blocked children", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
+    const {faux, authStorage, modelRegistry} = fauxSetup("index-tools-blocked-child");
     try {
-      createTask(cwd, {
-        slug: "blocked-child",
-        from: "orchestrator",
-        to: "coder",
-        body: "Do work",
-      });
-      updateTaskStatus(cwd, "blocked-child", "blocked", "need architecture decision");
+      faux.setResponses([
+        fauxAssistantMessage([fauxToolCall("task_block", {blocked_reason: "need architecture decision"})], {stopReason: "toolUse"}),
+        fauxAssistantMessage("blocked"),
+      ]);
 
+      const {tools} = setupPi();
+      const tool = tools.get("task_delegate");
+      assert.ok(tool, "task_delegate tool must be registered");
+      const result = await tool.execute("1", {
+        role: "coder",
+        slug: "blocked-child",
+        body: "Do work"
+      }, AbortSignal.timeout(3000), undefined, {cwd, model: faux.getModel(), authStorage, modelRegistry});
+
+      assert.match(result.content[0].text, /Outcome: blocked/);
+      assert.match(result.content[0].text, /blocked_reason: need architecture decision/);
+      assert.equal(result.details?.blocked_reason, "need architecture decision");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("task_delegate returns an aborted result instead of throwing when delegation is aborted", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    try {
       const {tools} = setupPi();
       const controller = new AbortController();
       controller.abort();
@@ -568,13 +596,51 @@ describe("registered task tools", () => {
       assert.ok(tool, "task_delegate tool must be registered");
       const result = await tool.execute("1", {
         role: "coder",
-        slug: "blocked-child",
+        slug: "aborted-child",
         body: "Do work"
-      }, undefined, undefined, {cwd});
+      }, controller.signal, undefined, {cwd, abort() {
+      }});
 
-      assert.match(result.content[0].text, /Outcome: blocked/);
-      assert.match(result.content[0].text, /blocked_reason: need architecture decision/);
-      assert.equal(result.details?.blocked_reason, "need architecture decision");
+      assert.match(result.content[0].text, /^Task "aborted-child" aborted\./);
+      assert.equal(result.details?.aborted, true);
+      assert.equal(result.terminate, true);
+      assert.match(result.content[0].text, /⛔ unfolding aborted/);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("task_unblock returns an aborted result instead of throwing when the resumed child run is aborted", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    try {
+      createTask(cwd, {
+        slug: "unblock-aborted",
+        from: "orchestrator",
+        to: "coder",
+        body: "Do work",
+      });
+      updateTaskStatus(cwd, "unblock-aborted", "blocked", "waiting");
+
+      const activeSessions = new Map<string, any>();
+      activeSessions.set("unblock-aborted", {
+        isStreaming: false,
+        prompt: async () => {
+        },
+        getSessionStats: () => ({cost: 0, tokens: {input: 0, output: 0}}),
+      });
+
+      const {tools} = setupPi(activeSessions);
+      const controller = new AbortController();
+      controller.abort();
+      const tool = tools.get("task_unblock");
+      assert.ok(tool, "task_unblock tool must be registered");
+      const result = await tool.execute("1", {slug: "unblock-aborted", reason: "continue"}, controller.signal, undefined, {cwd, abort() {
+      }});
+
+      assert.match(result.content[0].text, /^Task "unblock-aborted" aborted\./);
+      assert.equal(result.details?.aborted, true);
+      assert.equal(result.terminate, true);
+      assert.match(result.content[0].text, /⛔ unfolding aborted/);
     } finally {
       cleanupTestTempDir(cwd);
     }
@@ -637,6 +703,42 @@ describe("registered task tools", () => {
     } finally {
       cleanupTestTempDir(cwd);
       cleanupTestTempDir(sessionDir);
+    }
+  });
+
+  it("task_reopen returns an aborted result instead of throwing when the resumed child run is aborted", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    try {
+      createTask(cwd, {
+        slug: "reopen-aborted",
+        from: "orchestrator",
+        to: "coder",
+        body: "Do work",
+      });
+      updateTaskStatus(cwd, "reopen-aborted", "finished");
+
+      const activeSessions = new Map<string, any>();
+      activeSessions.set("reopen-aborted", {
+        isStreaming: false,
+        prompt: async () => {
+        },
+        getSessionStats: () => ({cost: 0, tokens: {input: 0, output: 0}}),
+      });
+
+      const {tools} = setupPi(activeSessions);
+      const controller = new AbortController();
+      controller.abort();
+      const tool = tools.get("task_reopen");
+      assert.ok(tool, "task_reopen tool must be registered");
+      const result = await tool.execute("1", {slug: "reopen-aborted", reason: "redo"}, controller.signal, undefined, {cwd, abort() {
+      }});
+
+      assert.match(result.content[0].text, /^Task "reopen-aborted" aborted\./);
+      assert.equal(result.details?.aborted, true);
+      assert.equal(result.terminate, true);
+      assert.match(result.content[0].text, /⛔ unfolding aborted/);
+    } finally {
+      cleanupTestTempDir(cwd);
     }
   });
 

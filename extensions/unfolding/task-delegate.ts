@@ -506,6 +506,14 @@ export function installCheckpointRecovery(
     fatalError = new FatalChildSessionError(slug, detail);
   };
 
+  if (typeof (session as any).subscribe !== "function") {
+    return {
+      unsubscribe: () => {
+      },
+      getFatalError: () => fatalError,
+    };
+  }
+
   const unsubscribe = session.subscribe((event) => {
     if (event.type === "message_end") {
       if (event.message.role !== "assistant") return;

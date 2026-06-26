@@ -305,9 +305,18 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
 
         if (outcome === "aborted") {
           const reason = `task "${params.slug}" was aborted`;
-          await abortSessionStack(ctx.cwd, reason, activeSessions, postOutput);
-          ctx.abort();
-          throw new Error(reason);
+          const abortSummary = await abortSessionStack(ctx.cwd, reason, activeSessions);
+          const finalSnapshot = (resumeDelegatedTask as any).lastFinalSnapshot as string | undefined;
+          const parts = [
+            `Task "${params.slug}" aborted.`,
+            finalSnapshot,
+            abortSummary,
+          ].filter(Boolean);
+          return {
+            content: [{ type: "text", text: parts.join("\n\n") }],
+            details: { aborted: true, finalSnapshot, abortSummary },
+            terminate: true,
+          };
         }
 
         const blockedReason = outcome === "blocked" ? readTask(ctx.cwd, params.slug)?.blocked_reason : undefined;
@@ -324,7 +333,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
             ? `fatal child session failure in ${err.slug}: ${err.detail}`
             : err.message;
           await abortSessionStack(ctx.cwd, reason, activeSessions, postOutput);
-          ctx.abort();
+          ctx.abort?.();
         }
         throw err;
       }
@@ -361,9 +370,18 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
 
         if (outcome === "aborted") {
           const reason = `task "${params.slug}" was aborted`;
-          await abortSessionStack(ctx.cwd, reason, activeSessions, postOutput);
-          ctx.abort();
-          throw new Error(reason);
+          const abortSummary = await abortSessionStack(ctx.cwd, reason, activeSessions);
+          const finalSnapshot = (resumeDelegatedTask as any).lastFinalSnapshot as string | undefined;
+          const parts = [
+            `Task "${params.slug}" aborted.`,
+            finalSnapshot,
+            abortSummary,
+          ].filter(Boolean);
+          return {
+            content: [{ type: "text", text: parts.join("\n\n") }],
+            details: { aborted: true, finalSnapshot, abortSummary },
+            terminate: true,
+          };
         }
 
         const blockedReason = outcome === "blocked" ? readTask(ctx.cwd, params.slug)?.blocked_reason : undefined;
@@ -380,7 +398,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
             ? `fatal child session failure in ${err.slug}: ${err.detail}`
             : err.message;
           await abortSessionStack(ctx.cwd, reason, activeSessions, postOutput);
-          ctx.abort();
+          ctx.abort?.();
         }
         throw err;
       }

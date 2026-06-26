@@ -4,7 +4,11 @@ import { listTasks } from "./task-store.ts";
 
 export async function abortAllActiveSessions(activeSessions: Map<string, AgentSession>): Promise<void> {
   const sessions = [...activeSessions.values()];
-  await Promise.all(sessions.map(session => session.abort().catch(() => {})));
+  await Promise.all(sessions.map(async session => {
+    if (typeof session.abort !== "function") return;
+    await session.abort().catch(() => {
+    });
+  }));
   activeSessions.clear();
 }
 
@@ -12,11 +16,13 @@ export async function abortSessionStack(
   cwd: string,
   reason: string,
   activeSessions: Map<string, AgentSession>,
-  postOutput: (lines: string) => void,
-): Promise<void> {
+  postOutput?: (lines: string) => void,
+): Promise<string> {
   const snapshot = new Map(activeSessions);
-  postOutput(renderAbortSummary(cwd, reason, snapshot));
+  const summary = renderAbortSummary(cwd, reason, snapshot);
+  postOutput?.(summary);
   await abortAllActiveSessions(activeSessions);
+  return summary;
 }
 
 function renderAbortStacks(cwd: string, activeSessions: Map<string, AgentSession>): string[] {
