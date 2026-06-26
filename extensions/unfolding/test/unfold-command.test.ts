@@ -152,16 +152,16 @@ describe("structural invariants", () => {
 
   it("registers a message renderer for unfolding child output", () => {
     assert.ok(
-      src.includes('registerMessageRenderer<{ lines?: string }>(UNFOLDING_CHILD_OUTPUT_TYPE'),
+      src.includes('registerMessageRenderer<ChildOutputDetails>(UNFOLDING_CHILD_OUTPUT_TYPE'),
       "index.ts must register a renderer for unfolding child output messages",
     );
     assert.ok(
-      src.includes('render(width: number)'),
-      "index.ts renderer should wrap against the actual render width",
+      src.includes('renderChildOutputBox('),
+      "index.ts renderer should delegate child-output framing/rendering",
     );
     assert.ok(
-      src.includes('wrapTextWithAnsi'),
-      "index.ts renderer should preserve ANSI styling such as italic nested thinking",
+      src.includes('childOutputEvents'),
+      "index.ts renderer should consume structured child output events",
     );
   });
 

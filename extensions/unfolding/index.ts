@@ -9,9 +9,9 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, join, dirname } from "node:path";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentSession } from "@earendil-works/pi-coding-agent";
-import { visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
 import { taskList, taskRead, taskAccept, taskReopen, taskUnblock, taskRollback } from "./task-tools.ts";
@@ -25,6 +25,7 @@ import { abortSessionStack } from "./abort-flow.ts";
 import { FatalChildSessionError } from "./task-delegate.ts";
 import { isUnfoldingFatalError } from "./fatal-error.ts";
 import { exportTaskDebugHtmlIfEnabled, exportTaskSessionHtml } from "./debug-export.ts";
+import { legacyRendered, renderChildOutputBox, renderChildOutputResult, type ChildOutputDetails } from "./child-output.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -80,29 +81,13 @@ function inferInheritedExtensionPaths(pi: ExtensionAPI): string[] {
 const UNFOLDING_CHILD_OUTPUT_TYPE = "unfolding-child-output";
 
 function makePostOutput(pi: ExtensionAPI) {
-  return (lines: string) =>
-    pi.sendMessage({ customType: UNFOLDING_CHILD_OUTPUT_TYPE, content: "", display: true, details: { lines } });
-}
-
-function wrapPreservingBlankLines(text: string, width: number): string[] {
-  return text.split("\n").flatMap(line => {
-    if (line.length === 0) return [""];
-    const wrapped = wrapTextWithAnsi(line, width);
-    return wrapped.length > 0 ? wrapped : [""];
-  });
-}
-
-function padVisibleWidth(text: string, width: number): string {
-  const padding = Math.max(0, width - visibleWidth(text));
-  return `${text}${" ".repeat(padding)}`;
-}
-
-function renderChildOutput(lines: string, theme: { bg: (color: string, text: string) => string }, width: number): string[] {
-  const innerWidth = Math.max(1, width - 2);
-  const backgroundLine = theme.bg("customMessageBg", " ".repeat(innerWidth + 2));
-  const content = wrapPreservingBlankLines(lines, innerWidth)
-    .map(line => theme.bg("customMessageBg", ` ${padVisibleWidth(line, innerWidth)} `));
-  return [backgroundLine, ...content, backgroundLine];
+  return (line: string) =>
+    pi.sendMessage({
+      customType: UNFOLDING_CHILD_OUTPUT_TYPE,
+      content: "",
+      display: true,
+      details: { childOutputRole: "assistant", childOutputEvents: [legacyRendered(line)] },
+    });
 }
 
 export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<string, AgentSession> }) {
@@ -118,11 +103,12 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     filterDisplayOnlyMessages(event, UNFOLDING_CHILD_OUTPUT_TYPE) as { messages?: any[] } | undefined,
   );
 
-  pi.registerMessageRenderer<{ lines?: string }>(UNFOLDING_CHILD_OUTPUT_TYPE, (message, _options, theme) => {
-    const lines = message.details?.lines ?? message.content ?? "";
+  pi.registerMessageRenderer<ChildOutputDetails>(UNFOLDING_CHILD_OUTPUT_TYPE, (message, _options, theme) => {
+    const events = message.details?.childOutputEvents;
+    if (!events || events.length === 0) return undefined;
     return {
       render(width: number) {
-        return renderChildOutput(lines, theme, Math.max(1, width));
+        return renderChildOutputBox("assistant", events, theme, Math.max(1, width));
       },
       invalidate() {
       },
@@ -248,14 +234,19 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     },
   });
 
-  pi.registerTool(makeTaskDelegateDefinition(
-    "orchestrator",
-    activeSessions,
-    pi,
-    postOutput,
-    undefined,
-    (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, debugExportsEnabled),
-  ));
+  pi.registerTool({
+    ...makeTaskDelegateDefinition(
+      "orchestrator",
+      activeSessions,
+      pi,
+      postOutput,
+      undefined,
+      (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, debugExportsEnabled),
+    ),
+    renderShell: "self",
+    renderCall: (_args, _theme) => new Text("", 0, 0),
+    renderResult: (result: AgentToolResult<ChildOutputDetails>, options, theme) => renderChildOutputResult(result, options, theme),
+  });
 
   pi.registerTool({
     name: "task_accept",
@@ -307,6 +298,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           const reason = `task "${params.slug}" was aborted`;
           const abortSummary = await abortSessionStack(ctx.cwd, reason, activeSessions);
           const finalSnapshot = (resumeDelegatedTask as any).lastFinalSnapshot as string | undefined;
+          const finalOutputDetails = (resumeDelegatedTask as any).lastFinalOutputDetails as ChildOutputDetails | undefined;
           const parts = [
             `Task "${params.slug}" aborted.`,
             finalSnapshot,
@@ -314,7 +306,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           ].filter(Boolean);
           return {
             content: [{ type: "text", text: parts.join("\n\n") }],
-            details: { aborted: true, finalSnapshot, abortSummary },
+            details: { aborted: true, finalSnapshot, abortSummary, ...finalOutputDetails },
             terminate: true,
           };
         }
@@ -372,6 +364,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           const reason = `task "${params.slug}" was aborted`;
           const abortSummary = await abortSessionStack(ctx.cwd, reason, activeSessions);
           const finalSnapshot = (resumeDelegatedTask as any).lastFinalSnapshot as string | undefined;
+          const finalOutputDetails = (resumeDelegatedTask as any).lastFinalOutputDetails as ChildOutputDetails | undefined;
           const parts = [
             `Task "${params.slug}" aborted.`,
             finalSnapshot,
@@ -379,7 +372,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           ].filter(Boolean);
           return {
             content: [{ type: "text", text: parts.join("\n\n") }],
-            details: { aborted: true, finalSnapshot, abortSummary },
+            details: { aborted: true, finalSnapshot, abortSummary, ...finalOutputDetails },
             terminate: true,
           };
         }

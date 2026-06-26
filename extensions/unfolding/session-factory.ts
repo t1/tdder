@@ -5,11 +5,13 @@ import { createSnapshotCommit, ensureGitRepoWithHead, isWorkspaceDirty } from ".
 import { createTask, readTask, updateTaskStatus, type Task } from "./task-store.ts";
 import { installCheckpointRecovery, streamChildSession, waitForChildDecision } from "./task-delegate.ts";
 import { buildChildInitialMessage, createChildAgentSession, type NestedDelegateToolFactory } from "./session-common.ts";
+import type { ChildOutputDetails } from "./child-output.ts";
 
 export interface ChildSessionRunResult {
   session: AgentSession;
   outcome: "finished" | "blocked" | "aborted";
   finalSnapshot?: string;
+  finalOutputDetails?: ChildOutputDetails;
 }
 
 export interface StartChildSessionParams {
@@ -120,9 +122,10 @@ export async function startChildSession({
       // The live onUpdate display already showed the transcript incrementally.
       // Using onUpdate here for the final state shows it in the tool-update area (during tool
       // execution) without triggering a steer or an extra LLM call.
-      onUpdate?.({ content: [{ type: "text", text: finalSnapshot }], details: undefined });
+      const finalOutputDetails = { childOutputRole: shortRole, childOutputEvents: stream.getOutputEvents() };
+      onUpdate?.({ content: [{ type: "text", text: finalSnapshot }], details: finalOutputDetails });
       if (outcome === "aborted") {
-        return { session, outcome, finalSnapshot };
+        return { session, outcome, finalSnapshot, finalOutputDetails };
       }
     } else {
       postOutput(costLine);

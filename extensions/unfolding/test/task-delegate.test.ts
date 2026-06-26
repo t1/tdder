@@ -13,8 +13,7 @@ import {createTask, readTask} from "../task-store.ts";
 import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
 import {installCheckpointRecovery, loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON, CHILD_SESSION_FAILURE_BLOCKED_REASON, FatalChildSessionError} from "../task-delegate.ts";
 
-const ANSI_ITALIC_ON = "\x1b[3m";
-const ANSI_ITALIC_OFF = "\x1b[23m";
+import { ANSI_ITALIC_ON, ANSI_ITALIC_OFF } from "../child-output.ts";
 
 const rolesDir = resolve(new URL("../roles", import.meta.url).pathname);
 
@@ -126,8 +125,8 @@ describe("streamChildSession", () => {
     assert.ok(last.includes("[po] 💬 Hello"), `expected first visible text without leading whitespace, got: ${last}`);
   });
 
-  it("forwards thinking_delta onto a separate line", () => {
-    const updates: string[] = [];
+  it("forwards thinking_delta in structured details while legacy text still shows italics", () => {
+    const updates: Array<{ text: string; details: any }> = [];
     let captured: ((e: any) => void) | undefined;
     const fakeSession = {
       subscribe: (h: any) => {
@@ -136,13 +135,18 @@ describe("streamChildSession", () => {
         };
       }
     } as any;
-    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text));
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push({ text: u.content[0].text, details: u.details }));
 
-    captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "plan"}});
-    captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: " first"}});
+    captured!({type: "message_update", message: { role: "assistant" }, assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "plan"}});
+    captured!({type: "message_update", message: { role: "assistant" }, assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: " first"}});
 
     const last = updates[updates.length - 1];
-    assert.ok(last.includes(`[po] 🤔 ${ANSI_ITALIC_ON}plan first${ANSI_ITALIC_OFF}`), `expected italic accumulated thinking text, got: ${last}`);
+    assert.ok(last.text.includes(`[po] 🤔 ${ANSI_ITALIC_ON}plan first${ANSI_ITALIC_OFF}`), `expected italic accumulated thinking text, got: ${last.text}`);
+    const thinkingEvents = last.details.childOutputEvents.filter((event: any) => event.type === "message_update");
+    assert.equal(thinkingEvents.length, 1);
+    assert.equal(thinkingEvents[0].message.role, "assistant");
+    assert.equal(thinkingEvents[0].assistantMessageEvent.type, "thinking_delta");
+    assert.equal(thinkingEvents[0].assistantMessageEvent.delta, "plan first");
   });
 
   it("keeps thinking and text on separate lines when deltas interleave", () => {

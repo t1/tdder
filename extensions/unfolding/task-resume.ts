@@ -4,6 +4,7 @@ import { readTask } from "./task-store.ts";
 import { installCheckpointRecovery, streamChildSession, waitForChildDecision, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
 import { restoreChildSession } from "./session-restore.ts";
 import { makeTaskDelegateDefinition } from "./task-delegate-tool.ts";
+import type { ChildOutputDetails } from "./child-output.ts";
 
 export interface ResumeDelegatedTaskParams {
   action: "reopen" | "unblock";
@@ -12,7 +13,7 @@ export interface ResumeDelegatedTaskParams {
   reason?: string;
   activeSessions: Map<string, AgentSession>;
   signal?: AbortSignal;
-  onUpdate?: AgentToolUpdateCallback<unknown>;
+  onUpdate?: AgentToolUpdateCallback<ChildOutputDetails>;
   postOutput: (lines: string) => void;
   mutateTask: (cwd: string, slug: string, reason?: string) => void;
   pi: ExtensionAPI;
@@ -102,10 +103,12 @@ export async function resumeDelegatedTask({
       // postOutput → pi.sendMessage while isStreaming=true → steer → extra LLM call →
       // after filterDisplayOnlyMessages the context may end with an assistant message →
       // 400 "does not support assistant message prefill" on Anthropic/Bedrock.
-      onUpdate?.({ content: [{ type: "text", text: finalSnapshot }], details: undefined });
+      const finalOutputDetails = { childOutputRole: shortRole, childOutputEvents: stream.getOutputEvents() } satisfies ChildOutputDetails;
+      onUpdate?.({ content: [{ type: "text", text: finalSnapshot }], details: finalOutputDetails });
       if (outcome === "aborted") {
         await exportDebugHtml?.(cwd, slug);
         (resumeDelegatedTask as any).lastFinalSnapshot = finalSnapshot;
+        (resumeDelegatedTask as any).lastFinalOutputDetails = finalOutputDetails;
         return outcome;
       }
     } else {
@@ -114,6 +117,7 @@ export async function resumeDelegatedTask({
 
     await exportDebugHtml?.(cwd, slug);
     (resumeDelegatedTask as any).lastFinalSnapshot = undefined;
+    (resumeDelegatedTask as any).lastFinalOutputDetails = undefined;
     return outcome;
   } finally {
     checkpointRecovery.unsubscribe();

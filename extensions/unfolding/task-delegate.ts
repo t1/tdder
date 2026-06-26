@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentSession, AgentSessionEvent, AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
+import { legacyRendered, type ChildOutputDetails, type ChildOutputEvent, ANSI_ITALIC_OFF, ANSI_ITALIC_ON } from "./child-output.ts";
 import { readTask, updateTaskStatus } from "./task-store.ts";
 import { stripFrontmatter } from "./unfold-helpers.ts";
 
@@ -111,9 +112,6 @@ type StreamRow =
   | { kind: "tool"; toolCallId: string; summary: string; startedAt: number; finishedAt?: number; status: ToolRowStatus; errorSummary?: string; outputTail?: string[] }
   | { kind: "assistant"; rowKey: string; icon: "💬" | "🤔"; text: string }
   | { kind: "note"; text: string };
-
-const ANSI_ITALIC_ON = "\x1b[3m";
-const ANSI_ITALIC_OFF = "\x1b[23m";
 
 function renderAssistantRow(role: string, row: Extract<StreamRow, { kind: "assistant" }>): string {
   const prefix = `  [${role}] ${row.icon} `;
@@ -239,9 +237,9 @@ export function streamChildSession(
   session: AgentSession,
   role: string,
   slug: string,
-  onUpdate: AgentToolUpdateCallback<unknown>,
+  onUpdate: AgentToolUpdateCallback<ChildOutputDetails>,
   options: StreamChildSessionOptions = {},
-): { unsubscribe: () => void; append: (line: string) => void; getLines: () => string } {
+): { unsubscribe: () => void; append: (line: string) => void; getLines: () => string; getOutputEvents: () => ChildOutputEvent[] } {
   const prefixLen = `  [${role}] ⚙ `.length;
   const rows: StreamRow[] = [];
   const toolRows = new Map<string, Extract<StreamRow, { kind: "tool" }>>();
@@ -276,6 +274,29 @@ export function streamChildSession(
     return `  [${role}] ⏱ total — ${totalSeconds}s`;
   };
 
+  const getOutputEvents = (): ChildOutputEvent[] => [
+    legacyRendered(`[${role}/${slug}]`),
+    ...rows.flatMap((row, index) => {
+      switch (row.kind) {
+        case "tool": return renderToolRow(row).map(line => legacyRendered(line));
+        case "assistant":
+          return row.icon === "🤔"
+            ? [{
+              type: "message_update",
+              message: { role: "assistant" },
+              assistantMessageEvent: {
+                type: "thinking_delta",
+                contentIndex: index,
+                delta: row.text,
+              },
+            } as AgentSessionEvent]
+            : [legacyRendered(renderAssistantRow(role, row))];
+        case "note": return [legacyRendered(row.text)];
+      }
+    }),
+    legacyRendered(renderTotalLine()),
+  ];
+
   const getLines = () => [
     `[${role}/${slug}]`,
     ...rows.flatMap(row => {
@@ -289,7 +310,10 @@ export function streamChildSession(
   ].join("\n");
 
   const flush = () =>
-    onUpdate({ content: [{ type: "text", text: getLines() }], details: undefined });
+    onUpdate({
+      content: [{ type: "text", text: getLines() }],
+      details: { childOutputRole: role, childOutputEvents: getOutputEvents() },
+    });
 
   const ensureTimer = () => {
     if (timer) return;
@@ -459,6 +483,7 @@ export function streamChildSession(
   return {
     append,
     getLines,
+    getOutputEvents,
     unsubscribe: () => {
       endedAt = endedAt ?? now();
       if (timer) {
