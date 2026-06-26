@@ -367,7 +367,7 @@ describe("startChildSession groundwork", () => {
       models: [{id: "test-model"}],
     });
     faux.setResponses([
-      fauxAssistantMessage("transport failed", {stopReason: "error", errorMessage: "Connection error."} as any),
+      fauxAssistantMessage("transport failed", {stopReason: "error", errorMessage: "Permission denied."} as any),
     ]);
     const authStorage = AuthStorage.inMemory();
     authStorage.setRuntimeApiKey(provider, "test-key");
@@ -389,7 +389,7 @@ describe("startChildSession groundwork", () => {
           authStorage,
           modelRegistry,
         }),
-        /fatal child session error in "coder-child-failure": Connection error\./,
+        /fatal child session error in "coder-child-failure": Permission denied\./,
       );
 
       const snapshot = readTaskSnapshot(cwd, "coder-child-failure");

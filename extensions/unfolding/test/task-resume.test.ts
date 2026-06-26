@@ -503,7 +503,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         fauxToolCall("task_block", {blocked_reason: "need input"}),
       ], {stopReason: "toolUse"}),
       fauxAssistantMessage("ok"),
-      fauxAssistantMessage("transport failed", {stopReason: "error", errorMessage: "Connection error."} as any),
+      fauxAssistantMessage("transport failed", {stopReason: "error", errorMessage: "Permission denied."} as any),
     ]);
     const authStorage = AuthStorage.inMemory();
     authStorage.setRuntimeApiKey(provider, "test-key");
@@ -545,7 +545,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
           authStorage,
           modelRegistry,
         }),
-        /fatal child session error in "coder-resume-child-failure": Connection error\./,
+        /fatal child session error in "coder-resume-child-failure": Permission denied\./,
       );
 
       const task = readTask(cwd, "coder-resume-child-failure");

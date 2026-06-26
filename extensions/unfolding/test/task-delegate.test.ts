@@ -9,7 +9,9 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
-import {loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON, CHILD_SESSION_FAILURE_BLOCKED_REASON, FatalChildSessionError} from "../task-delegate.ts";
+import {createTask, readTask} from "../task-store.ts";
+import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
+import {installCheckpointRecovery, loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON, CHILD_SESSION_FAILURE_BLOCKED_REASON, FatalChildSessionError} from "../task-delegate.ts";
 
 const ANSI_ITALIC_ON = "\x1b[3m";
 const ANSI_ITALIC_OFF = "\x1b[23m";
@@ -141,6 +143,27 @@ describe("streamChildSession", () => {
 
     const last = updates[updates.length - 1];
     assert.ok(last.includes(`[po] 🤔 ${ANSI_ITALIC_ON}plan first${ANSI_ITALIC_OFF}`), `expected italic accumulated thinking text, got: ${last}`);
+  });
+
+  it("emits an ansi probe note for thinking rows in debug mode", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text), {
+      debugAnsiProbe: true,
+    });
+
+    captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "plan first"}});
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[po] 🧪 ansi probe — italicOn=true italicOff=true"), `expected ansi probe flags, got: ${last}`);
+    assert.ok(last.includes('rendered="  [po] 🤔 \\x1b[3mplan first\\x1b[23m"'), `expected escaped rendered thinking row, got: ${last}`);
   });
 
   it("keeps thinking and text on separate lines when deltas interleave", () => {
@@ -411,6 +434,55 @@ describe("streamChildSession", () => {
 
     const last = updates[updates.length - 1];
     assert.ok(last.includes("[po] ⚠ thinking truncated by length limit"), `expected truncation warning, got: ${last}`);
+  });
+
+  it("shows auto-retry progress without flagging it as an unexpected child event", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "architect", "slug", (u: any) => updates.push(u.content[0].text));
+
+    captured!({
+      type: "auto_retry_start",
+      attempt: 1,
+      maxAttempts: 3,
+      delayMs: 1500,
+      errorMessage: "503 Model server connection error",
+    });
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[architect] ↻ auto-retry 1/3 in 2s — 503 Model server connection error"), `expected retry note, got: ${last}`);
+    assert.ok(!last.includes("unexpected child event"), `did not expect unexpected-event warning, got: ${last}`);
+  });
+
+  it("shows failed auto-retry exhaustion without flagging it as an unexpected child event", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "architect", "slug", (u: any) => updates.push(u.content[0].text));
+
+    captured!({
+      type: "auto_retry_end",
+      success: false,
+      attempt: 3,
+      finalError: "503 Model server connection error",
+    });
+
+    const last = updates[updates.length - 1];
+    assert.ok(last.includes("[architect] ❌ auto-retry failed after attempt 3 — 503 Model server connection error"), `expected retry failure note, got: ${last}`);
+    assert.ok(!last.includes("unexpected child event"), `did not expect unexpected-event warning, got: ${last}`);
   });
 
   it("returns unsubscribe function that removes the listener and clears timers", () => {

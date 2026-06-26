@@ -81,6 +81,10 @@ function summarizeAssistantError(event: AgentSessionEvent): string {
   return event.assistantMessageEvent.errorMessage?.trim() || "assistant stream error";
 }
 
+function summarizeRetryError(errorMessage: string | undefined): string {
+  return errorMessage?.trim() || "retryable model error";
+}
+
 const INTENTIONALLY_SKIPPED_EVENT_TYPES = new Set([
   "agent_start",
   "agent_end",
@@ -124,6 +128,7 @@ export interface StreamChildSessionOptions {
   clearIntervalFn?: (interval: ReturnType<typeof setInterval>) => void;
   tickMs?: number;
   sessionFile?: string;
+  debugAnsiProbe?: boolean;
 }
 
 /**
@@ -147,6 +152,14 @@ function truncateSummary(text: string, max = 140): string {
 
 function sessionLogSuffix(sessionFile?: string): string {
   return sessionFile ? ` — see ${sessionFile}` : "";
+}
+
+function escapeAnsiForDebug(text: string): string {
+  return text
+    .replace(/\x1b\[3m/g, "\\x1b[3m")
+    .replace(/\x1b\[23m/g, "\\x1b[23m")
+    .replace(/\x1b/g, "\\x1b")
+    .replace(/\n/g, "\\n");
 }
 
 const MAX_TOOL_OUTPUT_LINES = 5;
@@ -248,6 +261,7 @@ export function streamChildSession(
   const clearIntervalFn = options.clearIntervalFn ?? ((interval) => clearInterval(interval));
   const tickMs = options.tickMs ?? 1000;
   const sessionFile = options.sessionFile;
+  const debugAnsiProbe = options.debugAnsiProbe ?? false;
   const startedAt = now();
   let endedAt: number | undefined;
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -322,6 +336,13 @@ export function streamChildSession(
     assistantRows.set(key, row);
     pendingBlockWhitespace.delete(key);
     rows.push(row);
+    if (debugAnsiProbe && kind === "thinking") {
+      const rendered = renderAssistantRow(role, row);
+      rows.push({
+        kind: "note",
+        text: `  [${role}] 🧪 ansi probe — italicOn=${rendered.includes(ANSI_ITALIC_ON)} italicOff=${rendered.includes(ANSI_ITALIC_OFF)} rendered="${escapeAnsiForDebug(rendered)}"`,
+      });
+    }
     flush();
   };
 
@@ -403,6 +424,25 @@ export function streamChildSession(
       return;
     }
 
+    if (event.type === "auto_retry_start") {
+      const seconds = Math.max(1, Math.ceil(event.delayMs / 1000));
+      rows.push({
+        kind: "note",
+        text: `  [${role}] ↻ auto-retry ${event.attempt}/${event.maxAttempts} in ${seconds}s — ${truncateSummary(summarizeRetryError(event.errorMessage))}`,
+      });
+      flush();
+      return;
+    }
+
+    if (event.type === "auto_retry_end") {
+      if (!event.success) {
+        const detail = truncateSummary(summarizeRetryError(event.finalError));
+        rows.push({ kind: "note", text: `  [${role}] ❌ auto-retry failed after attempt ${event.attempt} — ${detail}` });
+        flush();
+      }
+      return;
+    }
+
     if (isThinkingLengthTruncation(event)) {
       rows.push({ kind: "note", text: `  [${role}] ⚠ thinking truncated by length limit` });
       flush();
@@ -470,6 +510,19 @@ export function installCheckpointRecovery(
   let fatalError: FatalChildSessionError | undefined;
   const onRecoveryNote = options.onRecoveryNote;
 
+  const clearTurnState = () => {
+    sawLengthTruncationThisTurn = false;
+    terminalFailureThisTurn = undefined;
+    assistantStopReasonThisTurn = undefined;
+  };
+
+  const failChildSession = (detail: string) => {
+    if (fatalError) return;
+    clearTurnState();
+    onRecoveryNote?.(`  ⚠ child session failed before a checkpoint — ${truncateSummary(compactWhitespace(detail))}`);
+    fatalError = new FatalChildSessionError(slug, detail);
+  };
+
   const unsubscribe = session.subscribe((event) => {
     if (event.type === "message_end") {
       if (event.message.role !== "assistant") return;
@@ -483,20 +536,37 @@ export function installCheckpointRecovery(
       return;
     }
 
+    if (event.type === "agent_end") {
+      const task = readTask(cwd, slug);
+      if (task?.status !== "in_progress") {
+        clearTurnState();
+        return;
+      }
+      if (!terminalFailureThisTurn) return;
+      if (event.willRetry) return;
+      failChildSession(terminalFailureThisTurn);
+      return;
+    }
+
+    if (event.type === "auto_retry_end") {
+      if (event.success) {
+        terminalFailureThisTurn = undefined;
+      } else if (terminalFailureThisTurn) {
+        failChildSession(terminalFailureThisTurn || event.finalError?.trim() || "child session failure");
+      }
+      return;
+    }
+
     if (event.type !== "turn_end") return;
 
     const task = readTask(cwd, slug);
     if (task?.status !== "in_progress") {
-      sawLengthTruncationThisTurn = false;
-      terminalFailureThisTurn = undefined;
-      assistantStopReasonThisTurn = undefined;
+      clearTurnState();
       return;
     }
 
     if (sawLengthTruncationThisTurn) {
-      sawLengthTruncationThisTurn = false;
-      terminalFailureThisTurn = undefined;
-      assistantStopReasonThisTurn = undefined;
+      clearTurnState();
       if (!truncationRecoveryAttempted) {
         truncationRecoveryAttempted = true;
         onRecoveryNote?.("  ⚠ child response was truncated before a checkpoint; prompting it to continue or block");
@@ -512,12 +582,7 @@ export function installCheckpointRecovery(
       return;
     }
 
-    if (terminalFailureThisTurn) {
-      const detail = terminalFailureThisTurn;
-      terminalFailureThisTurn = undefined;
-      assistantStopReasonThisTurn = undefined;
-      onRecoveryNote?.(`  ⚠ child session failed before a checkpoint — ${truncateSummary(compactWhitespace(detail))}`);
-      fatalError = new FatalChildSessionError(slug, detail);
+    if (assistantStopReasonThisTurn === "error" || assistantStopReasonThisTurn === "aborted") {
       return;
     }
 
