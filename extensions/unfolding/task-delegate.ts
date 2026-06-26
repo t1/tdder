@@ -1,7 +1,16 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentSession, AgentSessionEvent, AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
-import { legacyRendered, type ChildOutputDetails, type ChildOutputEvent, ANSI_ITALIC_OFF, ANSI_ITALIC_ON } from "./child-output.ts";
+import {
+  childOutputHeader,
+  childOutputNote,
+  childOutputTool,
+  childOutputTotal,
+  type ChildOutputDetails,
+  type ChildOutputEvent,
+  ANSI_ITALIC_OFF,
+  ANSI_ITALIC_ON,
+} from "./child-output.ts";
 import { readTask, updateTaskStatus } from "./task-store.ts";
 import { stripFrontmatter } from "./unfold-helpers.ts";
 
@@ -105,8 +114,6 @@ const INTENTIONALLY_SKIPPED_ASSISTANT_MESSAGE_EVENT_TYPES = new Set([
   "toolcall_end",
   "done",
 ]);
-
-type ToolRowStatus = "pending" | "success" | "error";
 
 type StreamRow =
   | { kind: "tool"; toolCallId: string; summary: string; startedAt: number; finishedAt?: number; status: ToolRowStatus; errorSummary?: string; outputTail?: string[] }
@@ -275,26 +282,28 @@ export function streamChildSession(
   };
 
   const getOutputEvents = (): ChildOutputEvent[] => [
-    legacyRendered(`[${role}/${slug}]`),
+    childOutputHeader(slug),
     ...rows.flatMap((row, index) => {
       switch (row.kind) {
-        case "tool": return renderToolRow(row).map(line => legacyRendered(line));
+        case "tool": {
+          const endedAt = row.finishedAt ?? now();
+          const elapsedSeconds = Math.max(0, Math.floor((endedAt - row.startedAt) / 1000));
+          return [childOutputTool(row.summary, elapsedSeconds, row.status, row.errorSummary, row.outputTail)];
+        }
         case "assistant":
-          return row.icon === "🤔"
-            ? [{
-              type: "message_update",
-              message: { role: "assistant" },
-              assistantMessageEvent: {
-                type: "thinking_delta",
-                contentIndex: index,
-                delta: row.text,
-              },
-            } as AgentSessionEvent]
-            : [legacyRendered(renderAssistantRow(role, row))];
-        case "note": return [legacyRendered(row.text)];
+          return [{
+            type: "message_update",
+            message: { role: "assistant" },
+            assistantMessageEvent: {
+              type: row.icon === "🤔" ? "thinking_delta" : "text_delta",
+              contentIndex: index,
+              delta: row.text,
+            },
+          } as AgentSessionEvent];
+        case "note": return [childOutputNote(row.text)];
       }
     }),
-    legacyRendered(renderTotalLine()),
+    childOutputTotal(Math.max(0, Math.floor(((endedAt ?? now()) - startedAt) / 1000))),
   ];
 
   const getLines = () => [

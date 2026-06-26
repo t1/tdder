@@ -13,7 +13,7 @@ import {createTask, readTask} from "../task-store.ts";
 import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
 import {installCheckpointRecovery, loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON, CHILD_SESSION_FAILURE_BLOCKED_REASON, FatalChildSessionError} from "../task-delegate.ts";
 
-import { ANSI_ITALIC_ON, ANSI_ITALIC_OFF } from "../child-output.ts";
+import { ANSI_ITALIC_ON, ANSI_ITALIC_OFF, childOutputHeader } from "../child-output.ts";
 
 const rolesDir = resolve(new URL("../roles", import.meta.url).pathname);
 
@@ -71,7 +71,7 @@ describe("streamChildSession", () => {
   });
 
   it("accumulates text_delta onto a single line", () => {
-    const updates: string[] = [];
+    const updates: Array<{ text: string; details: any }> = [];
     let captured: ((e: any) => void) | undefined;
     const fakeSession = {
       subscribe: (h: any) => {
@@ -80,11 +80,15 @@ describe("streamChildSession", () => {
         };
       }
     } as any;
-    streamChildSession(fakeSession, "coder", "slug", (u: any) => updates.push(u.content[0].text));
+    streamChildSession(fakeSession, "coder", "slug", (u: any) => updates.push({ text: u.content[0].text, details: u.details }));
     captured!({type: "message_update", assistantMessageEvent: {type: "text_delta", delta: "Hello"}});
     captured!({type: "message_update", assistantMessageEvent: {type: "text_delta", delta: " world"}});
     const last = updates[updates.length - 1];
-    assert.ok(last.includes("[coder] 💬 Hello world"), `expected accumulated text, got: ${last}`);
+    assert.ok(last.text.includes("[coder] 💬 Hello world"), `expected accumulated text, got: ${last.text}`);
+    const textEvents = last.details.childOutputEvents.filter((event: any) => event.type === "message_update");
+    assert.equal(textEvents.length, 1);
+    assert.equal(textEvents[0].assistantMessageEvent.type, "text_delta");
+    assert.equal(textEvents[0].assistantMessageEvent.delta, "Hello world");
   });
 
   it("ignores whitespace-only initial text_delta updates", () => {
@@ -142,6 +146,7 @@ describe("streamChildSession", () => {
 
     const last = updates[updates.length - 1];
     assert.ok(last.text.includes(`[po] 🤔 ${ANSI_ITALIC_ON}plan first${ANSI_ITALIC_OFF}`), `expected italic accumulated thinking text, got: ${last.text}`);
+    assert.deepEqual(last.details.childOutputEvents[0], childOutputHeader("slug"));
     const thinkingEvents = last.details.childOutputEvents.filter((event: any) => event.type === "message_update");
     assert.equal(thinkingEvents.length, 1);
     assert.equal(thinkingEvents[0].message.role, "assistant");
@@ -361,7 +366,7 @@ describe("streamChildSession", () => {
   });
 
   it("shows successful tool executions with a trailing checkmark", () => {
-    const updates: string[] = [];
+    const updates: Array<{ text: string; details: any }> = [];
     let captured: ((e: any) => void) | undefined;
     let nowMs = 0;
     const fakeSession = {
@@ -371,7 +376,7 @@ describe("streamChildSession", () => {
         };
       }
     } as any;
-    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text), {
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push({ text: u.content[0].text, details: u.details }), {
       now: () => nowMs,
     });
 
@@ -391,7 +396,12 @@ describe("streamChildSession", () => {
     });
 
     const last = updates[updates.length - 1];
-    assert.ok(last.includes("[po] ⚙ read foo.txt — 2s ✓"), `expected successful tool row, got: ${last}`);
+    assert.ok(last.text.includes("[po] ⚙ read foo.txt — 2s ✓"), `expected successful tool row, got: ${last.text}`);
+    const toolEvents = last.details.childOutputEvents.filter((event: any) => event.type === "tool");
+    assert.equal(toolEvents.length, 1);
+    assert.equal(toolEvents[0].summary, "read foo.txt");
+    assert.equal(toolEvents[0].elapsedSeconds, 2);
+    assert.equal(toolEvents[0].status, "success");
   });
 
   it("warns when thinking is truncated by the length limit", () => {
@@ -420,7 +430,7 @@ describe("streamChildSession", () => {
   });
 
   it("shows auto-retry progress without flagging it as an unexpected child event", () => {
-    const updates: string[] = [];
+    const updates: Array<{ text: string; details: any }> = [];
     let captured: ((e: any) => void) | undefined;
     const fakeSession = {
       subscribe: (h: any) => {
@@ -429,7 +439,7 @@ describe("streamChildSession", () => {
         };
       }
     } as any;
-    streamChildSession(fakeSession, "architect", "slug", (u: any) => updates.push(u.content[0].text));
+    streamChildSession(fakeSession, "architect", "slug", (u: any) => updates.push({ text: u.content[0].text, details: u.details }));
 
     captured!({
       type: "auto_retry_start",
@@ -440,8 +450,10 @@ describe("streamChildSession", () => {
     });
 
     const last = updates[updates.length - 1];
-    assert.ok(last.includes("[architect] ↻ auto-retry 1/3 in 2s — 503 Model server connection error"), `expected retry note, got: ${last}`);
-    assert.ok(!last.includes("unexpected child event"), `did not expect unexpected-event warning, got: ${last}`);
+    assert.ok(last.text.includes("[architect] ↻ auto-retry 1/3 in 2s — 503 Model server connection error"), `expected retry note, got: ${last.text}`);
+    assert.ok(!last.text.includes("unexpected child event"), `did not expect unexpected-event warning, got: ${last.text}`);
+    const noteEvents = last.details.childOutputEvents.filter((event: any) => event.type === "note");
+    assert.equal(noteEvents.at(-1)?.text, "  [architect] ↻ auto-retry 1/3 in 2s — 503 Model server connection error");
   });
 
   it("shows failed auto-retry exhaustion without flagging it as an unexpected child event", () => {

@@ -4,20 +4,74 @@ import { visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 export const ANSI_ITALIC_ON = "\x1b[3m";
 export const ANSI_ITALIC_OFF = "\x1b[23m";
 
-export interface LegacyRenderedChildOutputEvent {
-  type: "legacy_rendered";
+export interface HeaderChildOutputEvent {
+  type: "header";
+  slug: string;
+}
+
+export type ToolRowStatus = "pending" | "success" | "error";
+
+export interface ToolChildOutputEvent {
+  type: "tool";
+  summary: string;
+  elapsedSeconds: number;
+  status: ToolRowStatus;
+  errorSummary?: string;
+  outputTail?: string[];
+}
+
+export interface NoteChildOutputEvent {
+  type: "note";
   text: string;
 }
 
-export type ChildOutputEvent = LegacyRenderedChildOutputEvent | AgentSessionEvent;
+export interface CommissionerNoteChildOutputEvent {
+  type: "t1-unfolding-commissioner-note";
+  text: string;
+}
+
+export interface TotalChildOutputEvent {
+  type: "total";
+  elapsedSeconds: number;
+}
+
+export type ChildOutputEvent =
+  | HeaderChildOutputEvent
+  | ToolChildOutputEvent
+  | NoteChildOutputEvent
+  | CommissionerNoteChildOutputEvent
+  | TotalChildOutputEvent
+  | AgentSessionEvent;
 
 export interface ChildOutputDetails {
   childOutputRole?: string;
   childOutputEvents?: ChildOutputEvent[];
 }
 
-export function legacyRendered(text: string): LegacyRenderedChildOutputEvent {
-  return { type: "legacy_rendered", text };
+export function childOutputHeader(slug: string): HeaderChildOutputEvent {
+  return { type: "header", slug };
+}
+
+export function childOutputTool(
+  summary: string,
+  elapsedSeconds: number,
+  status: ToolRowStatus,
+  errorSummary?: string,
+  outputTail?: string[],
+): ToolChildOutputEvent {
+  return { type: "tool", summary, elapsedSeconds, status, errorSummary, outputTail };
+}
+
+export function childOutputNote(text: string): NoteChildOutputEvent {
+  return { type: "note", text };
+}
+
+export function childOutputCommissionerNote(text: string): CommissionerNoteChildOutputEvent {
+  return { type: "t1-unfolding-commissioner-note", text };
+}
+
+export function childOutputTotal(elapsedSeconds: number): TotalChildOutputEvent {
+  return { type: "total", elapsedSeconds };
 }
 
 function renderAssistantLine(role: string, icon: "💬" | "🤔", text: string): string {
@@ -25,6 +79,18 @@ function renderAssistantLine(role: string, icon: "💬" | "🤔", text: string):
   return icon === "🤔"
     ? `${prefix}${ANSI_ITALIC_ON}${text}${ANSI_ITALIC_OFF}`
     : `${prefix}${text}`;
+}
+
+function renderToolLines(role: string, event: ToolChildOutputEvent): string[] {
+  let line = `  [${role}] ⚙ ${event.summary} — ${event.elapsedSeconds}s`;
+  if (event.status === "success") line += " ✓";
+  if (event.status === "error") line += " ✗";
+  if (event.errorSummary) line += ` — ${event.errorSummary}`;
+  return [line, ...(event.outputTail ?? []).map(outputLine => `    ${outputLine}`)];
+}
+
+function renderTotalLine(role: string, elapsedSeconds: number): string {
+  return `  [${role}] ⏱ total — ${elapsedSeconds}s`;
 }
 
 export function renderChildOutputPlainText(role: string, events: ChildOutputEvent[]): string {
@@ -58,8 +124,23 @@ export function renderChildOutputPlainText(role: string, events: ChildOutputEven
   };
 
   for (const event of events) {
-    if (event.type === "legacy_rendered") {
+    if (event.type === "header") {
+      rendered.push(`[${role}/${event.slug}]`);
+      continue;
+    }
+
+    if (event.type === "tool") {
+      rendered.push(...renderToolLines(role, event));
+      continue;
+    }
+
+    if (event.type === "note" || event.type === "t1-unfolding-commissioner-note") {
       rendered.push(event.text);
+      continue;
+    }
+
+    if (event.type === "total") {
+      rendered.push(renderTotalLine(role, event.elapsedSeconds));
       continue;
     }
 

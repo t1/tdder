@@ -25,7 +25,7 @@ import { abortSessionStack } from "./abort-flow.ts";
 import { FatalChildSessionError } from "./task-delegate.ts";
 import { isUnfoldingFatalError } from "./fatal-error.ts";
 import { exportTaskDebugHtmlIfEnabled, exportTaskSessionHtml } from "./debug-export.ts";
-import { legacyRendered, renderChildOutputBox, renderChildOutputResult, type ChildOutputDetails } from "./child-output.ts";
+import { childOutputCommissionerNote, renderChildOutputBox, renderChildOutputResult, type ChildOutputDetails } from "./child-output.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -86,7 +86,7 @@ function makePostOutput(pi: ExtensionAPI) {
       customType: UNFOLDING_CHILD_OUTPUT_TYPE,
       content: "",
       display: true,
-      details: { childOutputRole: "assistant", childOutputEvents: [legacyRendered(line)] },
+      details: { childOutputRole: "assistant", childOutputEvents: [childOutputCommissionerNote(line)] },
     });
 }
 
