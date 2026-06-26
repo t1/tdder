@@ -124,13 +124,10 @@ export async function startChildSession({
       // execution) without triggering a steer or an extra LLM call.
       const finalOutputDetails = { childOutputRole: shortRole, childOutputEvents: stream.getOutputEvents() };
       onUpdate?.({ content: [{ type: "text", text: finalSnapshot }], details: finalOutputDetails });
-      if (outcome === "aborted") {
-        return { session, outcome, finalSnapshot, finalOutputDetails };
-      }
-    } else {
-      postOutput(costLine);
+      return { session, outcome, finalSnapshot, finalOutputDetails };
     }
 
+    postOutput(costLine);
     return { session, outcome };
   } finally {
     checkpointRecovery.unsubscribe();

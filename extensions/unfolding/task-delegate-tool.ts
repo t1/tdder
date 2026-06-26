@@ -72,7 +72,10 @@ export function makeTaskDelegateDefinition(
           : `Task "${params.slug}" delegated to ${params.role}. Outcome: ${outcome}`;
         return {
           content: [{ type: "text", text: outcomeText }],
-          details: blockedReason ? { blocked_reason: blockedReason } : {},
+          details: {
+            ...(blockedReason ? { blocked_reason: blockedReason } : {}),
+            ...finalOutputDetails,
+          },
         };
       } catch (err: unknown) {
         activeSessions.delete(params.slug);

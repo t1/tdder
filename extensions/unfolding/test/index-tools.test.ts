@@ -571,15 +571,56 @@ describe("registered task tools", () => {
       const {tools} = setupPi();
       const tool = tools.get("task_delegate");
       assert.ok(tool, "task_delegate tool must be registered");
+      const updates: any[] = [];
       const result = await tool.execute("1", {
         role: "coder",
         slug: "blocked-child",
         body: "Do work"
-      }, AbortSignal.timeout(3000), undefined, {cwd, model: faux.getModel(), authStorage, modelRegistry});
+      }, AbortSignal.timeout(3000), (update: any) => {
+        updates.push(update);
+      }, {cwd, model: faux.getModel(), authStorage, modelRegistry});
 
       assert.match(result.content[0].text, /Outcome: blocked/);
       assert.match(result.content[0].text, /blocked_reason: need architecture decision/);
       assert.equal(result.details?.blocked_reason, "need architecture decision");
+      assert.ok(updates.length > 0, "expected streamed child output updates for blocked child");
+      const finalUpdate = updates[updates.length - 1];
+      assert.equal(finalUpdate.details?.childOutputRole, "coder");
+      assert.ok(Array.isArray(finalUpdate.details?.childOutputEvents), "expected final child output events for blocked child");
+      assert.match(JSON.stringify(finalUpdate.details?.childOutputEvents), /blocked: need architecture decision/);
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("task_delegate returns final child output details for finished children", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    const {faux, authStorage, modelRegistry} = fauxSetup("index-tools-finished-child");
+    try {
+      faux.setResponses([
+        fauxAssistantMessage([fauxToolCall("task_finished", {})], {stopReason: "toolUse"}),
+        fauxAssistantMessage([], {stopReason: "aborted", errorMessage: "Request was aborted."} as any),
+      ]);
+
+      const {tools} = setupPi();
+      const tool = tools.get("task_delegate");
+      assert.ok(tool, "task_delegate tool must be registered");
+      const updates: any[] = [];
+      const result = await tool.execute("1", {
+        role: "coder",
+        slug: "finished-child",
+        body: "Do work"
+      }, AbortSignal.timeout(3000), (update: any) => {
+        updates.push(update);
+      }, {cwd, model: faux.getModel(), authStorage, modelRegistry});
+
+      assert.match(result.content[0].text, /Outcome: finished/);
+      assert.ok(updates.length > 0, "expected streamed child output updates for finished child");
+      const finalUpdate = updates[updates.length - 1];
+      assert.equal(finalUpdate.details?.childOutputRole, "coder");
+      assert.ok(Array.isArray(finalUpdate.details?.childOutputEvents), "expected final child output events for finished child");
+      assert.match(JSON.stringify(finalUpdate.details?.childOutputEvents), /task_finished/);
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);
