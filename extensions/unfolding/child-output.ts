@@ -1,5 +1,6 @@
 import type { AgentSessionEvent, AgentToolResult } from "@earendil-works/pi-coding-agent";
 import { visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+export { formatElapsedDuration } from "../shared/duration-format.ts";
 import { formatElapsedDuration } from "../shared/duration-format.ts";
 
 export const ANSI_ITALIC_ON = "\x1b[3m";
@@ -197,7 +198,15 @@ export function childOutputEventsFromResult(result: AgentToolResult<ChildOutputD
 export function renderChildOutputResult(result: AgentToolResult<ChildOutputDetails>, _options: unknown, theme: { bg: (color: string, text: string) => string }) {
   const role = result.details?.childOutputRole;
   const events = childOutputEventsFromResult(result);
-  if (!role || !events || events.length === 0) return undefined;
+  if (!role || !events || events.length === 0) {
+    return {
+      render() {
+        return [];
+      },
+      invalidate() {
+      },
+    };
+  }
   return {
     render(width: number) {
       return renderChildOutputBox(role, events, theme, Math.max(1, width), "toolSuccessBg");

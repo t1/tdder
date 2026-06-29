@@ -591,6 +591,13 @@ describe("registered task tools", () => {
       const commissionerSessionFile = join(cwd, "commissioner-delegate-session.jsonl");
       writeFileSync(commissionerSessionFile, [
         JSON.stringify({type: "session", version: 3, id: "sess-commissioner-delegate", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
+        JSON.stringify({
+          type: "message",
+          id: "m1",
+          parentId: null,
+          timestamp: "2026-06-22T00:00:01.000Z",
+          message: {role: "user", content: [{type: "text", text: "delegate"}], timestamp: 1}
+        }),
       ].join("\n") + "\n");
 
       const {tools, commands} = setupPi();
@@ -627,6 +634,45 @@ describe("registered task tools", () => {
     }
   });
 
+  it("task_delegate skips commissioner html export when the commissioner session file is missing", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    try {
+      const missingCommissionerSessionFile = join(cwd, "missing-commissioner-session.jsonl");
+
+      const {tools, commands} = setupPi();
+      const unfold = commands.get("unfold");
+      assert.ok(unfold, "unfold command must be registered");
+      await unfold.handler("--debug", {
+        cwd,
+        isIdle: () => true,
+        ui: {
+          notify() {
+          }
+        },
+      });
+
+      const tool = tools.get("task_delegate");
+      assert.ok(tool, "task_delegate tool must be registered");
+      const controller = new AbortController();
+      controller.abort();
+      const result = await tool.execute("1", {
+        role: "coder",
+        slug: "delegate-debug-missing-session",
+        body: "Do work"
+      }, controller.signal, undefined, {
+        cwd,
+        sessionManager: { getSessionFile: () => missingCommissionerSessionFile },
+        abort() {
+        }
+      });
+
+      assert.equal(result.terminate, true);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "delegate-debug-missing-session.commissioner.html")), false);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("task_delegate returns final child output details for finished children", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
     const {faux, authStorage, modelRegistry} = fauxSetup("index-tools-finished-child");
@@ -658,6 +704,17 @@ describe("registered task tools", () => {
       faux.unregister();
       cleanupTestTempDir(cwd);
     }
+  });
+
+  it("task_delegate renderResult stays total when child output details are missing", async () => {
+    const {tools} = setupPi();
+    const tool = tools.get("task_delegate");
+    assert.ok(tool, "task_delegate tool must be registered");
+
+    const component = tool.renderResult({content: [], details: {}}, {expanded: false}, {bg: (_color: string, text: string) => text});
+
+    assert.ok(component, "renderResult must always return a component");
+    assert.deepEqual(component.render(80), []);
   });
 
   it("task_delegate returns an aborted result instead of throwing when delegation is aborted", async () => {
