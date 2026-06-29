@@ -122,6 +122,26 @@ describe("structural wiring", () => {
     assert.ok(block.includes("postOutput"), "must post args via postOutput for human visibility");
   });
 
+  it("task_reopen exports the commissioner session before resuming the child", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_reopen"', 1800);
+    assert.ok(block.includes("exportTaskCommissionerDebugHtmlIfEnabled"), "must export commissioner session on reopen in debug mode");
+  });
+
+  it("task_unblock exports the commissioner session before resuming the child", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_unblock"', 1800);
+    assert.ok(block.includes("exportTaskCommissionerDebugHtmlIfEnabled"), "must export commissioner session on unblock in debug mode");
+  });
+
+  it("task_accept no longer exports html", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_accept"', 800);
+    assert.ok(!block.includes("exportTask"), "task_accept must not export html anymore");
+  });
+
+  it("task_rollback no longer exports html", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1200);
+    assert.ok(!block.includes("exportTask"), "task_rollback must not export html anymore");
+  });
+
   it("task_rollback tool does not delegate to resumeDelegatedTask", () => {
     const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1200);
     assert.ok(!block.includes("resumeDelegatedTask"), "rollback is terminal and must not resume child flow");
@@ -190,5 +210,10 @@ describe("task_delegate wiring", () => {
     const delegateSrc = readFileSync(new URL("../task-delegate-tool.ts", import.meta.url).pathname, "utf8");
     assert.ok(delegateSrc.includes("outcome === \"aborted\""), "must branch on aborted child outcome");
     assert.ok(delegateSrc.includes("abortSessionStack"), "must abort the full active session stack in tooling");
+  });
+
+  it("task_delegate exports the commissioner session before starting the child", () => {
+    const delegateSrc = readFileSync(new URL("../task-delegate-tool.ts", import.meta.url).pathname, "utf8");
+    assert.ok(delegateSrc.includes("exportTaskCommissionerDebugHtmlIfEnabled"), "task_delegate must export commissioner session on handover in debug mode");
   });
 });

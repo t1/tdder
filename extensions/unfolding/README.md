@@ -9,9 +9,11 @@ checkpoints, and assembles the results.
 **`/unfold` command:** injects the `unfolding-orchestrator` skill into the current session and
 starts the Unfolding Specs process. Run it in any project where you want to unfold a feature.
 
-Pass `--debug` to export child sessions to HTML for inspection. Debug exports are written to
-`.pi/unfolding/exports/<slug>.html` on every handover checkpoint, including `task_delegate`
-outcomes, `task_finished`, `task_block`, `task_accept`, `task_reopen`, `task_unblock`, and `task_rollback`.
+Pass `--debug` to export sessions to HTML for inspection. Debug exports are written to
+`.pi/unfolding/exports/` with these triggers:
+
+- child session → `.pi/unfolding/exports/<slug>.html` on `task_finished`, `task_block`, and aborted child outcomes
+- commissioner session → `.pi/unfolding/exports/<slug>.commissioner.html` on `task_delegate`, `task_reopen`, and `task_unblock`
 
 ## Task tools
 

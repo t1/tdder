@@ -124,6 +124,13 @@ describe("structural invariants", () => {
     );
   });
 
+  it("exports commissioner sessions on delegate/reopen/unblock in debug mode", () => {
+    assert.ok(
+      src.includes("exportTaskCommissionerDebugHtmlIfEnabled"),
+      "index.ts must export commissioner sessions for commissioner handovers in debug mode",
+    );
+  });
+
   it("registers a display-only context filter for unfolding child output", () => {
     assert.ok(
       src.includes('filterDisplayOnlyMessages(event, UNFOLDING_CHILD_OUTPUT_TYPE)'),

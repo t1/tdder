@@ -298,6 +298,96 @@ describe("registered task tools", () => {
     }
   });
 
+  it("child task_reopen exports commissioner html when debug mode is enabled", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    try {
+      createTask(cwd, {
+        slug: "child-reopen-debug",
+        from: "po",
+        to: "coder",
+        body: "Redo",
+      });
+      updateTaskStatus(cwd, "child-reopen-debug", "finished");
+
+      const commissionerSessionFile = join(cwd, "child-commissioner-reopen-session.jsonl");
+      writeFileSync(commissionerSessionFile, [
+        JSON.stringify({type: "session", version: 3, id: "sess-child-commissioner-reopen", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
+      ].join("\n") + "\n");
+
+      const activeSessions = new Map<string, any>();
+      activeSessions.set("child-reopen-debug", {
+        isStreaming: false,
+        prompt: async () => {
+          updateTaskStatus(cwd, "child-reopen-debug", "finished");
+        },
+        getSessionStats: () => ({cost: 0, tokens: {input: 0, output: 0}}),
+      });
+
+      const [tool] = createChildTaskTools(cwd, "commissioner", {name: "task_delegate"} as any, {
+        activeSessions: activeSessions as any,
+        postOutput: () => {
+        },
+        pi: {} as any,
+        debugExportsEnabled: true,
+      }).filter(tool => tool.name === "task_reopen");
+
+      const result = await tool.execute("1", {slug: "child-reopen-debug", reason: "redo"}, undefined, undefined, {
+        sessionManager: { getSessionFile: () => commissionerSessionFile },
+      });
+
+      assert.match(result.content[0].text, /Outcome: finished/);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "child-reopen-debug.commissioner.html")), true);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "child-reopen-debug.html")), false);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("child task_unblock exports commissioner html when debug mode is enabled", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    try {
+      createTask(cwd, {
+        slug: "child-unblock-debug",
+        from: "po",
+        to: "coder",
+        body: "Continue",
+      });
+      updateTaskStatus(cwd, "child-unblock-debug", "blocked", "waiting");
+
+      const commissionerSessionFile = join(cwd, "child-commissioner-unblock-session.jsonl");
+      writeFileSync(commissionerSessionFile, [
+        JSON.stringify({type: "session", version: 3, id: "sess-child-commissioner-unblock", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
+      ].join("\n") + "\n");
+
+      const activeSessions = new Map<string, any>();
+      activeSessions.set("child-unblock-debug", {
+        isStreaming: false,
+        prompt: async () => {
+          updateTaskStatus(cwd, "child-unblock-debug", "finished");
+        },
+        getSessionStats: () => ({cost: 0, tokens: {input: 0, output: 0}}),
+      });
+
+      const [tool] = createChildTaskTools(cwd, "commissioner", {name: "task_delegate"} as any, {
+        activeSessions: activeSessions as any,
+        postOutput: () => {
+        },
+        pi: {} as any,
+        debugExportsEnabled: true,
+      }).filter(tool => tool.name === "task_unblock");
+
+      const result = await tool.execute("1", {slug: "child-unblock-debug", reason: "continue"}, undefined, undefined, {
+        sessionManager: { getSessionFile: () => commissionerSessionFile },
+      });
+
+      assert.match(result.content[0].text, /Outcome: finished/);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "child-unblock-debug.commissioner.html")), true);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "child-unblock-debug.html")), false);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("task_rollback tool rolls back a finished task", async () => {
     const {cwd, head: baseSha} = makeTestGitRepo("index-tools");
     try {
@@ -370,105 +460,6 @@ describe("registered task tools", () => {
     }
   });
 
-  it("task_accept exports html when /unfold --debug enabled", async () => {
-    const {cwd} = makeTestGitRepo("index-tools");
-    try {
-      const sessionFile = join(cwd, "fake-session.jsonl");
-      writeFileSync(sessionFile, [
-        JSON.stringify({type: "session", version: 3, id: "sess-1", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
-        JSON.stringify({
-          type: "message",
-          id: "m1",
-          parentId: null,
-          timestamp: "2026-06-22T00:00:01.000Z",
-          message: {role: "user", content: [{type: "text", text: "hello"}], timestamp: 1}
-        }),
-        JSON.stringify({
-          type: "message",
-          id: "m2",
-          parentId: "m1",
-          timestamp: "2026-06-22T00:00:02.000Z",
-          message: {role: "assistant", content: [{type: "text", text: "world"}], stopReason: "stop", timestamp: 2}
-        }),
-      ].join("\n") + "\n");
-      createTask(cwd, {
-        slug: "accept-debug",
-        from: "orchestrator",
-        to: "po",
-        body: "Done",
-        session_file: sessionFile,
-      });
-      updateTaskStatus(cwd, "accept-debug", "finished");
-
-      const {tools, commands} = setupPi();
-      const unfold = commands.get("unfold");
-      assert.ok(unfold, "unfold command must be registered");
-      await unfold.handler("--debug", {
-        cwd,
-        isIdle: () => true,
-        ui: {
-          notify() {
-          }
-        },
-      });
-
-      const tool = tools.get("task_accept");
-      assert.ok(tool, "task_accept tool must be registered");
-      await tool.execute("1", {slug: "accept-debug"}, undefined, undefined, {cwd});
-
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "accept-debug.html")), true);
-    } finally {
-      cleanupTestTempDir(cwd);
-    }
-  });
-
-  it("task_rollback exports html when /unfold --debug enabled", async () => {
-    const {cwd, head: baseSha} = makeTestGitRepo("index-tools");
-    const sessionDir = makeTestTempDir("index-tools-session");
-    try {
-      const sessionFile = join(sessionDir, "fake-session.jsonl");
-      writeFileSync(sessionFile, [
-        JSON.stringify({type: "session", version: 3, id: "sess-2", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
-        JSON.stringify({
-          type: "message",
-          id: "m1",
-          parentId: null,
-          timestamp: "2026-06-22T00:00:01.000Z",
-          message: {role: "user", content: [{type: "text", text: "hello"}], timestamp: 1}
-        }),
-      ].join("\n") + "\n");
-      createTask(cwd, {
-        slug: "rollback-debug",
-        from: "orchestrator",
-        to: "po",
-        body: "Done",
-        session_file: sessionFile,
-        base_sha: baseSha,
-      });
-      updateTaskStatus(cwd, "rollback-debug", "finished");
-
-      const {tools, commands} = setupPi();
-      const unfold = commands.get("unfold");
-      assert.ok(unfold, "unfold command must be registered");
-      await unfold.handler("--debug", {
-        cwd,
-        isIdle: () => true,
-        ui: {
-          notify() {
-          }
-        },
-      });
-
-      const tool = tools.get("task_rollback");
-      assert.ok(tool, "task_rollback tool must be registered");
-      await tool.execute("1", {slug: "rollback-debug"}, undefined, undefined, {cwd});
-
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "rollback-debug.html")), true);
-    } finally {
-      cleanupTestTempDir(cwd);
-      cleanupTestTempDir(sessionDir);
-    }
-  });
 
   it("task_delegate aborts the full session stack when the child outcome is aborted and keeps the final nested transcript visible", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
@@ -501,7 +492,7 @@ describe("registered task tools", () => {
     }
   });
 
-  it("task_delegate aborts the full session stack and exports html when the child outcome is aborted and /unfold --debug enabled", async () => {
+  it("task_delegate aborts the full session stack and exports child html when the child outcome is aborted and /unfold --debug enabled", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
     const sessionDir = makeTestTempDir("index-tools-session");
     try {
@@ -590,6 +581,48 @@ describe("registered task tools", () => {
       assert.match(JSON.stringify(finalUpdate.details?.childOutputEvents), /blocked: need architecture decision/);
     } finally {
       faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("task_delegate exports commissioner html when /unfold --debug enabled", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    try {
+      const commissionerSessionFile = join(cwd, "commissioner-delegate-session.jsonl");
+      writeFileSync(commissionerSessionFile, [
+        JSON.stringify({type: "session", version: 3, id: "sess-commissioner-delegate", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
+      ].join("\n") + "\n");
+
+      const {tools, commands} = setupPi();
+      const unfold = commands.get("unfold");
+      assert.ok(unfold, "unfold command must be registered");
+      await unfold.handler("--debug", {
+        cwd,
+        isIdle: () => true,
+        ui: {
+          notify() {
+          }
+        },
+      });
+
+      const tool = tools.get("task_delegate");
+      assert.ok(tool, "task_delegate tool must be registered");
+      const controller = new AbortController();
+      controller.abort();
+      const result = await tool.execute("1", {
+        role: "coder",
+        slug: "delegate-debug",
+        body: "Do work"
+      }, controller.signal, undefined, {
+        cwd,
+        sessionManager: { getSessionFile: () => commissionerSessionFile },
+        abort() {
+        }
+      });
+
+      assert.equal(result.terminate, true);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "delegate-debug.commissioner.html")), true);
+    } finally {
       cleanupTestTempDir(cwd);
     }
   });
@@ -687,29 +720,21 @@ describe("registered task tools", () => {
     }
   });
 
-  it("task_unblock exports html when /unfold --debug enabled", async () => {
+  it("task_unblock exports the commissioner html when /unfold --debug enabled", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
-    const sessionDir = makeTestTempDir("index-tools-session");
     try {
-      const sessionFile = join(sessionDir, "fake-session.jsonl");
-      writeFileSync(sessionFile, [
-        JSON.stringify({type: "session", version: 3, id: "sess-5", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
-        JSON.stringify({
-          type: "message",
-          id: "m1",
-          parentId: null,
-          timestamp: "2026-06-22T00:00:01.000Z",
-          message: {role: "user", content: [{type: "text", text: "hello"}], timestamp: 1}
-        }),
-      ].join("\n") + "\n");
       createTask(cwd, {
         slug: "unblock-debug",
         from: "orchestrator",
         to: "coder",
         body: "Do work",
-        session_file: sessionFile,
       });
       updateTaskStatus(cwd, "unblock-debug", "blocked", "waiting");
+
+      const commissionerSessionFile = join(cwd, "commissioner-unblock-session.jsonl");
+      writeFileSync(commissionerSessionFile, [
+        JSON.stringify({type: "session", version: 3, id: "sess-commissioner-unblock", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
+      ].join("\n") + "\n");
 
       const activeSessions = new Map<string, any>();
       let promptCount = 0;
@@ -736,14 +761,17 @@ describe("registered task tools", () => {
 
       const tool = tools.get("task_unblock");
       assert.ok(tool, "task_unblock tool must be registered");
-      const result = await tool.execute("1", {slug: "unblock-debug", reason: "continue"}, undefined, undefined, {cwd});
+      const result = await tool.execute("1", {slug: "unblock-debug", reason: "continue"}, undefined, undefined, {
+        cwd,
+        sessionManager: { getSessionFile: () => commissionerSessionFile },
+      });
 
       assert.equal(promptCount, 1);
       assert.match(result.content[0].text, /Outcome: finished/);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "unblock-debug.html")), true);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "unblock-debug.commissioner.html")), true);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "unblock-debug.html")), false);
     } finally {
       cleanupTestTempDir(cwd);
-      cleanupTestTempDir(sessionDir);
     }
   });
 
@@ -783,29 +811,21 @@ describe("registered task tools", () => {
     }
   });
 
-  it("task_reopen exports html when /unfold --debug enabled", async () => {
+  it("task_reopen exports the commissioner html when /unfold --debug enabled", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
-    const sessionDir = makeTestTempDir("index-tools-session");
     try {
-      const sessionFile = join(sessionDir, "fake-session.jsonl");
-      writeFileSync(sessionFile, [
-        JSON.stringify({type: "session", version: 3, id: "sess-6", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
-        JSON.stringify({
-          type: "message",
-          id: "m1",
-          parentId: null,
-          timestamp: "2026-06-22T00:00:01.000Z",
-          message: {role: "user", content: [{type: "text", text: "hello"}], timestamp: 1}
-        }),
-      ].join("\n") + "\n");
       createTask(cwd, {
         slug: "reopen-debug",
         from: "orchestrator",
         to: "coder",
         body: "Do work",
-        session_file: sessionFile,
       });
       updateTaskStatus(cwd, "reopen-debug", "finished");
+
+      const commissionerSessionFile = join(cwd, "commissioner-reopen-session.jsonl");
+      writeFileSync(commissionerSessionFile, [
+        JSON.stringify({type: "session", version: 3, id: "sess-commissioner-reopen", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
+      ].join("\n") + "\n");
 
       const activeSessions = new Map<string, any>();
       let promptCount = 0;
@@ -832,46 +852,54 @@ describe("registered task tools", () => {
 
       const tool = tools.get("task_reopen");
       assert.ok(tool, "task_reopen tool must be registered");
-      const result = await tool.execute("1", {slug: "reopen-debug", reason: "redo"}, undefined, undefined, {cwd});
+      const result = await tool.execute("1", {slug: "reopen-debug", reason: "redo"}, undefined, undefined, {
+        cwd,
+        sessionManager: { getSessionFile: () => commissionerSessionFile },
+      });
 
       assert.equal(promptCount, 1);
       assert.match(result.content[0].text, /Outcome: finished/);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "reopen-debug.html")), true);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "reopen-debug.commissioner.html")), true);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "reopen-debug.html")), false);
     } finally {
       cleanupTestTempDir(cwd);
-      cleanupTestTempDir(sessionDir);
     }
   });
 
-  it("does not export html when debug mode is off", async () => {
+  it("does not export commissioner html when debug mode is off", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
     try {
-      const sessionFile = join(cwd, "fake-session.jsonl");
-      writeFileSync(sessionFile, [
-        JSON.stringify({type: "session", version: 3, id: "sess-4", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
-        JSON.stringify({
-          type: "message",
-          id: "m1",
-          parentId: null,
-          timestamp: "2026-06-22T00:00:01.000Z",
-          message: {role: "user", content: [{type: "text", text: "hello"}], timestamp: 1}
-        }),
-      ].join("\n") + "\n");
       createTask(cwd, {
-        slug: "accept-nodebug",
+        slug: "unblock-nodebug",
         from: "orchestrator",
-        to: "po",
-        body: "Done",
-        session_file: sessionFile,
+        to: "coder",
+        body: "Do work",
       });
-      updateTaskStatus(cwd, "accept-nodebug", "finished");
+      updateTaskStatus(cwd, "unblock-nodebug", "blocked", "waiting");
 
-      const {tools} = setupPi();
-      const tool = tools.get("task_accept");
-      assert.ok(tool, "task_accept tool must be registered");
-      await tool.execute("1", {slug: "accept-nodebug"}, undefined, undefined, {cwd});
+      const commissionerSessionFile = join(cwd, "commissioner-nodebug-session.jsonl");
+      writeFileSync(commissionerSessionFile, [
+        JSON.stringify({type: "session", version: 3, id: "sess-commissioner-nodebug", timestamp: "2026-06-22T00:00:00.000Z", cwd}),
+      ].join("\n") + "\n");
 
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "accept-nodebug.html")), false);
+      const activeSessions = new Map<string, any>();
+      activeSessions.set("unblock-nodebug", {
+        isStreaming: false,
+        prompt: async () => {
+          updateTaskStatus(cwd, "unblock-nodebug", "finished");
+        },
+        getSessionStats: () => ({cost: 0, tokens: {input: 0, output: 0}}),
+      });
+
+      const {tools} = setupPi(activeSessions);
+      const tool = tools.get("task_unblock");
+      assert.ok(tool, "task_unblock tool must be registered");
+      await tool.execute("1", {slug: "unblock-nodebug", reason: "continue"}, undefined, undefined, {
+        cwd,
+        sessionManager: { getSessionFile: () => commissionerSessionFile },
+      });
+
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "unblock-nodebug.commissioner.html")), false);
     } finally {
       cleanupTestTempDir(cwd);
     }

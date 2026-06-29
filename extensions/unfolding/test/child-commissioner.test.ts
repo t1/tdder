@@ -10,7 +10,7 @@ import { fauxAssistantMessage, fauxToolCall, registerFauxProvider } from "./faux
 import { startChildSession } from "../session-factory.ts";
 import { makeTaskDelegateDefinition } from "../task-delegate-tool.ts";
 import { makeTestGitRepo } from "./test-git-repo.ts";
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupTestTempDir } from "./test-temp.ts";
 
@@ -289,9 +289,10 @@ describe("child commissioner tools", () => {
     }
   });
 
-  it("child commissioner debug mode exports grandchild session html on handover", async () => {
+  it("child commissioner debug mode exports commissioner html on handover", async () => {
     const { cwd } = makeTestGitRepo("child-commissioner");
     const { faux, auth, modelRegistry } = sharedFauxSetup("child-debug-export");
+    const commissionerSessionFile = join(cwd, "child-commissioner-session.jsonl");
     const pi = {
       __unfoldingDebugExportsEnabled: true,
     } as any;
@@ -302,6 +303,7 @@ describe("child commissioner tools", () => {
         fauxAssistantMessage([fauxToolCall("task_accept", { slug: "gc-debug" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_finished", {})], { stopReason: "toolUse" }),
       ]);
+      writeFileSync(commissionerSessionFile, JSON.stringify({type: "session", version: 3, id: "sess-child-commissioner", timestamp: "2026-06-22T00:00:00.000Z", cwd}) + "\n");
 
       const activeSessions = new Map<string, any>();
       const result = await startChildSession({
@@ -313,6 +315,7 @@ describe("child commissioner tools", () => {
         activeSessions,
         pi,
         postOutput: () => {},
+        signal: AbortSignal.timeout(3000),
         nestedDelegateToolFactory: (shortRole) =>
           makeTaskDelegateDefinition(shortRole, activeSessions, pi, () => {}),
         model: faux.getModel(),
@@ -321,7 +324,7 @@ describe("child commissioner tools", () => {
       });
 
       assert.equal(result.outcome, "finished");
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "gc-debug.html")), true);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "gc-debug.commissioner.html")), true);
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

@@ -8,6 +8,7 @@ import { abortSessionStack } from "./abort-flow.ts";
 import { FatalChildSessionError } from "./task-delegate.ts";
 import type { ChildOutputDetails } from "./child-output.ts";
 import { isUnfoldingFatalError } from "./fatal-error.ts";
+import { exportTaskCommissionerDebugHtmlIfEnabled } from "./debug-export.ts";
 
 export function makeTaskDelegateDefinition(
   from: string,
@@ -30,6 +31,13 @@ export function makeTaskDelegateDefinition(
     async execute(_id: string, params: { role: string; slug: string; body: string; parent_slug?: string }, signal: AbortSignal | undefined, onUpdate: any, ctx: any) {
       refreshAskSenseiCallback(pi, ctx);
       try {
+        await exportTaskCommissionerDebugHtmlIfEnabled(
+          ctx.cwd,
+          params.slug,
+          (pi as any).__unfoldingDebugExportsEnabled === true,
+          ctx.sessionManager?.getSessionFile(),
+        );
+
         const { outcome, finalSnapshot, finalOutputDetails } = await startChildSession({
           cwd: ctx.cwd,
           from,

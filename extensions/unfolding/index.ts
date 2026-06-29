@@ -24,7 +24,7 @@ import { createAskSenseiFn, refreshAskSenseiCallback } from "./ask-sensei.ts";
 import { abortSessionStack } from "./abort-flow.ts";
 import { FatalChildSessionError } from "./task-delegate.ts";
 import { isUnfoldingFatalError } from "./fatal-error.ts";
-import { exportTaskDebugHtmlIfEnabled, exportTaskSessionHtml } from "./debug-export.ts";
+import { exportTaskCommissionerDebugHtmlIfEnabled, exportTaskDebugHtmlIfEnabled } from "./debug-export.ts";
 import { childOutputCommissionerNote, renderChildOutputBox, renderChildOutputResult, type ChildOutputDetails } from "./child-output.ts";
 
 // ---------------------------------------------------------------------------
@@ -256,10 +256,6 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     async execute(_id, params, _signal, _onUpdate, ctx) {
       refreshAskSenseiCallback(pi, ctx);
       postOutput(`  ✅ task_accept: ${params.slug}`);
-      const task = readTask(ctx.cwd, params.slug);
-      if (debugExportsEnabled) {
-        await exportTaskSessionHtml(ctx.cwd, params.slug, task?.session_file);
-      }
       taskAccept(ctx.cwd, params.slug);
       activeSessions.delete(params.slug);
       return { content: [{ type: "text", text: `Task "${params.slug}" accepted.` }], details: {} };
@@ -278,6 +274,12 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       refreshAskSenseiCallback(pi, ctx);
       postOutput(`  🔄 task_reopen: ${params.slug} — ${params.reason}`);
       try {
+        await exportTaskCommissionerDebugHtmlIfEnabled(
+          ctx.cwd,
+          params.slug,
+          debugExportsEnabled,
+          ctx.sessionManager?.getSessionFile(),
+        );
         const outcome = await resumeDelegatedTask({
           action: "reopen",
           cwd: ctx.cwd,
@@ -344,6 +346,12 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       refreshAskSenseiCallback(pi, ctx);
       postOutput(`  🔓 task_unblock: ${params.slug}${params.reason ? ` — ${params.reason}` : ""}`);
       try {
+        await exportTaskCommissionerDebugHtmlIfEnabled(
+          ctx.cwd,
+          params.slug,
+          debugExportsEnabled,
+          ctx.sessionManager?.getSessionFile(),
+        );
         const outcome = await resumeDelegatedTask({
           action: "unblock",
           cwd: ctx.cwd,
@@ -408,10 +416,6 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     async execute(_id, params, _signal, _onUpdate, ctx) {
       refreshAskSenseiCallback(pi, ctx);
       postOutput(`  ↩ task_rollback: ${params.slug}`);
-      const task = readTask(ctx.cwd, params.slug);
-      if (debugExportsEnabled) {
-        await exportTaskSessionHtml(ctx.cwd, params.slug, task?.session_file);
-      }
       const childSession = activeSessions.get(params.slug);
       if (childSession) await childSession.abort().catch(() => {
       });

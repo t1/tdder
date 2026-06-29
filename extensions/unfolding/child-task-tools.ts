@@ -3,7 +3,7 @@ import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@ea
 import { Type } from "typebox";
 import { taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock, taskRollback } from "./task-tools.ts";
 import { waitForChildDecision, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
-import { exportTaskDebugHtmlIfEnabled, exportTaskSessionHtml } from "./debug-export.ts";
+import { exportTaskCommissionerDebugHtmlIfEnabled, exportTaskDebugHtmlIfEnabled } from "./debug-export.ts";
 import { readTask } from "./task-store.ts";
 import type { AskSenseiFn, AskSenseiParams } from "./ask-sensei.ts";
 import { UnfoldingFatalError } from "./fatal-error.ts";
@@ -80,7 +80,7 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
         slug: Type.String({ description: "Task slug" }),
         reason: Type.String({ description: "Why the task is being reopened" }),
       }),
-      async execute(_id: string, params: { slug: string; reason: string }, signal: any) {
+      async execute(_id: string, params: { slug: string; reason: string }, signal: any, _onUpdate: any, ctx: any) {
         const childSession = commissionerCtx.activeSessions.get(params.slug);
         if (!childSession) throw new Error(`task_reopen: no live session found for slug "${params.slug}"`);
 
@@ -89,6 +89,12 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
           await new Promise(r => setTimeout(r, 50));
         }
 
+        await exportTaskCommissionerDebugHtmlIfEnabled(
+          cwd,
+          params.slug,
+          commissionerCtx.debugExportsEnabled ?? false,
+          ctx.sessionManager?.getSessionFile(),
+        );
         taskReopen(cwd, params.slug, params.reason);
         const task = readTask(cwd, params.slug);
         const resumeMessage = task?.resume_message ?? params.reason;
@@ -126,7 +132,7 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
         slug: Type.String({ description: "Task slug" }),
         reason: Type.Optional(Type.String({ description: "Why the task is now unblocked" })),
       }),
-      async execute(_id: string, params: { slug: string; reason?: string }, signal: any) {
+      async execute(_id: string, params: { slug: string; reason?: string }, signal: any, _onUpdate: any, ctx: any) {
         const childSession = commissionerCtx.activeSessions.get(params.slug);
         if (!childSession) throw new Error(`task_unblock: no live session found for slug "${params.slug}"`);
 
@@ -134,6 +140,12 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
           await new Promise(r => setTimeout(r, 50));
         }
 
+        await exportTaskCommissionerDebugHtmlIfEnabled(
+          cwd,
+          params.slug,
+          commissionerCtx.debugExportsEnabled ?? false,
+          ctx.sessionManager?.getSessionFile(),
+        );
         taskUnblock(cwd, params.slug, params.reason);
         const task = readTask(cwd, params.slug);
         const resumeMessage = task?.resume_message ?? params.reason ?? "unblocked";
@@ -169,14 +181,10 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
       description: "Roll back a delegated task to its pre-delegation workspace state and delete the task.",
       parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
       async execute(_id: string, params: { slug: string }) {
-        const task = readTask(cwd, params.slug);
         const childSession = commissionerCtx.activeSessions.get(params.slug);
         if (childSession) await childSession.abort().catch(() => {});
         commissionerCtx.activeSessions.delete(params.slug);
         taskRollback(cwd, params.slug);
-        if (commissionerCtx.debugExportsEnabled ?? false) {
-          await exportTaskSessionHtml(cwd, params.slug, task?.session_file);
-        }
         return {
           content: [{ type: "text", text: `Task "${params.slug}" rolled back.` }],
           details: {},
@@ -190,7 +198,6 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
       parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
       async execute(_id: string, params: { slug: string }) {
         commissionerCtx.postOutput(`  ✅ task_accept: ${params.slug}`);
-        await exportTaskDebugHtmlIfEnabled(cwd, params.slug, commissionerCtx.debugExportsEnabled ?? false);
         taskAccept(cwd, params.slug);
         commissionerCtx.activeSessions.delete(params.slug);
         return { content: [{ type: "text", text: `Task "${params.slug}" accepted.` }], details: {} };
