@@ -6,7 +6,8 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "sync": "mkdir -p vendor && cp ../shared/jsonrpc-session.ts ../shared/mcp-client.ts ../shared/context-filter.ts ../shared/spawn-safe.ts ../shared/maven-project-tree.ts vendor/"
+    "sync": "mkdir -p vendor && cp ../shared/jsonrpc-session.ts ../shared/mcp-client.ts ../shared/context-filter.ts ../shared/spawn-safe.ts ../shared/maven-project-tree.ts vendor/",
+    "test": "tsx --test test/*.test.ts"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
