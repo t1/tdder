@@ -187,15 +187,33 @@ For each assumption:
 - If it is important or non-obvious: draft a new ADR and **STOP** (see below)
 - If it is unimportant *and* obvious: just specify it in the Task description
 
-### 7. Create System Tests (STs)
+### 7. Commission Initial Scaffolding When Needed
 
-Write System Tests that verify whether the implementation works correctly
-in its technical context. These test the system from the outside or test
-integration between components.
+If the project does not yet have the minimal scaffolding needed for System
+Tests — for example the build layout, app bootstrap, test harness, failsafe
+wiring, or other technical skeleton — do **not** create STs yet and do **not**
+set that scaffolding up yourself.
+
+Instead, create a minimal `[CODE]` task for the Coder to establish exactly the
+technical scaffolding needed for the first vertical slice and nothing more.
+This setup task should describe the required capability and constraints, but it
+must **not** include ST code or ask the Coder to read STs.
+
+When that scaffolding task is finished, review it for ADR conformance, then
+start writing STs incrementally — one feature slice at a time.
+
+### 8. Create System Tests (STs)
+
+Once the necessary scaffolding exists, write System Tests that verify whether
+the implementation works correctly in its technical context. These test the
+system from the outside or test integration between components.
+
+Add STs **feature by feature**. Do not try to design the whole feature's ST suite
+up front before the supporting scaffolding and earlier slices exist.
 
 The format depends on the tech stack (determined by ADRs).
 
-### 8. Commission the Coder
+### 9. Commission the Coder
 
 Create a `[CODE]` task with:
 
@@ -216,6 +234,11 @@ If you share the tests, the lower level may optimize for passing them rather
 than truly understanding and solving the problem.
 
 Message the Orchestrator: "Please ensure Coder is active for task #X."
+
+For initial scaffolding tasks, commission only the setup needed so you can
+begin adding STs and implementing the first slice. After that, continue in the
+normal loop: add the next ST yourself, then commission the corresponding coder
+Task.
 
 ## When to STOP
 
@@ -429,7 +452,7 @@ There are two separate categories:
    step definition, run the AT command, verify it executes and passes, then
    delete the dummy file. Do the same for business rules. Do NOT hand off
    to the PO until you have confirmed the infrastructure works end-to-end.
-8. Document the AT command in `docs/COMMANDS.md` (see step 9 in the main process).
+8. Document the AT command in `docs/COMMANDS.md` (see step 10 in the main process).
 
 ### Business Rules (`docs/rules/`)
 
@@ -440,7 +463,7 @@ There are two separate categories:
 3. Set up a separate runner/profile for business rule tests.
 4. Configure the runner to find `.feature` files in `docs/rules/`.
 5. You **may read** the `.feature` files in `docs/rules/` — they are shared.
-6. Document the business rules command in `docs/COMMANDS.md` (see step 9 in the main process).
+6. Document the business rules command in `docs/COMMANDS.md` (see step 10 in the main process).
 
 ## CI/CD and Deployment
 
