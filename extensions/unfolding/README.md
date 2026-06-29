@@ -12,8 +12,10 @@ starts the Unfolding Specs process. Run it in any project where you want to unfo
 Pass `--debug` to export sessions to HTML for inspection. Debug exports are written to
 `.pi/unfolding/exports/` with these triggers:
 
-- child session → `.pi/unfolding/exports/<slug>.html` on `task_finished`, `task_block`, and aborted child outcomes
-- commissioner session → `.pi/unfolding/exports/<slug>.commissioner.html` on `task_delegate`, `task_reopen`, and `task_unblock`
+- child session → `.pi/unfolding/exports/<local-iso-timestamp>-<slug>.html` on `task_finished`, `task_block`, and aborted child outcomes
+- commissioner session → `.pi/unfolding/exports/<local-iso-timestamp>-<slug>.commissioner.html` on `task_delegate`, `task_reopen`, and `task_unblock`
+
+The timestamp uses local time in ISO format to the second (`YYYY-MM-DDTHH:MM:SS`).
 
 ## Task tools
 

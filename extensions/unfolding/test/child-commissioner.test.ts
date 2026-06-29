@@ -10,7 +10,7 @@ import { fauxAssistantMessage, fauxToolCall, registerFauxProvider } from "./faux
 import { startChildSession } from "../session-factory.ts";
 import { makeTaskDelegateDefinition } from "../task-delegate-tool.ts";
 import { makeTestGitRepo } from "./test-git-repo.ts";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupTestTempDir } from "./test-temp.ts";
 
@@ -20,6 +20,11 @@ import { cleanupTestTempDir } from "./test-temp.ts";
  * one queue in call order: grandchild calls are interleaved within child calls
  * at the point where task_delegate blocks waiting for the grandchild.
  */
+function listExportFiles(cwd: string): string[] {
+  const dir = join(cwd, ".pi", "unfolding", "exports");
+  return existsSync(dir) ? readdirSync(dir) : [];
+}
+
 function sharedFauxSetup(name: string) {
   const provider = `${name}-${Date.now()}`;
   const faux = registerFauxProvider({ provider, models: [{ id: "test-model" }] });
@@ -324,7 +329,7 @@ describe("child commissioner tools", () => {
       });
 
       assert.equal(result.outcome, "finished");
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "gc-debug.commissioner.html")), true);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-gc-debug\.commissioner\.html$/.test(name)).length, 1);
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

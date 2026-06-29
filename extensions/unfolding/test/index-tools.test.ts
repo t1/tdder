@@ -1,7 +1,7 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {execFileSync} from "node:child_process";
-import {existsSync, readFileSync, writeFileSync} from "node:fs";
+import {existsSync, readFileSync, readdirSync, writeFileSync} from "node:fs";
 import {join} from "node:path";
 import {AuthStorage, ModelRegistry} from "@earendil-works/pi-coding-agent";
 import initUnfolding from "../index.ts";
@@ -19,6 +19,11 @@ function fauxSetup(name: string) {
   authStorage.setRuntimeApiKey(provider, "test-key");
   const modelRegistry = ModelRegistry.inMemory(authStorage);
   return {faux, authStorage, modelRegistry};
+}
+
+function listExportFiles(cwd: string): string[] {
+  const dir = join(cwd, ".pi", "unfolding", "exports");
+  return existsSync(dir) ? readdirSync(dir) : [];
 }
 
 function setupPi(activeSessions?: Map<string, any>) {
@@ -255,7 +260,7 @@ describe("registered task tools", () => {
       });
 
       assert.equal(aborted, true);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "child-finished.html")), true);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-child-finished\.html$/.test(name)).length, 1);
     } finally {
       cleanupTestTempDir(cwd);
     }
@@ -292,7 +297,7 @@ describe("registered task tools", () => {
       });
 
       assert.equal(aborted, true);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "child-blocked.html")), true);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-child-blocked\.html$/.test(name)).length, 1);
     } finally {
       cleanupTestTempDir(cwd);
     }
@@ -336,8 +341,8 @@ describe("registered task tools", () => {
       });
 
       assert.match(result.content[0].text, /Outcome: finished/);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "child-reopen-debug.commissioner.html")), true);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "child-reopen-debug.html")), false);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-child-reopen-debug\.commissioner\.html$/.test(name)).length, 1);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-child-reopen-debug\.html$/.test(name)).length, 0);
     } finally {
       cleanupTestTempDir(cwd);
     }
@@ -381,8 +386,8 @@ describe("registered task tools", () => {
       });
 
       assert.match(result.content[0].text, /Outcome: finished/);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "child-unblock-debug.commissioner.html")), true);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "child-unblock-debug.html")), false);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-child-unblock-debug\.commissioner\.html$/.test(name)).length, 1);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-child-unblock-debug\.html$/.test(name)).length, 0);
     } finally {
       cleanupTestTempDir(cwd);
     }
@@ -542,7 +547,7 @@ describe("registered task tools", () => {
       assert.equal(result.details?.aborted, true);
       assert.equal(result.terminate, true);
       assert.match(result.content[0].text, /⛔ unfolding aborted/);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "aborted-debug.html")), true);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-aborted-debug\.html$/.test(name)).length, 1);
     } finally {
       cleanupTestTempDir(cwd);
       cleanupTestTempDir(sessionDir);
@@ -628,7 +633,7 @@ describe("registered task tools", () => {
       });
 
       assert.equal(result.terminate, true);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "delegate-debug.commissioner.html")), true);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-delegate-debug\.commissioner\.html$/.test(name)).length, 1);
     } finally {
       cleanupTestTempDir(cwd);
     }
@@ -667,7 +672,7 @@ describe("registered task tools", () => {
       });
 
       assert.equal(result.terminate, true);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "delegate-debug-missing-session.commissioner.html")), false);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-delegate-debug-missing-session\.commissioner\.html$/.test(name)).length, 0);
     } finally {
       cleanupTestTempDir(cwd);
     }
@@ -825,8 +830,8 @@ describe("registered task tools", () => {
 
       assert.equal(promptCount, 1);
       assert.match(result.content[0].text, /Outcome: finished/);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "unblock-debug.commissioner.html")), true);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "unblock-debug.html")), false);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-unblock-debug\.commissioner\.html$/.test(name)).length, 1);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-unblock-debug\.html$/.test(name)).length, 0);
     } finally {
       cleanupTestTempDir(cwd);
     }
@@ -916,8 +921,8 @@ describe("registered task tools", () => {
 
       assert.equal(promptCount, 1);
       assert.match(result.content[0].text, /Outcome: finished/);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "reopen-debug.commissioner.html")), true);
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "reopen-debug.html")), false);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-reopen-debug\.commissioner\.html$/.test(name)).length, 1);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-reopen-debug\.html$/.test(name)).length, 0);
     } finally {
       cleanupTestTempDir(cwd);
     }
@@ -956,7 +961,7 @@ describe("registered task tools", () => {
         sessionManager: { getSessionFile: () => commissionerSessionFile },
       });
 
-      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "exports", "unblock-nodebug.commissioner.html")), false);
+      assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-unblock-nodebug\.commissioner\.html$/.test(name)).length, 0);
     } finally {
       cleanupTestTempDir(cwd);
     }
