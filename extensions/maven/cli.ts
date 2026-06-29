@@ -24,10 +24,10 @@ import {
   spawnMaven,
   type MavenRunOptions,
 } from "./maven-project.ts";
-import {buildMetadataUrl, fetchMetadata, selectVersion} from "./version-lookup.ts";
+import {buildMetadataUrl, fetchMetadata, formatVersionLookupError, selectVersion, VersionLookupError} from "./version-lookup.ts";
 import {fetchAvailableJavaVersions, ADOPTIUM_AVAILABLE_RELEASES_URL} from "./java-version-lookup.ts";
 import {INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE} from "./guidance.ts";
-import type {JavaVersionLookupJson, MavenRunJson, VersionLookupJson} from "./tool-types.ts";
+import type {JavaVersionLookupJson, MavenRunJson, VersionLookupFailureJson, VersionLookupJson} from "./tool-types.ts";
 import {toMavenRunJson, toProjectInfoJson} from "./tool-types.ts";
 
 // ---------------------------------------------------------------------------
@@ -211,19 +211,29 @@ async function cmdLookupVersion(args: Record<string, string | boolean>): Promise
   const includePrereleases = !!args["include-prereleases"];
   const metadataUrl = buildMetadataUrl(groupId, artifactId);
 
-  const {latestVersion, versions} = await fetchMetadata(groupId, artifactId);
-  const {selectedVersion, prereleaseFiltered} = selectVersion(latestVersion, versions, includePrereleases);
+  try {
+    const {latestVersion, versions} = await fetchMetadata(groupId, artifactId);
+    const {selectedVersion, prereleaseFiltered} = selectVersion(latestVersion, versions, includePrereleases);
 
-  const result: VersionLookupJson = {
-    groupId,
-    artifactId,
-    latestVersion,
-    selectedVersion,
-    prereleaseFiltered,
-    metadataUrl,
-  };
+    const result: VersionLookupJson = {
+      groupId,
+      artifactId,
+      latestVersion,
+      selectedVersion,
+      prereleaseFiltered,
+      metadataUrl,
+    };
 
-  console.log(JSON.stringify(result, null, 2));
+    console.log(JSON.stringify(result, null, 2));
+  } catch (err) {
+    if (err instanceof VersionLookupError) {
+      const failure: VersionLookupFailureJson = { ...err.details };
+      console.error(JSON.stringify(failure, null, 2));
+      process.exitCode = 1;
+      return;
+    }
+    throw err;
+  }
 }
 
 async function cmdAvailableJavaVersions(args: Record<string, string | boolean>): Promise<void> {

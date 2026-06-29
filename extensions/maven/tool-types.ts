@@ -36,6 +36,18 @@ export interface VersionLookupJson {
   metadataUrl: string;
 }
 
+export interface VersionLookupFailureJson {
+  groupId: string;
+  artifactId: string;
+  metadataUrl: string;
+  cause: "coordinates_not_found" | "network_problem" | "upstream_http_error";
+  status?: number;
+  initialStatus?: number;
+  probeUrl?: string;
+  probeStatus?: number;
+  retryStatus?: number;
+}
+
 export interface JavaVersionLookupJson {
   availableLtsReleases: number[];
   availableReleases: number[];

@@ -4,8 +4,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   buildMetadataUrl,
+  fetchMetadata,
   parseMetadata,
   selectVersion,
+  VersionLookupError,
 } from "../version-lookup.ts";
 import {
   ADOPTIUM_AVAILABLE_RELEASES_URL,
@@ -57,6 +59,66 @@ describe("parseMetadata", () => {
     const xml = loadFixture("latest-is-rc.xml");
     const result = parseMetadata(xml);
     assert.deepEqual(result.versions, ["1.9.0", "2.0.0.M1", "2.0.0.RC1", "2.0.0.RC2"]);
+  });
+});
+
+function xmlResponse(status: number, body = ""): Response {
+  return new Response(body, {
+    status,
+    headers: { "content-type": "application/xml" },
+  });
+}
+
+describe("fetchMetadata", () => {
+  it("reports coordinates_not_found only after probe success and retry 404", async () => {
+    const xml = loadFixture("assertj-core.xml");
+    const fetchMock: typeof fetch = async (url: string | URL | Request) => {
+      const urlString = String(url);
+      if (urlString.includes("com/example/missing-artifact")) return xmlResponse(404);
+      if (urlString.includes("org/assertj/assertj-core")) return xmlResponse(200, xml);
+      throw new Error(`unexpected url: ${urlString}`);
+    };
+
+    await assert.rejects(
+      () => fetchMetadata("com.example", "missing-artifact", undefined, fetchMock),
+      (error: unknown) => {
+        assert.ok(error instanceof VersionLookupError);
+        assert.equal(error.details.cause, "coordinates_not_found");
+        assert.equal(error.details.initialStatus, 404);
+        assert.equal(error.details.probeStatus, 200);
+        assert.equal(error.details.retryStatus, 404);
+        return true;
+      },
+    );
+  });
+
+  it("reports network_problem when the known-good probe also returns 404", async () => {
+    const fetchMock: typeof fetch = async () => xmlResponse(404);
+
+    await assert.rejects(
+      () => fetchMetadata("com.example", "missing-artifact", undefined, fetchMock),
+      (error: unknown) => {
+        assert.ok(error instanceof VersionLookupError);
+        assert.equal(error.details.cause, "network_problem");
+        assert.equal(error.details.initialStatus, 404);
+        assert.equal(error.details.probeStatus, 404);
+        return true;
+      },
+    );
+  });
+
+  it("reports upstream_http_error for non-404 HTTP failures", async () => {
+    const fetchMock: typeof fetch = async () => xmlResponse(429);
+
+    await assert.rejects(
+      () => fetchMetadata("org.assertj", "assertj-core", undefined, fetchMock),
+      (error: unknown) => {
+        assert.ok(error instanceof VersionLookupError);
+        assert.equal(error.details.cause, "upstream_http_error");
+        assert.equal(error.details.status, 429);
+        return true;
+      },
+    );
   });
 });
 

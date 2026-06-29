@@ -23,9 +23,9 @@ import { buildMavenArgs, buildMavenCommand, type MavenAction, type TestScope } f
 import { MavenProjectInfo, MavenRun, spawnMaven, type MavenRunOptions, type RawRunOutput } from "./maven-project.ts";
 import { loadJarSkills } from "./jar-skills.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
-import { buildMetadataUrl, fetchMetadata, selectVersion } from "./version-lookup.ts";
+import { buildMetadataUrl, fetchMetadata, formatVersionLookupError, selectVersion, VersionLookupError } from "./version-lookup.ts";
 import { fetchAvailableJavaVersions, ADOPTIUM_AVAILABLE_RELEASES_URL } from "./java-version-lookup.ts";
-import type { JavaVersionLookupJson, MavenRunJson, VersionLookupJson } from "./tool-types.ts";
+import type { JavaVersionLookupJson, MavenRunJson, VersionLookupFailureJson, VersionLookupJson } from "./tool-types.ts";
 import { toMavenRunJson, toProjectInfoJson } from "./tool-types.ts";
 import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
 import { INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE } from "./guidance.ts";
@@ -300,22 +300,30 @@ export default function (pi: ExtensionAPI) {
 
       onUpdate?.({ content: [{ type: "text" as const, text: `Fetching ${metadataUrl}…` }], details: undefined });
 
-      const { latestVersion, versions } = await fetchMetadata(groupId, artifactId, signal);
-      const { selectedVersion, prereleaseFiltered } = selectVersion(latestVersion, versions, includePrereleases);
+      try {
+        const { latestVersion, versions } = await fetchMetadata(groupId, artifactId, signal);
+        const { selectedVersion, prereleaseFiltered } = selectVersion(latestVersion, versions, includePrereleases);
 
-      const result: VersionLookupJson = {
-        groupId,
-        artifactId,
-        latestVersion,
-        selectedVersion,
-        prereleaseFiltered,
-        metadataUrl,
-      };
+        const result: VersionLookupJson = {
+          groupId,
+          artifactId,
+          latestVersion,
+          selectedVersion,
+          prereleaseFiltered,
+          metadataUrl,
+        };
 
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        details: result,
-      };
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          details: result,
+        };
+      } catch (error) {
+        if (error instanceof VersionLookupError) {
+          const failure: VersionLookupFailureJson = { ...error.details };
+          throw new Error(formatVersionLookupError(failure));
+        }
+        throw error;
+      }
     },
   });
 
@@ -400,7 +408,11 @@ export default function (pi: ExtensionAPI) {
           const { selectedVersion } = selectVersion(latestVersion, versions, false);
           mavenMessage({ kind: "version", groupId, artifactId, selectedVersion });
         } catch (err) {
-          mavenMessage({ kind: "error", message: `Version lookup failed: ${(err as Error).message}` });
+          if (err instanceof VersionLookupError) {
+            mavenMessage({ kind: "error", message: formatVersionLookupError(err.details) });
+          } else {
+            mavenMessage({ kind: "error", message: `Version lookup failed: ${(err as Error).message}` });
+          }
         }
         return;
       }
