@@ -268,6 +268,13 @@ Before writing or changing any `.feature` files, read the step catalog
 (`docs/ats/steps/` and `docs/rules/steps/`) to know which step patterns
 already exist. Use existing patterns for that category where possible.
 
+Then review the requested steps for opportunities to consolidate several
+low-level steps into fewer, higher-level business steps. Treat this as a
+requirements check about the right level of abstraction — not as a mere
+implementation optimization. Prefer fewer steps when they preserve the
+business meaning. Keep separate steps only when the distinction matters
+to the business.
+
 Re-evaluate the naming, organization, and directory structure of `.feature`
 files each time you add or modify ATs. Group related scenarios logically
 and use clear, consistent file names.
