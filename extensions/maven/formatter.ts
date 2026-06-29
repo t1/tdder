@@ -12,6 +12,7 @@ export interface ProjectInfoJson {
   rootPath: string;
   runner: string;
   currentPath: string;
+  profiles: string[];
   groupId: string;
   artifactId: string;
   version: string;
@@ -28,12 +29,13 @@ export interface ProjectInfoJson {
 export function formatProjectInfo(ctx: ProjectInfoJson | null): string {
   if (!ctx) return "Not a Maven project";
 
-  const { rootPath, runner, currentPath, modules, ...rootNode } = ctx;
+  const { rootPath, runner, currentPath, profiles, modules, ...rootNode } = ctx;
   const header: string[] = [
     "Maven project",
     `rootPath:    ${rootPath}`,
     `runner:      ${runner}`,
     `currentPath: ${currentPath}`,
+    `profiles:    ${profiles.length > 0 ? profiles.join(", ") : "(none)"}`,
     "projects:",
   ];
 

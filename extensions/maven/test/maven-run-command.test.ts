@@ -57,6 +57,16 @@ describe("buildMavenCommand", () => {
     });
     assert.equal(cmd, "./mvnw -pl services/service-a -am test");
   });
+
+  it("adds -P<profiles> when profiles are specified", () => {
+    const cmd = buildMavenCommand({
+      action: "test",
+      runner: "./mvnw",
+      testScope: "all",
+      profiles: ["at", "rules"],
+    });
+    assert.equal(cmd, "./mvnw -Pat,rules verify -DskipITs=false");
+  });
 });
 
 describe("buildMavenEnv", () => {
@@ -126,5 +136,10 @@ describe("buildMavenArgs", () => {
   it("adds -pl when project is specified", () => {
     const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire", project: "services/service-a" });
     assert.deepEqual(args, ["./mvnw", "-pl", "services/service-a", "-am", "test"]);
+  });
+
+  it("adds -P when profiles are specified", () => {
+    const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "all", profiles: ["at", "rules"] });
+    assert.deepEqual(args, ["./mvnw", "-Pat,rules", "verify", "-DskipITs=false"]);
   });
 });

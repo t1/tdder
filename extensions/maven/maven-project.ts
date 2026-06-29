@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { findProjectRoot, detectRunner, buildProjectTree, resolveCurrentProject } from "./project-info.ts";
+import { findProjectRoot, detectRunner, buildProjectTree, resolveCurrentProject, availableProfiles } from "./project-info.ts";
 import type { ProjectNode } from "./project-info.ts";
 import { collectReportPaths, parseReports } from "./report-collector.ts";
 import { extractCompilationErrors, extractBuildErrors } from "./report-parser.ts";
@@ -22,18 +22,21 @@ export class MavenProjectInfo {
   readonly projectRoot: string;
   readonly pomPath: string;
   readonly runner: string;
+  readonly profiles: string[];
   readonly currentProject: Omit<ProjectNode, "modules"> | null;
   readonly projectTree: ProjectNode;
 
   private constructor(
     projectRoot: string,
     runner: string,
+    profiles: string[],
     projectTree: ProjectNode,
     currentProject: Omit<ProjectNode, "modules"> | null,
   ) {
     this.projectRoot = projectRoot;
     this.pomPath = join(projectRoot, "pom.xml");
     this.runner = runner;
+    this.profiles = profiles;
     this.projectTree = projectTree;
     this.currentProject = currentProject;
   }
@@ -43,6 +46,7 @@ export class MavenProjectInfo {
     if (!projectRoot) return null;
 
     const runner = detectRunner(projectRoot);
+    const profiles = availableProfiles(projectRoot);
     const projectTree = buildProjectTree(projectRoot);
     const currentProject = resolveCurrentProject(projectTree, projectRoot, cwd);
 
@@ -52,7 +56,7 @@ export class MavenProjectInfo {
       ? (({ modules: _, ...rest }) => rest)(currentProject)
       : null;
 
-    return new MavenProjectInfo(projectRoot, runner, projectTree, currentProjectFlat);
+    return new MavenProjectInfo(projectRoot, runner, profiles, projectTree, currentProjectFlat);
   }
 
   /**

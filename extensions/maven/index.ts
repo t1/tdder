@@ -136,8 +136,8 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "maven_project_info",
     label: "Maven Project Info",
-    description: `Returns structured information about the current Maven project: root, modules, runner, and current module. ${INFO_LAYOUT}`,
-    promptSnippet: "Detect Maven project structure, runner, and module tree. The user already sees rootPath, runner, currentPath, and the project tree — do not repeat them. Print the description (if present) and a brief summary of the project.",
+    description: `Returns structured information about the current Maven project: root, modules, runner, current module, and available root pom profiles. ${INFO_LAYOUT}`,
+    promptSnippet: "Detect Maven project structure, runner, available root pom profiles, and module tree. The user already sees rootPath, runner, currentPath, profiles, and the project tree — do not repeat them. Print the description (if present) and a brief summary of the project.",
     parameters: Type.Object({}),
 
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
@@ -175,12 +175,13 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "maven_run",
     label: "Maven Run",
-    description: "Runs a Maven workflow (test, package) with structured output. Prefer this over raw bash for Maven tasks.",
+    description: "Runs a Maven workflow (test, package) with structured output, optional Maven profiles, and structured report parsing. Prefer this over raw bash for Maven tasks.",
     promptSnippet: "Run Maven test or package with structured results",
     promptGuidelines: [
       "Use maven_run instead of bash when running Maven goals. It enforces correct flags, saves raw output to a log file, and returns a compact structured result.",
       "For action=test, testScope is required: 'surefire' (unit tests only), 'failsafe' (ITs only), or 'all' (both).",
-      "maven_run examples: unit tests: maven_run(action='test', testScope='surefire'); with selector: maven_run(action='test', testScope='surefire', selector='MyTest#myMethod'); ITs only: maven_run(action='test', testScope='failsafe'); all tests: maven_run(action='test', testScope='all'); specific module: maven_run(action='test', testScope='all', project='module-a'); package: maven_run(action='package'); package module: maven_run(action='package', project='module-a'); slow test investigation: maven_run(action='test', testScope='surefire', includeTestTimings=true).",
+      "Use profiles when the project documents required Maven profiles (e.g. profiles=['at'] for -Pat). Profiles describe root-pom profile ids and are passed as -Pprofile1,profile2.",
+      "maven_run examples: unit tests: maven_run(action='test', testScope='surefire'); with selector: maven_run(action='test', testScope='surefire', selector='MyTest#myMethod'); ITs only: maven_run(action='test', testScope='failsafe'); all tests: maven_run(action='test', testScope='all'); AT profile: maven_run(action='test', testScope='all', profiles=['at']); specific module: maven_run(action='test', testScope='all', project='module-a'); package: maven_run(action='package'); package module: maven_run(action='package', project='module-a'); slow test investigation: maven_run(action='test', testScope='surefire', includeTestTimings=true).",
       "If testScope='failsafe' and the tool returns SUREFIRE_SKIP_NOT_CONFIGURED, follow the instructions in the error response.",
       "If the result contains failedTestsLimit, the failedTests list is capped at that number — there may be more failures. Rerun with limit='none' to retrieve all.",
       "Each entry in failedTests has: kind (failure=assertion, error=unexpected exception), type (exception/assertion class), reportFile (path to the Surefire XML), reportFileOffset (1-based start line), and reportFileLimit (line count of the block). Read reportFile with reportFileOffset and reportFileLimit to get the full stacktrace or assertion diff — prefer this over rawMavenLogPath.",
@@ -194,6 +195,7 @@ export default function (pi: ExtensionAPI) {
         description: "Required when action is 'test'. 'surefire'=unit tests only, 'failsafe'=ITs only (skips Surefire), 'all'=both.",
       })),
       project: Type.Optional(Type.String({ description: "Project path or module (e.g. services/service-a)" })),
+      profiles: Type.Optional(Type.Array(Type.String(), { description: "Optional root-pom Maven profile ids to activate (e.g. ['at'] for -Pat)." })),
       selector: Type.Optional(Type.String({ description: "Test selector: class name or Class#method" })),
       includeTestTimings: Type.Optional(Type.Boolean({ description: "Include per-test timing data in the result. Use when investigating slow tests." })),
       limit: Type.Optional(Type.Union([Type.Number(), Type.Literal("none")], { description: "Maximum number of failed tests to include in the result. Defaults to 10. Pass 'none' for all." })),
@@ -204,7 +206,7 @@ export default function (pi: ExtensionAPI) {
       const info = MavenProjectInfo.create(cwd);
       if (!info) throw new Error("Not a Maven project");
 
-      const { action, selector, testScope, includeTestTimings, limit: rawLimit } = params;
+      const { action, selector, testScope, includeTestTimings, limit: rawLimit, profiles } = params;
       const limit: number | null = rawLimit === "none" ? null : (rawLimit ?? 10);
       const project = params.project ?? info.defaultProject();
 
@@ -220,7 +222,7 @@ export default function (pi: ExtensionAPI) {
         }
       }
 
-      const opts = { action: action as MavenAction, runner: info.runner, selector, project, testScope: testScope as TestScope | undefined };
+      const opts = { action: action as MavenAction, runner: info.runner, selector, project, profiles, testScope: testScope as TestScope | undefined };
       const command = buildMavenCommand(opts);
       const args = buildMavenArgs(opts);
 
@@ -244,10 +246,10 @@ export default function (pi: ExtensionAPI) {
     renderCall(args, theme, context) {
       const text = (context.lastComponent as Text | undefined)
         ?? new Text("", 0, 0);
-      const { action, project, selector, testScope } = args as { action: string; project?: string; selector?: string; testScope?: TestScope };
+      const { action, project, profiles, selector, testScope } = args as { action: string; project?: string; profiles?: string[]; selector?: string; testScope?: TestScope };
       const info = MavenProjectInfo.create(resolve(context.cwd));
       const runner = info?.runner ?? "mvn";
-      const command = buildMavenCommand({ action: action as MavenAction, runner, project, selector, testScope });
+      const command = buildMavenCommand({ action: action as MavenAction, runner, project, profiles, selector, testScope });
       // After the result is available, context.state.result is set by renderResult.
       // Switch the pending icon to the final outcome icon so the command appears only once.
       const result = (context.state as { result?: MavenRunJson }).result;

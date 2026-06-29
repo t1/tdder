@@ -6,13 +6,14 @@ import type { ProjectNode } from "../project-info.ts";
 import { formatProjectInfo } from "../formatter.ts";
 import type { ProjectInfoJson } from "../formatter.ts";
 
-function toJson(root: string, runner: string, tree: ProjectNode, current: ProjectNode | null): ProjectInfoJson {
+function toJson(root: string, runner: string, tree: ProjectNode, current: ProjectNode | null, profiles: string[] = []): ProjectInfoJson {
   const { modules, ...rootFields } = stripInternalFields(tree);
   return {
     isMavenProject: true,
     rootPath: root,
     runner,
     currentPath: current?.relativePath ?? ".",
+    profiles,
     ...rootFields,
     ...(modules ? { modules } : {}),
   };
@@ -146,13 +147,14 @@ describe("formatProjectInfo — not a Maven project", () => {
 });
 
 describe("formatProjectInfo — single-module project", () => {
-  it("shows title, root, runner, and the single project without indented tree", () => {
+  it("shows title, root, runner, profiles, and the single project without indented tree", () => {
     const root = join(fixturesDir, "single-module");
     const tree = buildProjectTree(root);
-    const output = formatProjectInfo(toJson(root, "mvn", tree, tree));
+    const output = formatProjectInfo(toJson(root, "mvn", tree, tree, ["at", "rules"]));
     assert.ok(output.includes("Maven project"));
     assert.ok(output.includes(root));
     assert.ok(output.includes("mvn"));
+    assert.ok(output.includes("profiles:    at, rules"));
     assert.ok(output.includes("single-app"));
   });
 

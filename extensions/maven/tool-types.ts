@@ -66,6 +66,7 @@ export function toProjectInfoJson(info: MavenProjectInfo): ProjectInfoJson {
     rootPath: info.projectRoot,
     runner: info.runner,
     currentPath: info.currentProject?.relativePath ?? ".",
+    profiles: info.profiles,
     ...rootFields,
     ...(modules ? { modules } : {}),
   };

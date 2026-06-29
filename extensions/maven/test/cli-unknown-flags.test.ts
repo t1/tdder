@@ -17,6 +17,11 @@ describe("parseArgs", () => {
     assert.equal(args.limit, "5");
   });
 
+  it("parses --profiles=value", () => {
+    const { args } = parseArgs(["test", "--profiles=at,rules"]);
+    assert.equal(args.profiles, "at,rules");
+  });
+
   it("parses --key=none (equals with string value)", () => {
     const { args } = parseArgs(["test", "--limit=none"]);
     assert.equal(args.limit, "none");
@@ -34,8 +39,8 @@ describe("parseArgs", () => {
 
 describe("checkUnknownFlags", () => {
   it("returns null when all flags are known", () => {
-    const args = { scope: "surefire", project: "module-a", _positional: "" };
-    assert.equal(checkUnknownFlags(args, ["scope", "project"]), null);
+    const args = { scope: "surefire", project: "module-a", profiles: "at", _positional: "" };
+    assert.equal(checkUnknownFlags(args, ["scope", "project", "profiles"]), null);
   });
 
   it("returns an error message listing the unknown flag", () => {

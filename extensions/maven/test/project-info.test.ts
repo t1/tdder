@@ -8,6 +8,7 @@ import {
   buildProjectTree,
   stripInternalFields,
   resolveCurrentProject,
+  availableProfiles,
 } from "../project-info.ts";
 
 const fixturesDir = join(import.meta.dirname, "fixtures/projects");
@@ -86,6 +87,24 @@ describe("parsePom", () => {
     const pomPath = join(fixturesDir, "flat-multi-module/pom.xml");
     const pom = parsePom(pomPath);
     assert.deepEqual(pom.modules, ["module-a", "module-b"]);
+  });
+
+  it("parses profile ids from the root pom only", () => {
+    const pomPath = join(fixturesDir, "single-module/pom.xml");
+    const pom = parsePom(pomPath);
+    assert.deepEqual(pom.profiles, ["at", "rules"]);
+  });
+});
+
+describe("availableProfiles", () => {
+  it("returns root pom profile ids", () => {
+    const root = join(fixturesDir, "single-module");
+    assert.deepEqual(availableProfiles(root), ["at", "rules"]);
+  });
+
+  it("returns an empty list when the root pom defines no profiles", () => {
+    const root = join(fixturesDir, "flat-multi-module");
+    assert.deepEqual(availableProfiles(root), []);
   });
 });
 

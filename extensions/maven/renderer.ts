@@ -51,13 +51,14 @@ function renderInfo(details: Record<string, unknown>, theme: Theme, expanded = f
     return new Text(lines.join("\n"), 0, 0);
   }
 
-  const { rootPath, runner, currentPath, modules, ...rootNode } = ctx;
+  const { rootPath, runner, currentPath, profiles, modules, ...rootNode } = ctx;
   const hint = theme.fg("dim", keyHint("app.tools.expand", "to expand"));
   const lines: string[] = [
     `${header}  ${hint}`,
     label(theme, "rootPath")   + theme.fg("text", rootPath),
     label(theme, "runner")     + theme.fg("text", runner),
     label(theme, "currentPath") + theme.fg("text", currentPath),
+    label(theme, "profiles") + theme.fg("text", profiles.length > 0 ? profiles.join(", ") : "(none)"),
     theme.fg("muted", "projects:"),
   ];
 

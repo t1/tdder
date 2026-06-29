@@ -10,7 +10,7 @@
  * top-level coordinates belong to the root POM, not the current module.
  */
 export const INFO_LAYOUT =
-  "The top-level coordinates (groupId, artifactId, packaging, …) always describe the root POM. " +
+  "The top-level coordinates (groupId, artifactId, packaging, …) and profiles always describe the root POM. " +
   "Use currentPath to locate the current module inside the modules tree when you need its own coordinates.";
 
 /**

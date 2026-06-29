@@ -9,6 +9,7 @@ export interface PomInfo {
   description: string;
   packaging: string;
   modules: string[];
+  profiles: string[];
 }
 
 export interface ProjectNode {
@@ -55,6 +56,16 @@ function extractModules(xml: string): string[] {
   return [...modulesBlock[1].matchAll(/<module>([^<]+)<\/module>/g)].map((m) => m[1].trim());
 }
 
+function extractProfiles(xml: string): string[] {
+  const profiles: string[] = [];
+  for (const profilesBlock of xml.matchAll(/<profiles>([\s\S]*?)<\/profiles>/g)) {
+    for (const profile of profilesBlock[1].matchAll(/<profile>[\s\S]*?<id>([^<]+)<\/id>[\s\S]*?<\/profile>/g)) {
+      profiles.push(profile[1].trim());
+    }
+  }
+  return profiles;
+}
+
 export function parsePom(pomPath: string): PomInfo {
   const raw = readFileSync(pomPath, "utf8");
 
@@ -72,8 +83,9 @@ export function parsePom(pomPath: string): PomInfo {
   const description = extractTag(coords, "description");
   const packaging = extractTag(xml, "packaging") || "jar";
   const modules = extractModules(xml);
+  const profiles = extractProfiles(raw);
 
-  return { groupId, artifactId, version, name, description, packaging, modules };
+  return { groupId, artifactId, version, name, description, packaging, modules, profiles };
 }
 
 export function buildProjectTree(projectRoot: string): ProjectNode {

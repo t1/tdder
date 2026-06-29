@@ -21,7 +21,7 @@ or because you consider the job too small.
 
 # Project Info
 
-Use `maven_project_info` (pi extension) to get the project structure, module tree, and runner.
+Use `maven_project_info` (pi extension) to get the project structure, module tree, runner, and available root pom profiles.
 
 If not available, use the CLI via bash: `tdder-maven info`.
 
@@ -136,7 +136,7 @@ This is typically configured in the Maven compiler plugin:
 
 # Running Tests
 
-Use `maven_run` with `action="test"`. If not available, use `tdder-maven test --scope`.
+Use `maven_run` with `action="test"`. If the documented project command requires Maven profiles, pass them via `profiles=[...]`. If not available, use `tdder-maven test --scope --profiles`.
 If neither is available, use raw `mvn` (see below).
 
 ## Integration/System/Acceptance/E2E Tests
@@ -236,7 +236,7 @@ But be ready to recognize stale build output:
 In those cases, check whether the referenced class actually still exists in `src/main` or `src/test`.
 If it doesn't, a stale class file in `target/` is a likely cause; then a `clean` build is justified.
 
-Use `maven_run` with `action="package"`. If not available, use `tdder-maven package`.
+Use `maven_run` with `action="package"`. If the documented project command requires Maven profiles, pass them via `profiles=[...]`. If not available, use `tdder-maven package --profiles`.
 If neither is available:
 
 ```bash

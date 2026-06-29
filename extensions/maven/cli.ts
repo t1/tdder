@@ -7,8 +7,8 @@
  *
  * Commands:
  *   info                                    – project detection and tree
- *   run test [--scope surefire|failsafe|all] [--selector <sel>] [--project <p>]
- *   run package [--project <p>]
+ *   run test [--scope surefire|failsafe|all] [--profiles <ids>] [--selector <sel>] [--project <p>]
+ *   run package [--project <p>] [--profiles <ids>]
  *   lookup-version <groupId> <artifactId> [--include-prereleases]
  *   available-java-versions                 – Adoptium Java release info
  *
@@ -92,7 +92,7 @@ async function cmdInfo(args: Record<string, string | boolean>): Promise<void> {
 }
 
 async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
-  const unknownError = checkUnknownFlags(args, ["scope", "selector", "project", "include-timings", "limit"]);
+  const unknownError = checkUnknownFlags(args, ["scope", "profiles", "selector", "project", "include-timings", "limit"]);
   if (unknownError) {
     console.error(unknownError);
     process.exitCode = 1;
@@ -115,6 +115,9 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
   }
 
   const selector = args.selector as string | undefined;
+  const profiles = typeof args.profiles === "string"
+    ? args.profiles.split(",").map(profile => profile.trim()).filter(Boolean)
+    : undefined;
   const includeTimings = args["include-timings"] === true;
   const rawLimit = args["limit"] as string | boolean | undefined;
   const limit: number | null =
@@ -134,7 +137,7 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
     }
   }
 
-  const opts = {action: "test" as MavenAction, runner: info.runner, selector, project, testScope};
+  const opts = {action: "test" as MavenAction, runner: info.runner, selector, project, profiles, testScope};
   const command = buildMavenCommand(opts);
   const mavenArgs = buildMavenArgs(opts);
 
@@ -151,7 +154,7 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
 }
 
 async function cmdPackage(args: Record<string, string | boolean>): Promise<void> {
-  const unknownError = checkUnknownFlags(args, ["project"]);
+  const unknownError = checkUnknownFlags(args, ["project", "profiles"]);
   if (unknownError) {
     console.error(unknownError);
     process.exitCode = 1;
@@ -167,8 +170,11 @@ async function cmdPackage(args: Record<string, string | boolean>): Promise<void>
   }
 
   const project = (args.project as string | undefined) ?? info.defaultProject();
+  const profiles = typeof args.profiles === "string"
+    ? args.profiles.split(",").map(profile => profile.trim()).filter(Boolean)
+    : undefined;
 
-  const opts = {action: "package" as MavenAction, runner: info.runner, project};
+  const opts = {action: "package" as MavenAction, runner: info.runner, project, profiles};
   const command = buildMavenCommand(opts);
   const mavenArgs = buildMavenArgs(opts);
 
@@ -253,9 +259,13 @@ Examples:
   # Project structure and module tree
   tdder-maven info
   # Note: ${INFO_LAYOUT}
+  # Includes available profile ids from the root pom
 
   # Unit tests (Surefire)
   tdder-maven test --scope surefire
+
+  # Acceptance-test profile
+  tdder-maven test --scope all --profiles at
 
   # Unit tests with selector
   tdder-maven test --scope surefire --selector 'MyTest#myMethod'
@@ -281,6 +291,9 @@ Examples:
 
   # Package a specific module
   tdder-maven package --project module-a
+
+  # Package with Maven profiles
+  tdder-maven package --profiles native
 
   # Look up latest stable dependency or plugin version on Maven Central
   tdder-maven lookup-version org.assertj assertj-core

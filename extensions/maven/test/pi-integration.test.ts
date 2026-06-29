@@ -168,6 +168,8 @@ describe("maven_project_info tool", () => {
     assert.equal(json.projectRoot, undefined, "projectRoot should not appear");
     assert.ok("rootPath" in json, "rootPath should appear");
     assert.ok("currentPath" in json, "currentPath should appear");
+    assert.ok("profiles" in json, "profiles should appear");
+    assert.ok(Array.isArray(json.profiles), "profiles should be an array");
     assert.ok("artifactId" in json, "root artifactId should be promoted to top level");
     assert.ok("groupId" in json, "root groupId should be promoted to top level");
     function assertNoInternalFields(node: Record<string, unknown>): void {
@@ -178,6 +180,15 @@ describe("maven_project_info tool", () => {
       }
     }
     assertNoInternalFields(json);
+  });
+
+  it("returns available root pom profiles", async () => {
+    const tool = mavenExtension.tools.get("maven_project_info")!;
+    const ctx = makeCtx(singleModuleRoot);
+    const result = await tool.definition.execute("tc-profiles", {}, undefined, undefined, ctx);
+
+    const json = JSON.parse((result.content[0] as { type: string; text: string }).text);
+    assert.deepEqual(json.profiles, ["at", "rules"]);
   });
 
   it("returns isMavenProject false for a non-Maven directory", async () => {
