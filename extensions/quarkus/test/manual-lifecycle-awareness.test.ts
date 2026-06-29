@@ -31,7 +31,9 @@ describe("lifecycle buffering state", () => {
 
 describe("buffered manual lifecycle updates", () => {
   it("before_agent_start injects buffered lifecycle changes into the next turn", () => {
-    const idx = src.indexOf('pi.on("before_agent_start"');
+    const summaryIdx = src.indexOf("const lifecycleSummary = drainLifecycleSummary(ctx.cwd);");
+    assert.ok(summaryIdx >= 0, "lifecycle before_agent_start hook not found");
+    const idx = src.lastIndexOf('pi.on("before_agent_start"', summaryIdx);
     assert.ok(idx >= 0, "before_agent_start hook not found");
     const block = src.slice(idx, idx + 700);
     assert.ok(block.includes("drainLifecycleSummary"), `before_agent_start must drain pending lifecycle updates, got:\n${block}`);
