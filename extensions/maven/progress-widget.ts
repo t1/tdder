@@ -6,6 +6,8 @@
  *   formatWidgetLine(elapsed, lines, phase) — formats the one-line widget string
  */
 
+import { formatElapsedDuration } from "./vendor/duration-format.ts";
+
 // [INFO] Building <artifactId> [version]
 const BUILDING_RE = /^\[INFO\] Building ([\w][\w.-]*)(?:\s+[\d].*)?$/;
 
@@ -33,5 +35,5 @@ export function parsePhase(line: string): string | null {
  */
 export function formatWidgetLine(elapsedSeconds: number, lineCount: number, phase: string): string {
   const lineWord = lineCount === 1 ? "line" : "lines";
-  return `⚙ Maven  ${elapsedSeconds}s  |  ${lineCount} ${lineWord}  |  ${phase}`;
+  return `⚙ Maven  ${formatElapsedDuration(elapsedSeconds)}  |  ${lineCount} ${lineWord}  |  ${phase}`;
 }

@@ -63,4 +63,19 @@ describe("formatWidgetLine", () => {
     const line = formatWidgetLine(1, 1, "service-api");
     assert.equal(line, "⚙ Maven  1s  |  1 line  |  service-api");
   });
+
+  it("shows minutes and seconds once elapsed time reaches a minute", () => {
+    const line = formatWidgetLine(65, 2, "service-api");
+    assert.equal(line, "⚙ Maven  1m 5s  |  2 lines  |  service-api");
+  });
+
+  it("shows hours, minutes, and seconds for long-running builds", () => {
+    const line = formatWidgetLine(7384, 2, "service-api");
+    assert.equal(line, "⚙ Maven  2h 3m 4s  |  2 lines  |  service-api");
+  });
+
+  it("reuses the shared elapsed-duration formatter contract", async () => {
+    const { formatElapsedDuration } = await import("../vendor/duration-format.ts");
+    assert.equal(formatWidgetLine(3661, 1, "service-api"), `⚙ Maven  ${formatElapsedDuration(3661)}  |  1 line  |  service-api`);
+  });
 });

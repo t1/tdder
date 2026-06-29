@@ -1,5 +1,6 @@
 import type { AgentSessionEvent, AgentToolResult } from "@earendil-works/pi-coding-agent";
 import { visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { formatElapsedDuration } from "../shared/duration-format.ts";
 
 export const ANSI_ITALIC_ON = "\x1b[3m";
 export const ANSI_ITALIC_OFF = "\x1b[23m";
@@ -72,17 +73,6 @@ export function childOutputCommissionerNote(text: string): CommissionerNoteChild
 
 export function childOutputTotal(elapsedSeconds: number): TotalChildOutputEvent {
   return { type: "total", elapsedSeconds };
-}
-
-export function formatElapsedDuration(elapsedSeconds: number): string {
-  const seconds = Math.max(0, elapsedSeconds);
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = seconds % 60;
-
-  if (hours > 0) return `${hours}h ${minutes}m ${remainingSeconds}s`;
-  if (minutes > 0) return `${minutes}m ${remainingSeconds}s`;
-  return `${remainingSeconds}s`;
 }
 
 function renderAssistantLine(role: string, icon: "💬" | "🤔", text: string): string {
