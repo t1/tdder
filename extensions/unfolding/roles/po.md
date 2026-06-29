@@ -460,35 +460,39 @@ whether the Feature had a UX design (a `[UX]` task was created in step 6). If so
 
 When the UX review is complete (or was not needed), verify the Feature:
 
-**Step 1: Read the documented commands**
+**Step 1: Read the documented invocations**
 
-Read `docs/COMMANDS.md` to get the exact commands for running tests. This file
-was created by the Architect and contains the correct commands with proper
+Read `docs/COMMANDS.md` to get the exact operational invocations for running tests. This file
+was created by the Architect and contains the correct invocations with proper
 profiles and configuration.
 
-The file uses XML tags to structure 4 commands:
+The file uses XML tags to structure 4 operations:
 
-- `<acceptance-tests>` — command to run all ATs
-- `<business-rules>` — command to run all business rule tests
+- `<acceptance-tests>` — invocation to run all ATs
+- `<business-rules>` — invocation to run all business rule tests
 - `<start-service>` — (not used during AT verification)
 - `<stop-service>` — (not used during AT verification)
 
-Extract the commands by reading the content between the tags.
+Extract the content by reading the text between the tags.
 
 **CRITICAL:** Do NOT construct commands yourself. Do NOT guess.
-Use the exact commands from between the XML tags in `docs/COMMANDS.md`.
+Use the exact content from between the XML tags in `docs/COMMANDS.md`.
 If that file does not exist, create an `[ARCH]` task asking the Architect
 to create it, then call `task_block` to wait.
 
+If the extracted content is a pi tool invocation such as `maven_run(...)`, call that tool with exactly those arguments.
+If the extracted content is a shell command, execute that shell command exactly as written.
+Do NOT translate shell commands into tool calls yourself. Do NOT translate tool calls into shell commands yourself.
+
 **Step 2: Run the tests**
 
-Run **all** ATs and **all** business rule tests using the commands extracted from
+Run **all** ATs and **all** business rule tests using the exact invocations extracted from
 `docs/COMMANDS.md` — not just the ones for the current Feature. Regression
 across the full suite must be caught before a Feature is considered verified.
 
-Example: If the content between `<acceptance-tests>` tags is `mvn verify -Pat`, use
-exactly that. If the content between `<business-rules>` tags is `mvn verify -Prules`,
-use exactly that.
+Example: If the content between `<acceptance-tests>` tags is `maven_run(action="test", testScope="failsafe", profiles=["at"])`, call
+exactly that tool invocation. If the content between `<business-rules>` tags is `maven_run(action="test", testScope="surefire", profiles=["rules"])`,
+call exactly that tool invocation.
 
 **Playwright sandbox fallback:** If test execution fails because
 Playwright/Chromium cannot launch (e.g., `MachPortRendezvousServer:

@@ -384,17 +384,17 @@ When you are resumed after a Coder block:
 6. Mark the `[CODE]` task as complete
 7. Find the next Task; identify implicit technical assumptions (as above)
 8. Loop with the Coder until the Feature is complete
-9. **Create or update `docs/COMMANDS.md`** with the 4 required commands using XML tags:
+9. **Create or update `docs/COMMANDS.md`** with the 4 required operational invocations using XML tags:
 
     ```markdown
     # Project Commands
 
     <acceptance-tests>
-    mvn verify -Pat
+    maven_run(action="test", testScope="failsafe", profiles=["at"])
     </acceptance-tests>
 
     <business-rules>
-    mvn verify -Prules
+    maven_run(action="test", testScope="surefire", profiles=["rules"])
     </business-rules>
 
     <start-service>
@@ -411,12 +411,17 @@ When you are resumed after a Coder block:
     ```
 
    **Critical:** Use XML tags (`<acceptance-tests>`, `<business-rules>`, `<start-service>`,
-   `<stop-service>`) to wrap each command. This allows agents to reliably extract specific
-   commands without parsing markdown headers.
+   `<stop-service>`) to wrap each exact invocation. This allows agents to reliably extract specific
+   operational invocations without parsing markdown headers.
+
+   For Maven-based test/package operations, prefer explicit `maven_run(...)` invocations when the tool
+   can represent the operation exactly, including required profiles. For example, acceptance tests should
+   normally use `testScope="failsafe"` so they do not also run unit tests. For long-running or unsupported
+   operations, write the exact shell command instead.
 
    The COMMANDS.md file is the single source of truth for how the PO and designers
-   interact with the project. They never use Maven directly — they read this file
-   and extract commands from between the XML tags.
+   interact with the project. They do not decide how to run Maven themselves — they read this file
+   and execute the exact content from between the XML tags.
 
    If the file already exists from a previous Feature, update it if commands have
    changed (e.g., new profiles, different dev mode flags). Otherwise leave it as-is.
@@ -458,7 +463,7 @@ There are two separate categories:
    step definition, run the AT command, verify it executes and passes, then
    delete the dummy file. Do the same for business rules. Do NOT hand off
    to the PO until you have confirmed the infrastructure works end-to-end.
-8. Document the AT command in `docs/COMMANDS.md` (see step 9 in the main process).
+8. Document the AT invocation in `docs/COMMANDS.md` (see step 9 in the main process).
 
 ### Business Rules (`docs/rules/`)
 
@@ -469,7 +474,7 @@ There are two separate categories:
 3. Set up a separate runner/profile for business rule tests.
 4. Configure the runner to find `.feature` files in `docs/rules/`.
 5. You **may read** the `.feature` files in `docs/rules/` — they are shared.
-6. Document the business rules command in `docs/COMMANDS.md` (see step 9 in the main process).
+6. Document the business rules invocation in `docs/COMMANDS.md` (see step 9 in the main process).
 
 ## CI/CD and Deployment
 
