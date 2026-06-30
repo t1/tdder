@@ -1,13 +1,15 @@
 import { describe, it, before, after } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
+import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { makeTestTempDir } from "./test-temp.ts";
 
 const REQUESTY_EXTENSION = resolve("/Users/rdohna/.pi/agent/git/github.com/requestyai/pi-requesty/requesty.js");
 const TDDS_ROOT = resolve(new URL("../../..", import.meta.url).pathname);
+const RPC_FAUX_EXTENSION = join(TDDS_ROOT, "extensions", "unfolding", "test", "rpc-faux-provider.ts");
 const EXTENSIONS = [
   REQUESTY_EXTENSION,
   join(TDDS_ROOT, "extensions", "hygiene"),
@@ -48,14 +50,14 @@ function parseQualifiedModel(value: string): ModelRef {
   return { provider: value.slice(0, slash), id: value.slice(slash + 1) };
 }
 
-function startPi(cwd: string): {
+function startPi(cwd: string, options: { extraExtensions?: string[]; env?: Record<string, string> } = {}): {
   proc: ChildProcess;
   send: (cmd: object) => void;
   nextEvent: () => Promise<RpcEvent>;
   stop: () => Promise<void>;
 } {
   const args = ["--mode", "rpc", "--no-extensions"];
-  for (const extension of EXTENSIONS) {
+  for (const extension of [...EXTENSIONS, ...(options.extraExtensions ?? [])]) {
     args.push("--extension", extension);
   }
 
@@ -64,6 +66,7 @@ function startPi(cwd: string): {
     stdio: ["pipe", "pipe", "pipe"],
     env: {
       ...process.env,
+      ...options.env,
       GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME ?? "Unfolding Test",
       GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL ?? "unfolding-test@example.com",
       GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME ?? "Unfolding Test",
@@ -135,6 +138,7 @@ function startPi(cwd: string): {
 
     if (proc.exitCode === null) proc.kill("SIGKILL");
     await exitPromise;
+    proc.stdin?.destroy();
     proc.stdout?.destroy();
     proc.stderr?.destroy();
   }
@@ -245,6 +249,64 @@ function summarizeRun(cwd: string, requestedModel: string | undefined, selectedM
 
 const { model: requestedModel } = parseArgs();
 
+function writeRpcAbortScript(cwd: string): string {
+  const dir = join(cwd, ".pi", "unfolding", "test");
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, "rpc-abort-script.json");
+  writeFileSync(path, JSON.stringify([
+    { type: "tool", name: "task_delegate", arguments: { role: "po", slug: "po-1", body: "Please help with the feature." } },
+    { type: "tool", name: "task_delegate", arguments: { role: "architect", slug: "arch-1", body: "Please design the implementation." } },
+    { type: "tool", name: "task_delegate", arguments: { role: "coder", slug: "code-1", body: "Please implement the first task." } },
+    { type: "hangUntilAbort", errorMessage: "aborted" },
+  ], null, 2) + "\n", "utf8");
+  return path;
+}
+
+async function startNestedAbortRun(instance: ReturnType<typeof startPi>): Promise<string> {
+  const promptId = `unfold-abort-${randomUUID()}`;
+  instance.send({ id: promptId, type: "prompt", message: "/unfold --debug nested abort reproduction" });
+  await waitFor(instance.nextEvent, event => event.type === "response" && event.id === promptId, 10_000);
+  await waitFor(instance.nextEvent, event => event.type === "agent_start", 30_000);
+  return promptId;
+}
+
+async function abortCurrentRun(instance: ReturnType<typeof startPi>): Promise<{ endEvent: RpcEvent }> {
+  const abortId = `abort-${randomUUID()}`;
+  instance.send({ id: abortId, type: "abort" });
+
+  let endEvent: RpcEvent | undefined;
+  let abortResponseSeen = false;
+  const deadline = Date.now() + 20_000;
+
+  while (Date.now() < deadline) {
+    const remaining = Math.max(1, deadline - Date.now());
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const event = await Promise.race([
+      instance.nextEvent(),
+      new Promise<null>(resolve => {
+        timeoutHandle = setTimeout(() => resolve(null), remaining);
+      }),
+    ]);
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+    if (event === null) break;
+    if (event.type === "__process_exit__") {
+      throw new Error(`pi exited unexpectedly: ${JSON.stringify(event)}`);
+    }
+    if (event.type === "response" && event.id === abortId) {
+      abortResponseSeen = true;
+      if (endEvent) return { endEvent };
+      continue;
+    }
+    if (event.type === "agent_end") {
+      endEvent = event;
+      if (abortResponseSeen) return { endEvent };
+      continue;
+    }
+  }
+
+  throw new Error(`Timed out waiting for abort response and agent_end within 20000ms`);
+}
+
 describe("real unfolding smoke", { timeout: DEFAULT_TIMEOUT_MS + 30_000 }, () => {
   let cwd: string;
 
@@ -308,6 +370,46 @@ describe("real unfolding smoke", { timeout: DEFAULT_TIMEOUT_MS + 30_000 }, () =>
           `expected a child session to use ${summary.selectedModel.provider}/${summary.selectedModel.id}; child models: ${summary.childModels.map(model => `${model.provider}/${model.id}`).join(", ")}`,
         );
       }
+    } finally {
+      await instance.stop();
+    }
+  });
+
+  it("does not leave the root RPC session hanging after an aborted grandchild session", async () => {
+    const cwd = makeTestTempDir("unfolding-real-abort");
+    const scriptPath = writeRpcAbortScript(cwd);
+    console.log(`[unfolding abort smoke] temp dir: ${cwd}`);
+
+    const instance = startPi(cwd, {
+      extraExtensions: [RPC_FAUX_EXTENSION],
+      env: {
+        RPC_FAUX_API_KEY: "test-key",
+        UNFOLDING_RPC_FAUX_SCRIPT: scriptPath,
+      },
+    });
+
+    try {
+      await waitForResponse(instance.send, instance.nextEvent, { type: "get_state" }, "state-ready-abort", 10_000);
+      await waitForResponse(
+        instance.send,
+        instance.nextEvent,
+        { type: "set_model", provider: "rpc-faux", modelId: "scripted-test-model" },
+        "set-model-abort",
+        30_000,
+      );
+
+      await startNestedAbortRun(instance);
+      await sleep(1500);
+      const { endEvent } = await abortCurrentRun(instance);
+      const messages = (endEvent as { messages?: Array<{ role: string; content: Array<{ type: string; text?: string }> }> }).messages ?? [];
+      const flattened = messages
+        .flatMap(message => message.content ?? [])
+        .filter(part => part.type === "text")
+        .map(part => part.text ?? "")
+        .join("\n\n");
+
+      assert.doesNotMatch(flattened, /⛔ unfolding aborted/);
+      assert.match(flattened, /❌ aborted/);
     } finally {
       await instance.stop();
     }

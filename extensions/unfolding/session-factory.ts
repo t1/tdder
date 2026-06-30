@@ -3,7 +3,12 @@ import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@ea
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { createSnapshotCommit, ensureGitRepoWithHead, isWorkspaceDirty } from "./git-task-state.ts";
 import { createTask, readTask, updateTaskStatus, type Task } from "./task-store.ts";
-import { installCheckpointRecovery, streamChildSession, waitForChildDecision } from "./task-delegate.ts";
+import {
+  childSessionFailureBlockedReason,
+  installCheckpointRecovery,
+  streamChildSession,
+  waitForChildDecision,
+} from "./task-delegate.ts";
 import { buildChildInitialMessage, createChildAgentSession, type NestedDelegateToolFactory } from "./session-common.ts";
 import type { ChildOutputDetails } from "./child-output.ts";
 
@@ -26,6 +31,7 @@ export interface StartChildSessionParams {
   postOutput: (lines: string) => void;
   nestedDelegateToolFactory: NestedDelegateToolFactory;
   signal?: AbortSignal;
+  parentSignal?: AbortSignal;
   onUpdate?: any;
   model?: Model<any>;
   authStorage?: AuthStorage;
@@ -44,6 +50,7 @@ export async function startChildSession({
   postOutput,
   nestedDelegateToolFactory,
   signal,
+  parentSignal,
   onUpdate,
   model,
   authStorage,
@@ -88,10 +95,22 @@ export async function startChildSession({
     });
   }
 
-  signal?.addEventListener("abort", () => { session.abort().catch(() => {}); });
+  let wasLocallyAborted = signal?.aborted === true || parentSignal?.aborted === true;
   const stream = onUpdate ? streamChildSession(session, shortRole, slug, onUpdate, {
     sessionFile: session.sessionFile,
   }) : undefined;
+  const onAbort = () => {
+    wasLocallyAborted = true;
+    session.abort().catch(() => {});
+  };
+  signal?.addEventListener("abort", onAbort);
+  parentSignal?.addEventListener("abort", onAbort);
+  let observedTerminalAbort = false;
+  const unsubscribeAbortObserver = session.subscribe((event: any) => {
+    if (event?.type === "message_end" && event.message?.role === "assistant" && event.message?.stopReason === "aborted") {
+      observedTerminalAbort = true;
+    }
+  });
   const checkpointRecovery = installCheckpointRecovery(session, cwd, slug, {
     onRecoveryNote: stream?.append,
   });
@@ -100,15 +119,33 @@ export async function startChildSession({
       const stack = err instanceof Error ? err.stack : String(err);
       console.error(`[unfolding] child session for task "${slug}" failed:`, stack);
     });
-    const outcome = await waitForChildDecision(
-      async () => readTask(cwd, slug),
-      (_status: string, blocked_reason?: string) => {
-        stream?.append(`  ⏸ blocked: ${blocked_reason ?? "(no reason given)"}`);
-      },
-      undefined,
-      signal,
-      checkpointRecovery.getFatalError,
-    );
+    let outcome: "finished" | "blocked" | "aborted";
+    try {
+      outcome = await waitForChildDecision(
+        async () => readTask(cwd, slug),
+        (_status: string, blocked_reason?: string) => {
+          stream?.append(`  ⏸ blocked: ${blocked_reason ?? "(no reason given)"}`);
+        },
+        undefined,
+        signal,
+        checkpointRecovery.getFatalError,
+        async () => {
+          const task = readTask(cwd, slug);
+          return task?.status === "in_progress" && (wasLocallyAborted || observedTerminalAbort);
+        },
+      );
+    } catch (error) {
+      if (error instanceof Error && error.name === "FatalChildSessionError") {
+        if (wasLocallyAborted) {
+          outcome = "aborted";
+        } else {
+          updateTaskStatus(cwd, slug, "blocked", childSessionFailureBlockedReason(error.message.replace(/^fatal child session error in \".*?\":\s*/, "")));
+          outcome = "blocked";
+        }
+      } else {
+        throw error;
+      }
+    }
     const stats = session.getSessionStats();
     const costLine = `  💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`;
     if (stream) {
@@ -131,6 +168,9 @@ export async function startChildSession({
     return { session, outcome };
   } finally {
     checkpointRecovery.unsubscribe();
+    signal?.removeEventListener("abort", onAbort);
+    parentSignal?.removeEventListener("abort", onAbort);
+    unsubscribeAbortObserver();
     stream?.unsubscribe();
   }
 }

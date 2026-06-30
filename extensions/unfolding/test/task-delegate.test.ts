@@ -904,6 +904,7 @@ describe("waitForChildDecision", () => {
       /fatal child session error in "child-a": ask_sensei failed: UI is not available in this session/,
     );
   });
+
 });
 
 // ---------------------------------------------------------------------------

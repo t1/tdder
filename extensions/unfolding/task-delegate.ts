@@ -16,7 +16,8 @@ import { readTask, updateTaskStatus } from "./task-store.ts";
 import { stripFrontmatter } from "./unfold-helpers.ts";
 
 export const CHILD_FIXED_INSTRUCTION =
-  "When you have completed your work, call `task_finished`. " +
+  "Call `task_finished` only when your responsibility for this task is fully complete. " +
+  "Do not call it merely because you wrote files or described status; if the task still requires delegation, verification, or another concrete next action, do that first. " +
   "If you cannot continue and need commissioner action, call `task_block` with a reason.";
 
 export const TRUNCATION_BLOCKED_REASON =
@@ -44,7 +45,7 @@ const TRUNCATION_RECOVERY_PROMPT =
   "Your last response was truncated before you reached a checkpoint. Continue in smaller concrete steps, or call task_block with a workflow-level reason if you cannot continue.";
 
 const MISSING_CHECKPOINT_RECOVERY_PROMPT =
-  "Your last turn ended without reaching a checkpoint. Do not just describe status. If your work is complete, call `task_finished`. If you cannot continue and need commissioner action, call `task_block` with a reason.";
+  "Your last turn ended without reaching a checkpoint. Do not just describe status. Call `task_finished` only if your responsibility for this task is fully complete. Do not call it merely because you wrote files; if the task still requires delegation, verification, or another concrete next action, do that first. If you cannot continue and need commissioner action, call `task_block` with a reason.";
 
 // ---------------------------------------------------------------------------
 // loadAgentSystemPrompt
@@ -236,7 +237,7 @@ function isTerminalAssistantFailure(event: AgentSessionEvent): boolean {
   return event.message.stopReason === "error" || event.message.stopReason === "aborted";
 }
 
-function childSessionFailureBlockedReason(detail: string): string {
+export function childSessionFailureBlockedReason(detail: string): string {
   const summary = truncateSummary(compactWhitespace(detail), 180);
   return summary ? `${CHILD_SESSION_FAILURE_BLOCKED_REASON} Last failure: ${summary}` : CHILD_SESSION_FAILURE_BLOCKED_REASON;
 }
@@ -664,9 +665,11 @@ export async function waitForChildDecision(
   pollIntervalMs = POLL_INTERVAL_MS,
   signal?: AbortSignal,
   getFatalError?: () => FatalChildSessionError | undefined,
+  isChildAborted?: () => boolean | Promise<boolean>,
 ): Promise<"finished" | "blocked" | "aborted"> {
   while (true) {
     if (signal?.aborted) return "aborted";
+    if (await isChildAborted?.()) return "aborted";
     const fatalError = getFatalError?.();
     if (fatalError) throw fatalError;
     const task = await readStatus();

@@ -359,7 +359,7 @@ describe("startChildSession groundwork", () => {
     }
   });
 
-  it("fails immediately on child-session failure instead of treating it as a missing checkpoint", async () => {
+  it("blocks on child-session technical failure instead of treating it as a missing checkpoint", async () => {
     const {cwd} = makeTestGitRepo("session-factory");
     const provider = `session-child-failure-${Date.now()}`;
     const faux = registerFauxProvider({
@@ -373,29 +373,201 @@ describe("startChildSession groundwork", () => {
     authStorage.setRuntimeApiKey(provider, "test-key");
     const modelRegistry = ModelRegistry.inMemory(authStorage);
     try {
-      await assert.rejects(
-        () => startChildSession({
-          cwd,
-          from: "orchestrator",
-          role: "coder",
-          slug: "coder-child-failure",
-          body: "Do work.",
-          activeSessions: new Map() as any,
-          pi: {} as any,
-          postOutput: () => {
-          },
-          nestedDelegateToolFactory,
-          model: faux.getModel(),
-          authStorage,
-          modelRegistry,
-        }),
-        /fatal child session error in "coder-child-failure": Permission denied\./,
-      );
+      const result = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-child-failure",
+        body: "Do work.",
+        activeSessions: new Map() as any,
+        pi: {} as any,
+        postOutput: () => {
+        },
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
 
+      assert.equal(result.outcome, "blocked");
       const snapshot = readTaskSnapshot(cwd, "coder-child-failure");
-      assert.equal(snapshot?.status, "in_progress", "fatal child failure should leave persisted task status unchanged");
+      assert.equal(snapshot?.status, "blocked", "technical child failure should block the task");
+      assert.match(snapshot?.blocked_reason ?? "", new RegExp(`^${CHILD_SESSION_FAILURE_BLOCKED_REASON.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+      assert.match(snapshot?.blocked_reason ?? "", /Permission denied\./);
+      assert.equal(faux.state.callCount, 1, "should stop immediately on child-session failure");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("blocks unknown aborted child-session failures as technical failures", async () => {
+    const {cwd} = makeTestGitRepo("session-factory");
+    const provider = `session-child-aborted-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{id: "test-model"}],
+    });
+    faux.setResponses([
+      fauxAssistantMessage("transport aborted", {stopReason: "aborted", errorMessage: "Request was aborted."} as any),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    try {
+      const result = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-child-aborted",
+        body: "Do work.",
+        activeSessions: new Map() as any,
+        pi: {} as any,
+        postOutput: () => {
+        },
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(result.outcome, "blocked");
+      const snapshot = readTaskSnapshot(cwd, "coder-child-aborted");
+      assert.equal(snapshot?.status, "blocked");
+      assert.match(snapshot?.blocked_reason ?? "", /Request was aborted\./);
+      assert.equal(faux.state.callCount, 1, "raw aborted child failure without local abort evidence should block");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("returns aborted when the child run is locally aborted via the propagated signal", async () => {
+    const {cwd} = makeTestGitRepo("session-factory");
+    const provider = `session-local-abort-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{id: "test-model"}],
+    });
+    faux.setResponses([
+      fauxAssistantMessage("transport aborted", {stopReason: "aborted", errorMessage: "Request was aborted."} as any),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    try {
+      const controller = new AbortController();
+      queueMicrotask(() => controller.abort());
+
+      const result = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-local-abort",
+        body: "Do work.",
+        activeSessions: new Map() as any,
+        pi: {} as any,
+        postOutput: () => {
+        },
+        signal: controller.signal,
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(result.outcome, "aborted");
+      const snapshot = readTaskSnapshot(cwd, "coder-local-abort");
+      assert.equal(snapshot?.status, "in_progress", "user-aborted tasks should keep the last persisted checkpoint");
       assert.equal(snapshot?.blocked_reason, undefined);
-      assert.equal(faux.state.callCount, 1, "should fail immediately on child-session failure");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("returns aborted when the child session emits an aborted terminal message after local abort without changing task status", async () => {
+    const {cwd} = makeTestGitRepo("session-factory");
+    const provider = `session-local-abort-terminal-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{id: "test-model"}],
+    });
+    faux.setResponses([
+      fauxAssistantMessage("waiting", {stopReason: "aborted", errorMessage: "aborted"} as any),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    try {
+      const controller = new AbortController();
+      queueMicrotask(() => controller.abort());
+
+      const result = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-local-abort-terminal",
+        body: "Do work.",
+        activeSessions: new Map() as any,
+        pi: {} as any,
+        postOutput: () => {
+        },
+        signal: controller.signal,
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(result.outcome, "aborted");
+      const snapshot = readTaskSnapshot(cwd, "coder-local-abort-terminal");
+      assert.equal(snapshot?.status, "in_progress");
+      assert.equal(snapshot?.blocked_reason, undefined);
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("returns aborted when only the propagated parent signal aborts the child run", async () => {
+    const {cwd} = makeTestGitRepo("session-factory");
+    const provider = `session-parent-signal-abort-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{id: "test-model"}],
+    });
+    faux.setResponses([
+      fauxAssistantMessage("waiting", {stopReason: "aborted", errorMessage: "aborted"} as any),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    try {
+      const controller = new AbortController();
+      queueMicrotask(() => controller.abort());
+
+      const result = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-parent-signal-abort",
+        body: "Do work.",
+        activeSessions: new Map() as any,
+        pi: {} as any,
+        postOutput: () => {
+        },
+        parentSignal: controller.signal,
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(result.outcome, "aborted");
+      const snapshot = readTaskSnapshot(cwd, "coder-parent-signal-abort");
+      assert.equal(snapshot?.status, "in_progress");
+      assert.equal(snapshot?.blocked_reason, undefined);
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

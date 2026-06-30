@@ -530,29 +530,27 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       assert.equal(started.outcome, "blocked");
       activeSessions.delete("coder-resume-child-failure");
 
-      await assert.rejects(
-        () => resumeDelegatedTask({
-          action: "unblock",
-          cwd,
-          slug: "coder-resume-child-failure",
-          reason: "continue",
-          activeSessions,
-          postOutput: () => {
-          },
-          mutateTask: taskUnblock,
-          pi: {} as any,
-          model: faux.getModel(),
-          authStorage,
-          modelRegistry,
-        }),
-        /fatal child session error in "coder-resume-child-failure": Permission denied\./,
-      );
+      const outcome = await resumeDelegatedTask({
+        action: "unblock",
+        cwd,
+        slug: "coder-resume-child-failure",
+        reason: "continue",
+        activeSessions,
+        postOutput: () => {
+        },
+        mutateTask: taskUnblock,
+        pi: {} as any,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
 
+      assert.equal(outcome, "blocked");
       const task = readTask(cwd, "coder-resume-child-failure");
-      assert.equal(task?.status, "in_progress", "fatal resumed child failure should leave persisted task status unchanged");
-      assert.equal(task?.blocked_reason, undefined);
-      assert.match(task?.resume_message ?? "", /^unblocked: continue$/);
-      assert.equal(faux.state.callCount, 3, "should fail immediately on child-session failure during resumed run");
+      assert.equal(task?.status, "blocked", "technical resumed child failure should block the task");
+      assert.match(task?.blocked_reason ?? "", /Permission denied\./);
+      assert.equal(task?.resume_message, undefined, "blocked tasks keep only the blocker, not the old resume message");
+      assert.equal(faux.state.callCount, 3, "should stop immediately on child-session failure during resumed run");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

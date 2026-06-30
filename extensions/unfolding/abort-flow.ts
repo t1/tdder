@@ -1,9 +1,19 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { taskList } from "./task-tools.ts";
-import { listTasks } from "./task-store.ts";
+import { listTasks, readTask } from "./task-store.ts";
 
-export async function abortAllActiveSessions(activeSessions: Map<string, AgentSession>): Promise<void> {
-  const sessions = [...activeSessions.values()];
+export interface AbortActiveSessionsOptions {
+  skipSlugs?: Iterable<string>;
+}
+
+export async function abortAllActiveSessions(
+  activeSessions: Map<string, AgentSession>,
+  options: AbortActiveSessionsOptions = {},
+): Promise<void> {
+  const skipSlugs = new Set(options.skipSlugs ?? []);
+  const sessions = [...activeSessions.entries()]
+    .filter(([slug]) => !skipSlugs.has(slug))
+    .map(([, session]) => session);
   await Promise.all(sessions.map(async session => {
     if (typeof session.abort !== "function") return;
     await session.abort().catch(() => {
@@ -12,16 +22,29 @@ export async function abortAllActiveSessions(activeSessions: Map<string, AgentSe
   activeSessions.clear();
 }
 
+function withAncestorSkips(cwd: string, options: AbortActiveSessionsOptions = {}): AbortActiveSessionsOptions {
+  const skipSlugs = new Set(options.skipSlugs ?? []);
+  for (const slug of [...skipSlugs]) {
+    let current = readTask(cwd, slug)?.parent_slug;
+    while (current && !skipSlugs.has(current)) {
+      skipSlugs.add(current);
+      current = readTask(cwd, current)?.parent_slug;
+    }
+  }
+  return { ...options, skipSlugs };
+}
+
 export async function abortSessionStack(
   cwd: string,
   reason: string,
   activeSessions: Map<string, AgentSession>,
   postOutput?: (lines: string) => void,
+  options: AbortActiveSessionsOptions = {},
 ): Promise<string> {
   const snapshot = new Map(activeSessions);
   const summary = renderAbortSummary(cwd, reason, snapshot);
   postOutput?.(summary);
-  await abortAllActiveSessions(activeSessions);
+  await abortAllActiveSessions(activeSessions, withAncestorSkips(cwd, options));
   return summary;
 }
 

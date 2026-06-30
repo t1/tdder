@@ -17,6 +17,7 @@ export function makeTaskDelegateDefinition(
   postOutput: (lines: string) => void,
   onChildOutcome?: (cwd: string, slug: string, outcome: "finished" | "blocked" | "aborted") => Promise<void> | void,
   exportDebugHtml?: (cwd: string, slug: string) => Promise<void> | void,
+  currentCommissionerSlug?: string,
 ): any {
   return {
     name: "task_delegate",
@@ -49,8 +50,9 @@ export function makeTaskDelegateDefinition(
           pi,
           postOutput,
           nestedDelegateToolFactory: (shortRole: string) =>
-            makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput, onChildOutcome, exportDebugHtml),
+            makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput, onChildOutcome, exportDebugHtml, params.slug),
           signal,
+          parentSignal: ctx.signal,
           onUpdate,
           model: ctx.model,
           modelRegistry: ctx.modelRegistry,
@@ -61,15 +63,21 @@ export function makeTaskDelegateDefinition(
 
         if (outcome === "aborted") {
           const reason = `task "${params.slug}" was aborted`;
-          const abortSummary = await abortSessionStack(ctx.cwd, reason, activeSessions);
+          await abortSessionStack(
+            ctx.cwd,
+            reason,
+            activeSessions,
+            undefined,
+            { skipSlugs: [params.slug, ...(currentCommissionerSlug ? [currentCommissionerSlug] : [])] },
+          );
           const parts = [
             `Task "${params.slug}" aborted.`,
             finalSnapshot,
-            abortSummary,
           ].filter(Boolean);
+          if (!currentCommissionerSlug) ctx.abort?.();
           return {
             content: [{ type: "text", text: parts.join("\n\n") }],
-            details: { aborted: true, finalSnapshot, abortSummary, ...finalOutputDetails },
+            details: { aborted: true, finalSnapshot, ...finalOutputDetails },
             terminate: true,
           };
         }
@@ -92,8 +100,14 @@ export function makeTaskDelegateDefinition(
           const reason = err instanceof FatalChildSessionError
             ? `fatal child session failure in ${err.slug}: ${err.detail}`
             : err.message;
-          await abortSessionStack(ctx.cwd, reason, activeSessions, postOutput);
-          ctx.abort?.();
+          await abortSessionStack(
+            ctx.cwd,
+            reason,
+            activeSessions,
+            postOutput,
+            currentCommissionerSlug ? { skipSlugs: [currentCommissionerSlug] } : undefined,
+          );
+          if (!currentCommissionerSlug) ctx.abort?.();
           throw err;
         }
 

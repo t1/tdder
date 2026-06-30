@@ -10,6 +10,7 @@ import {createSnapshotCommit} from "../git-task-state.ts";
 import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
 import {makeTestGitRepo} from "./test-git-repo.ts";
 import {createChildTaskTools} from "../child-task-tools.ts";
+import {makeTaskDelegateDefinition} from "../task-delegate-tool.ts";
 import {fauxAssistantMessage, fauxToolCall, registerFauxProvider} from "./faux-provider.ts";
 
 function fauxSetup(name: string) {
@@ -491,7 +492,7 @@ describe("registered task tools", () => {
       assert.ok(updates.some(text => text.includes("[coder/aborted-transcript]")), "transient nested transcript should be streamed before abort");
       assert.match(result.content[0].text, /\[coder\/aborted-transcript\]/);
       assert.match(result.content[0].text, /💰 \$/);
-      assert.match(result.content[0].text, /⛔ unfolding aborted/);
+      assert.doesNotMatch(result.content[0].text, /⛔ unfolding aborted/);
     } finally {
       cleanupTestTempDir(cwd);
     }
@@ -546,7 +547,7 @@ describe("registered task tools", () => {
       assert.match(result.content[0].text, /^Task "aborted-debug" aborted\./);
       assert.equal(result.details?.aborted, true);
       assert.equal(result.terminate, true);
-      assert.match(result.content[0].text, /⛔ unfolding aborted/);
+      assert.doesNotMatch(result.content[0].text, /⛔ unfolding aborted/);
       assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-aborted-debug\.html$/.test(name)).length, 1);
     } finally {
       cleanupTestTempDir(cwd);
@@ -722,7 +723,7 @@ describe("registered task tools", () => {
     assert.deepEqual(component.render(80), []);
   });
 
-  it("task_delegate returns an aborted result instead of throwing when delegation is aborted", async () => {
+  it("root task_delegate aborts the current run when delegation is aborted", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
     try {
       const {tools} = setupPi();
@@ -730,17 +731,46 @@ describe("registered task tools", () => {
       controller.abort();
       const tool = tools.get("task_delegate");
       assert.ok(tool, "task_delegate tool must be registered");
+      let abortCalls = 0;
       const result = await tool.execute("1", {
         role: "coder",
         slug: "aborted-child",
         body: "Do work"
       }, controller.signal, undefined, {cwd, abort() {
+        abortCalls += 1;
       }});
 
       assert.match(result.content[0].text, /^Task "aborted-child" aborted\./);
+      assert.equal(abortCalls, 1);
       assert.equal(result.details?.aborted, true);
       assert.equal(result.terminate, true);
-      assert.match(result.content[0].text, /⛔ unfolding aborted/);
+      assert.doesNotMatch(result.content[0].text, /⛔ unfolding aborted/);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("nested task_delegate returns an aborted result without aborting its own commissioner run", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    try {
+      const activeSessions = new Map<string, any>();
+      const nestedTool = makeTaskDelegateDefinition("architect", activeSessions as any, {} as any, () => {}, undefined, undefined, "arch-1");
+      const controller = new AbortController();
+      controller.abort();
+      let abortCalls = 0;
+
+      const result = await nestedTool.execute("1", {
+        role: "coder",
+        slug: "aborted-grandchild",
+        body: "Do work"
+      }, controller.signal, undefined, {cwd, abort() {
+        abortCalls += 1;
+      }});
+
+      assert.match(result.content[0].text, /^Task "aborted-grandchild" aborted\./);
+      assert.equal(abortCalls, 0);
+      assert.equal(result.details?.aborted, true);
+      assert.equal(result.terminate, true);
     } finally {
       cleanupTestTempDir(cwd);
     }
@@ -770,14 +800,94 @@ describe("registered task tools", () => {
       controller.abort();
       const tool = tools.get("task_unblock");
       assert.ok(tool, "task_unblock tool must be registered");
+      let abortCalls = 0;
       const result = await tool.execute("1", {slug: "unblock-aborted", reason: "continue"}, controller.signal, undefined, {cwd, abort() {
+        abortCalls += 1;
       }});
 
       assert.match(result.content[0].text, /^Task "unblock-aborted" aborted\./);
+      assert.equal(abortCalls, 1);
       assert.equal(result.details?.aborted, true);
       assert.equal(result.terminate, true);
-      assert.match(result.content[0].text, /⛔ unfolding aborted/);
+      assert.doesNotMatch(result.content[0].text, /⛔ unfolding aborted/);
     } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("task_delegate returns an aborted result when its signal aborts during nested delegation", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    const {faux, authStorage, modelRegistry} = fauxSetup("index-tools-late-abort");
+    try {
+      faux.setResponses([
+        fauxAssistantMessage([], {stopReason: "aborted", errorMessage: "Request was aborted."} as any),
+      ]);
+
+      const activeSessions = new Map<string, any>();
+      const {tools} = setupPi(activeSessions);
+      const controller = new AbortController();
+      const tool = tools.get("task_delegate");
+      assert.ok(tool, "task_delegate tool must be registered");
+
+      const resultPromise = tool.execute("1", {
+        role: "coder",
+        slug: "late-aborted-child",
+        body: "Do work"
+      }, controller.signal, undefined, {cwd, model: faux.getModel(), authStorage, modelRegistry, abort() {
+      }});
+
+      queueMicrotask(() => controller.abort());
+
+      const result = await resultPromise;
+      assert.match(result.content[0].text, /^Task "late-aborted-child" aborted\./);
+      assert.equal(result.details?.aborted, true);
+      assert.equal(result.terminate, true);
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("task_delegate also treats ctx.signal abort as a user abort during nested delegation", async () => {
+    const {cwd} = makeTestGitRepo("index-tools");
+    const {faux, authStorage, modelRegistry} = fauxSetup("index-tools-ctx-signal-abort");
+    try {
+      faux.setResponses([
+        fauxAssistantMessage([], {stopReason: "aborted", errorMessage: "Request was aborted."} as any),
+      ]);
+
+      const activeSessions = new Map<string, any>();
+      const {tools} = setupPi(activeSessions);
+      const controller = new AbortController();
+      const tool = tools.get("task_delegate");
+      assert.ok(tool, "task_delegate tool must be registered");
+
+      const ctx: any = {
+        cwd,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+        abort() {
+        },
+        get signal() {
+          return controller.signal;
+        },
+      };
+
+      const resultPromise = tool.execute("1", {
+        role: "coder",
+        slug: "ctx-signal-aborted-child",
+        body: "Do work"
+      }, undefined, undefined, ctx);
+
+      queueMicrotask(() => controller.abort());
+
+      const result = await resultPromise;
+      assert.match(result.content[0].text, /^Task "ctx-signal-aborted-child" aborted\./);
+      assert.equal(result.details?.aborted, true);
+      assert.equal(result.terminate, true);
+    } finally {
+      faux.unregister();
       cleanupTestTempDir(cwd);
     }
   });
@@ -861,13 +971,16 @@ describe("registered task tools", () => {
       controller.abort();
       const tool = tools.get("task_reopen");
       assert.ok(tool, "task_reopen tool must be registered");
+      let abortCalls = 0;
       const result = await tool.execute("1", {slug: "reopen-aborted", reason: "redo"}, controller.signal, undefined, {cwd, abort() {
+        abortCalls += 1;
       }});
 
       assert.match(result.content[0].text, /^Task "reopen-aborted" aborted\./);
+      assert.equal(abortCalls, 1);
       assert.equal(result.details?.aborted, true);
       assert.equal(result.terminate, true);
-      assert.match(result.content[0].text, /⛔ unfolding aborted/);
+      assert.doesNotMatch(result.content[0].text, /⛔ unfolding aborted/);
     } finally {
       cleanupTestTempDir(cwd);
     }

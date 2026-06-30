@@ -287,6 +287,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           reason: params.reason,
           activeSessions,
           signal,
+          parentSignal: ctx.signal,
           onUpdate,
           postOutput,
           mutateTask: taskReopen,
@@ -298,17 +299,17 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
 
         if (outcome === "aborted") {
           const reason = `task "${params.slug}" was aborted`;
-          const abortSummary = await abortSessionStack(ctx.cwd, reason, activeSessions);
+          await abortSessionStack(ctx.cwd, reason, activeSessions);
           const finalSnapshot = (resumeDelegatedTask as any).lastFinalSnapshot as string | undefined;
           const finalOutputDetails = (resumeDelegatedTask as any).lastFinalOutputDetails as ChildOutputDetails | undefined;
           const parts = [
             `Task "${params.slug}" aborted.`,
             finalSnapshot,
-            abortSummary,
           ].filter(Boolean);
+          ctx.abort?.();
           return {
             content: [{ type: "text", text: parts.join("\n\n") }],
-            details: { aborted: true, finalSnapshot, abortSummary, ...finalOutputDetails },
+            details: { aborted: true, finalSnapshot, ...finalOutputDetails },
             terminate: true,
           };
         }
@@ -359,6 +360,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           reason: params.reason,
           activeSessions,
           signal,
+          parentSignal: ctx.signal,
           onUpdate,
           postOutput,
           mutateTask: taskUnblock,
@@ -370,17 +372,17 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
 
         if (outcome === "aborted") {
           const reason = `task "${params.slug}" was aborted`;
-          const abortSummary = await abortSessionStack(ctx.cwd, reason, activeSessions);
+          await abortSessionStack(ctx.cwd, reason, activeSessions);
           const finalSnapshot = (resumeDelegatedTask as any).lastFinalSnapshot as string | undefined;
           const finalOutputDetails = (resumeDelegatedTask as any).lastFinalOutputDetails as ChildOutputDetails | undefined;
           const parts = [
             `Task "${params.slug}" aborted.`,
             finalSnapshot,
-            abortSummary,
           ].filter(Boolean);
+          ctx.abort?.();
           return {
             content: [{ type: "text", text: parts.join("\n\n") }],
-            details: { aborted: true, finalSnapshot, abortSummary, ...finalOutputDetails },
+            details: { aborted: true, finalSnapshot, ...finalOutputDetails },
             terminate: true,
           };
         }

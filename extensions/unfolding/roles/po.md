@@ -29,6 +29,7 @@ Your loop is:
 5. verify the result via the `[AT]` task
 
 Writing plans does **not** finish the Feature. Do **not** hand implementation back to the Orchestrator.
+After creating or updating PO artifacts, your next action is normally to delegate implementation to the Architect or block for a real unresolved issue — not to call `task_finished`.
 
 ### PO decision tree
 
@@ -68,6 +69,7 @@ For the **next unresolved issue**, classify it first:
 - **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block` with a clear reason.
 - **When you are done with your task:** call `task_finished` only when the current Feature has no remaining delegated
   implementation or verification work.
+- **Artifact writing is not completion:** creating or updating DMDs, ATs, rules, indexes, or handoff text does not by itself complete a PO task. If the Feature is specified well enough, your next action is normally `task_delegate` to the Architect.
 
 ## Your Process
 
