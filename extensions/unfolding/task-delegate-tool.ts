@@ -39,7 +39,7 @@ export function makeTaskDelegateDefinition(
           ctx.sessionManager?.getSessionFile(),
         );
 
-        const { outcome, finalSnapshot, finalOutputDetails } = await startChildSession({
+        const { outcome, finalOutputDetails } = await startChildSession({
           cwd: ctx.cwd,
           from,
           role: params.role,
@@ -70,14 +70,10 @@ export function makeTaskDelegateDefinition(
             undefined,
             { skipSlugs: [params.slug, ...(currentCommissionerSlug ? [currentCommissionerSlug] : [])] },
           );
-          const parts = [
-            `Task "${params.slug}" aborted.`,
-            finalSnapshot,
-          ].filter(Boolean);
           if (!currentCommissionerSlug) ctx.abort?.();
           return {
-            content: [{ type: "text", text: parts.join("\n\n") }],
-            details: { aborted: true, finalSnapshot, ...finalOutputDetails },
+            content: [{ type: "text", text: `Task "${params.slug}" aborted.` }],
+            details: { aborted: true, ...finalOutputDetails },
             terminate: true,
           };
         }

@@ -467,7 +467,7 @@ describe("registered task tools", () => {
   });
 
 
-  it("task_delegate aborts the full session stack when the child outcome is aborted and keeps the final nested transcript visible", async () => {
+  it("task_delegate aborts the full session stack without leaking the nested transcript into tool-result content", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
     try {
       const {tools, sentMessages} = setupPi();
@@ -490,9 +490,12 @@ describe("registered task tools", () => {
       assert.equal(result.details?.aborted, true);
       assert.equal(result.terminate, true);
       assert.ok(updates.some(text => text.includes("[coder/aborted-transcript]")), "transient nested transcript should be streamed before abort");
-      assert.match(result.content[0].text, /\[coder\/aborted-transcript\]/);
-      assert.match(result.content[0].text, /💰 \$/);
+      assert.doesNotMatch(result.content[0].text, /\[coder\/aborted-transcript\]/);
+      assert.doesNotMatch(result.content[0].text, /💰 \$/);
       assert.doesNotMatch(result.content[0].text, /⛔ unfolding aborted/);
+      assert.equal(result.details?.childOutputRole, "coder");
+      assert.ok(Array.isArray(result.details?.childOutputEvents), "expected nested transcript in details");
+      assert.match(JSON.stringify(result.details?.childOutputEvents), /aborted-transcript/);
     } finally {
       cleanupTestTempDir(cwd);
     }
@@ -547,6 +550,8 @@ describe("registered task tools", () => {
       assert.match(result.content[0].text, /^Task "aborted-debug" aborted\./);
       assert.equal(result.details?.aborted, true);
       assert.equal(result.terminate, true);
+      assert.doesNotMatch(result.content[0].text, /\[coder\/aborted-debug\]/);
+      assert.doesNotMatch(result.content[0].text, /💰 \$/);
       assert.doesNotMatch(result.content[0].text, /⛔ unfolding aborted/);
       assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-aborted-debug\.html$/.test(name)).length, 1);
     } finally {

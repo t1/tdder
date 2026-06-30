@@ -300,16 +300,11 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
         if (outcome === "aborted") {
           const reason = `task "${params.slug}" was aborted`;
           await abortSessionStack(ctx.cwd, reason, activeSessions);
-          const finalSnapshot = (resumeDelegatedTask as any).lastFinalSnapshot as string | undefined;
           const finalOutputDetails = (resumeDelegatedTask as any).lastFinalOutputDetails as ChildOutputDetails | undefined;
-          const parts = [
-            `Task "${params.slug}" aborted.`,
-            finalSnapshot,
-          ].filter(Boolean);
           ctx.abort?.();
           return {
-            content: [{ type: "text", text: parts.join("\n\n") }],
-            details: { aborted: true, finalSnapshot, ...finalOutputDetails },
+            content: [{ type: "text", text: `Task "${params.slug}" aborted.` }],
+            details: { aborted: true, ...finalOutputDetails },
             terminate: true,
           };
         }
@@ -373,16 +368,11 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
         if (outcome === "aborted") {
           const reason = `task "${params.slug}" was aborted`;
           await abortSessionStack(ctx.cwd, reason, activeSessions);
-          const finalSnapshot = (resumeDelegatedTask as any).lastFinalSnapshot as string | undefined;
           const finalOutputDetails = (resumeDelegatedTask as any).lastFinalOutputDetails as ChildOutputDetails | undefined;
-          const parts = [
-            `Task "${params.slug}" aborted.`,
-            finalSnapshot,
-          ].filter(Boolean);
           ctx.abort?.();
           return {
-            content: [{ type: "text", text: parts.join("\n\n") }],
-            details: { aborted: true, finalSnapshot, ...finalOutputDetails },
+            content: [{ type: "text", text: `Task "${params.slug}" aborted.` }],
+            details: { aborted: true, ...finalOutputDetails },
             terminate: true,
           };
         }

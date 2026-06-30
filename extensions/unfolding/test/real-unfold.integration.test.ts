@@ -410,6 +410,8 @@ describe("real unfolding smoke", { timeout: DEFAULT_TIMEOUT_MS + 30_000 }, () =>
 
       assert.doesNotMatch(flattened, /⛔ unfolding aborted/);
       assert.match(flattened, /❌ aborted/);
+      assert.doesNotMatch(flattened, /\[architect\/arch-1\]|\[coder\/code-1\]|\[po\/po-1\]/);
+      assert.doesNotMatch(flattened, /💰 \$/);
     } finally {
       await instance.stop();
     }
