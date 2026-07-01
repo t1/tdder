@@ -80,6 +80,7 @@ export async function createChildAgentSession({
       debugExportsEnabled: (pi as any).__unfoldingDebugExportsEnabled === true,
     }),
   });
+  session.setSessionName(slug);
   activeSessions.set(slug, session);
   return {session, shortRole};
 }
