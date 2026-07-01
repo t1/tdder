@@ -27,7 +27,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Container, Key, matchesKey, type SelectItem, SelectList, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { McpClient, type McpTool } from "./mcp-client.js";
+import { McpClient, McpStartupError, type McpTool } from "./mcp-client.js";
 import { extractText } from "./utils.js";
 import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
 import { buildProjectTree, findProjectRoot, pomHasPlugin, type ProjectNode } from "./vendor/maven-project-tree.ts";
@@ -393,6 +393,7 @@ function parseInfoDetails(statusRaw: string, endpointsRaw: string, devServicesRa
 
 const QUARKUS_STARTUP_LOG_MSG_TYPE = "quarkus-startup-log";
 const QUARKUS_TEST_MSG_TYPE = "quarkus-test";
+const QUARKUS_MCP_ERROR_MSG_TYPE = "quarkus-mcp-error";
 
 function parseTestSummary(text: string): { passed: number; failed: number; total: number } | null {
   const jsonMatch = text.match(/{[\s\S]*}/m);
@@ -407,6 +408,34 @@ function parseTestSummary(text: string): { passed: number; failed: number; total
   } catch {
     return null;
   }
+}
+
+function renderMcpError(
+  details: Record<string, unknown>,
+  theme: { fg: (color: string, text: string) => string; bold: (text: string) => string },
+  expanded: boolean,
+): Text {
+  const summary = (details.summary as string) ?? "quarkus-agent-mcp failed to start";
+  const stderr = ((details.stderr as string) ?? "").trim();
+  const exitCode = details.exitCode as number | null | undefined;
+
+  const icon = theme.fg("error", "⚠");
+  const label = theme.fg("error", theme.bold("quarkus: failed to start"));
+  const codeNote = exitCode != null ? theme.fg("muted", ` (exit ${exitCode})`) : "";
+  const header = `${icon} ${label}${codeNote}  ${theme.fg("muted", summary)}`;
+
+  if (!stderr) return new Text(header, 0, 0);
+
+  if (expanded) {
+    return new Text([header, theme.fg("dim", stderr)].join("\n"), 0, 0);
+  }
+  const firstLine = stderr.split("\n")[0] ?? "";
+  const moreLines = stderr.split("\n").length - 1;
+  const preview = theme.fg("dim", firstLine);
+  const hint = moreLines > 0
+    ? " " + theme.fg("dim", keyHint("app.tools.expand", `to see ${moreLines} more lines`))
+    : " " + theme.fg("dim", keyHint("app.tools.expand", "to expand"));
+  return new Text([header, preview + hint].join("\n"), 0, 0);
 }
 
 function renderStartupLog(
@@ -578,6 +607,10 @@ export default async function (pi: ExtensionAPI) {
 
   pi.registerMessageRenderer(QUARKUS_TEST_MSG_TYPE, (message, options, theme) =>
     renderTestResult(message.details as Record<string, unknown>, theme, options.expanded),
+  );
+
+  pi.registerMessageRenderer(QUARKUS_MCP_ERROR_MSG_TYPE, (message, options, theme) =>
+    renderMcpError(message.details as Record<string, unknown>, theme, options.expanded),
   );
 
 
@@ -1901,8 +1934,25 @@ export default async function (pi: ExtensionAPI) {
       refreshAppStatus(cwd, ctx).catch(() => {});
     } catch (err) {
       ctx.ui.setStatus("quarkus", undefined);
-      ctx.ui.notify(`quarkus failed to start: ${(err as Error).message}`, "error");
+      notifyMcpStartupError(err);
     }
+  }
+
+  function notifyMcpStartupError(err: unknown): void {
+    const mcpErr = err instanceof McpStartupError ? err : null;
+    pi.sendMessage(
+      {
+        customType: QUARKUS_MCP_ERROR_MSG_TYPE,
+        content: "",
+        display: true,
+        details: {
+          summary: mcpErr?.message ?? (err as Error).message,
+          exitCode: mcpErr?.exitCode ?? null,
+          stderr: mcpErr?.stderr ?? "",
+        },
+      },
+      { triggerTurn: false },
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -1970,7 +2020,7 @@ export default async function (pi: ExtensionAPI) {
         if (err instanceof JbangMissingError) {
           handleJbangMissing(cwd, ctx).catch(() => {});
         } else {
-          ctx.ui.notify(`quarkus: failed to start – ${(err as Error).message}`, "error");
+          notifyMcpStartupError(err);
         }
       });
   });
@@ -2060,7 +2110,7 @@ export default async function (pi: ExtensionAPI) {
           if (err instanceof JbangMissingError) {
             await handleJbangMissing(cwd, ctx);
           } else {
-            ctx.ui.notify(`quarkus failed to start: ${(err as Error).message}`, "error");
+            notifyMcpStartupError(err);
           }
           return;
         }

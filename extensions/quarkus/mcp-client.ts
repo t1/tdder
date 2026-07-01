@@ -48,12 +48,25 @@ class StdioTransport implements McpTransport {
 // McpClient
 // ---------------------------------------------------------------------------
 
+/** Error thrown when the MCP child process exits before the handshake completes. */
+export class McpStartupError extends Error {
+  constructor(
+    message: string,
+    public readonly exitCode: number | null,
+    public readonly stderr: string,
+  ) {
+    super(message);
+    this.name = "McpStartupError";
+  }
+}
+
 export class McpClient {
   private proc: ChildProcessWithoutNullStreams;
   private client: McpClientBase;
   private ready: Promise<void>;
   private closed = false;
   private closeListeners: Array<() => void> = [];
+  private stderrChunks: Buffer[] = [];
 
   constructor(command: string, args: string[], cwd: string, env?: Record<string, string>) {
     const { child, whenSpawnError } = spawnSafe(command, args, {
@@ -63,6 +76,10 @@ export class McpClient {
     });
     this.proc = child;
 
+    this.proc.stderr.on("data", (chunk: Buffer) => {
+      this.stderrChunks.push(chunk);
+    });
+
     const transport = new StdioTransport(this.proc.stdout, this.proc.stdin);
     this.client = new McpClientBase(transport, {
       clientInfo: { name: "pi-quarkus-mcp", version: "1.0.0" },
@@ -70,13 +87,21 @@ export class McpClient {
       capabilities: { roots: { listChanged: false } },
     });
 
-    this.proc.on("close", () => {
-      this.closed = true;
-      this.client.close().catch(() => {});
-      for (const cb of this.closeListeners) cb();
+    // Reject the ready promise with a rich error when the process exits
+    // unexpectedly during startup, before the handshake completes.
+    const whenProcessClose = new Promise<never>((_resolve, reject) => {
+      this.proc.on("close", (code) => {
+        this.closed = true;
+        this.client.close().catch(() => {});
+        for (const cb of this.closeListeners) cb();
+        const stderr = this.stderrChunks.map((b) => b.toString()).join("").trim();
+        const codeStr = code !== null ? `exit code ${code}` : "no exit code";
+        const summary = `quarkus-agent-mcp exited unexpectedly (${codeStr})`;
+        reject(new McpStartupError(summary, code, stderr));
+      });
     });
 
-    this.ready = Promise.race([this.client.connect(), whenSpawnError]);
+    this.ready = Promise.race([this.client.connect(), whenSpawnError, whenProcessClose]);
   }
 
   addCloseListener(cb: () => void): void {
