@@ -649,8 +649,38 @@ export default async function (pi: ExtensionAPI) {
       }
     });
 
-    await withTimeout(c.waitReady(), STARTUP_TIMEOUT_MS, "quarkus-agent-mcp startup");
+    try {
+      await withTimeout(c.waitReady(), STARTUP_TIMEOUT_MS, "quarkus-agent-mcp startup");
+    } catch (err) {
+      // Re-run with --verbose to get a more detailed error from jbang.
+      const verboseOutput = await collectVerboseOutput(jbang, args, cwd);
+      const base = err instanceof McpStartupError ? err : null;
+      throw new McpStartupError(
+        base?.message ?? (err as Error).message,
+        base?.exitCode ?? null,
+        verboseOutput,
+      );
+    }
     return c;
+  }
+
+  /** Run jbang --verbose and return combined stdout+stderr (best-effort, 30 s cap). */
+  function collectVerboseOutput(jbang: string, originalArgs: string[], cwd: string): Promise<string> {
+    return new Promise((resolve) => {
+      const verboseArgs = ["--verbose", ...originalArgs];
+      const { child, whenSpawnError } = spawnSafe(jbang, verboseArgs, {
+        cwd,
+        env: { ...process.env },
+        stdio: "pipe",
+      });
+      const chunks: string[] = [];
+      child.stdout?.on("data", (d: Buffer) => chunks.push(d.toString()));
+      child.stderr?.on("data", (d: Buffer) => chunks.push(d.toString()));
+      const done = () => resolve(chunks.join("").trim());
+      child.on("close", done);
+      whenSpawnError.catch(done);
+      setTimeout(() => { child.kill(); resolve(chunks.join("").trim()); }, 30_000);
+    });
   }
 
   async function ensureClient(cwd: string): Promise<McpClient> {
