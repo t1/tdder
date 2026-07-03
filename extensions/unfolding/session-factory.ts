@@ -131,7 +131,7 @@ export async function startChildSession({
         checkpointRecovery.getFatalError,
         async () => {
           const task = readTask(cwd, slug);
-          return task?.status === "in_progress" && (wasLocallyAborted || observedTerminalAbort);
+          return task?.status === "in_progress" && wasLocallyAborted && observedTerminalAbort;
         },
       );
     } catch (error) {
