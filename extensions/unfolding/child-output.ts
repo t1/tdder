@@ -100,20 +100,18 @@ function renderToolLines(role: string, event: ToolChildOutputEvent): string[] {
   return [line, ...(event.outputTail ?? []).map(outputLine => `    ${outputLine}`)];
 }
 
-function renderTotalLine(role: string, elapsedSeconds: number): string {
-  return `  [${role}] ⏱ ${formatElapsedDuration(elapsedSeconds)}`;
-}
-
-export function renderContextUsageLine(role: string, contextUsage: ContextUsageSnapshot): string {
+export function renderContextUsageSuffix(contextUsage: ContextUsageSnapshot): string {
   const { tokens, contextWindow, percent } = contextUsage;
   const pct = percent !== null ? `${Math.round(percent)}%` : "?%";
   const used = tokens !== null ? `${Math.round(tokens / 1000)}k` : "?k";
   const max = `${Math.round(contextWindow / 1000)}k`;
-  const text = `  [${role}] ${ANSI_ITALIC_ON}${used}/${max} tokens (${pct})${ANSI_ITALIC_OFF}`;
-  if (percent !== null && percent >= 90) {
-    return `${ANSI_RED_ON}${text}${ANSI_RED_OFF}`;
-  }
-  return text;
+  const italic = `${ANSI_ITALIC_ON}${used}/${max} (${pct})${ANSI_ITALIC_OFF}`;
+  return percent !== null && percent >= 90 ? `${ANSI_RED_ON}${italic}${ANSI_RED_OFF}` : italic;
+}
+
+export function renderTotalLine(role: string, elapsedSeconds: number, contextUsage?: ContextUsageSnapshot): string {
+  const base = `  [${role}] ⏱ ${formatElapsedDuration(elapsedSeconds)}`;
+  return contextUsage ? `${base} ${renderContextUsageSuffix(contextUsage)}` : base;
 }
 
 export function renderChildOutputPlainText(role: string, events: ChildOutputEvent[]): string {
@@ -163,8 +161,7 @@ export function renderChildOutputPlainText(role: string, events: ChildOutputEven
     }
 
     if (event.type === "total") {
-      rendered.push(renderTotalLine(role, event.elapsedSeconds));
-      if (event.contextUsage) rendered.push(renderContextUsageLine(role, event.contextUsage));
+      rendered.push(renderTotalLine(role, event.elapsedSeconds, event.contextUsage));
       continue;
     }
 

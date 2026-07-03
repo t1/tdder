@@ -7,7 +7,7 @@ import {
   childOutputTool,
   childOutputTotal,
   formatElapsedDuration,
-  renderContextUsageLine,
+  renderTotalLine,
   type ChildOutputDetails,
   type ChildOutputEvent,
   type ContextUsageSnapshot,
@@ -296,15 +296,9 @@ export function streamChildSession(
     return rendered;
   };
 
-  const renderTotalLine = () => {
+  const renderElapsedLine = () => {
     const totalSeconds = Math.max(0, Math.floor(((endedAt ?? now()) - startedAt) / 1000));
-    return `  [${role}] ⏱ ${formatElapsedDuration(totalSeconds)}`;
-  };
-
-  const renderContextLine = (): string | undefined => {
-    const usage = options.getContextUsage?.();
-    if (!usage) return undefined;
-    return renderContextUsageLine(role, usage);
+    return renderTotalLine(role, totalSeconds, options.getContextUsage?.());
   };
 
   const getOutputEvents = (): ChildOutputEvent[] => [
@@ -344,8 +338,7 @@ export function streamChildSession(
         case "note": return [row.text];
       }
     }),
-    renderTotalLine(),
-    ...(renderContextLine() ? [renderContextLine()!] : []),
+    renderElapsedLine(),
   ].join("\n");
 
   const flush = () =>
