@@ -15,11 +15,11 @@ export async function restoreChildSession(
   model?: Model<any>,
   authStorage?: AuthStorage,
   modelRegistry?: ModelRegistry,
-): Promise<AgentSession | null> {
+): Promise<{ session: AgentSession; shutdown: () => Promise<void> } | null> {
   const task = readTask(cwd, slug);
   if (!task?.session_file || !existsSync(task.session_file)) return null;
 
-  const { session } = await createChildAgentSession({
+  const { session, shutdown } = await createChildAgentSession({
     cwd,
     role: task.to,
     slug,
@@ -32,5 +32,5 @@ export async function restoreChildSession(
     authStorage,
     modelRegistry,
   });
-  return session;
+  return { session, shutdown };
 }

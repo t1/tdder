@@ -56,8 +56,9 @@ export async function resumeDelegatedTask({
   exportDebugHtml,
 }: ResumeDelegatedTaskParams): Promise<"finished" | "blocked" | "aborted"> {
   let session = activeSessions.get(slug);
+  let shutdown: (() => Promise<void>) | undefined;
   if (!session) {
-    session = await restoreChildSession(
+    const restored = await restoreChildSession(
       cwd,
       slug,
       activeSessions,
@@ -68,6 +69,8 @@ export async function resumeDelegatedTask({
       authStorage,
       modelRegistry,
     );
+    session = restored?.session;
+    shutdown = restored?.shutdown;
   }
   if (!session) {
     const message = missingSessionMessage(action, slug);
@@ -156,5 +159,8 @@ export async function resumeDelegatedTask({
     parentSignal?.removeEventListener("abort", onAbort);
     checkpointRecovery.unsubscribe();
     stream?.unsubscribe();
+    await shutdown?.().catch((err: unknown) => {
+      console.error(`[unfolding] session_shutdown failed for task "${slug}":`, err);
+    });
   }
 }

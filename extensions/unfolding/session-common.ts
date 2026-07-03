@@ -30,6 +30,16 @@ function inheritedExtensionPaths(pi: ExtensionAPI): string[] {
   return Array.isArray(paths) ? paths.filter((path): path is string => typeof path === "string" && path.length > 0) : [];
 }
 
+async function emitSessionShutdown(session: AgentSession): Promise<void> {
+  // bindExtensions() fires session_start on extensions (e.g. quarkus MCP client startup).
+  // There is no public API to emit session_shutdown, so we reach into the private runner.
+  // This is intentional: the SDK omits this path for raw createAgentSession() callers.
+  const runner = (session as any)._extensionRunner;
+  if (runner?.hasHandlers?.("session_shutdown")) {
+    await runner.emit({type: "session_shutdown", reason: "shutdown"});
+  }
+}
+
 export async function createChildAgentSession({
                                                 cwd,
                                                 role,
@@ -44,7 +54,8 @@ export async function createChildAgentSession({
                                                 modelRegistry,
                                               }: ChildSessionBuildParams): Promise<{
   session: AgentSession;
-  shortRole: string
+  shortRole: string;
+  shutdown: () => Promise<void>;
 }> {
   const rolesDir = resolve(new URL(import.meta.url).pathname, "..", "roles");
   const shortRole = role.replace(/^unfolding-/, "");
@@ -63,6 +74,7 @@ export async function createChildAgentSession({
   const selectedModel = model ?? resolveCurrentModel(pi);
 
   const {session} = await createAgentSession({
+    sessionStartEvent: {type: "session_start", reason: "startup"},
     cwd,
     sessionManager,
     resourceLoader: loader,
@@ -81,8 +93,9 @@ export async function createChildAgentSession({
     }),
   });
   session.setSessionName(slug);
+  await session.bindExtensions({});
   activeSessions.set(slug, session);
-  return {session, shortRole};
+  return {session, shortRole, shutdown: () => emitSessionShutdown(session)};
 }
 
 export function buildChildInitialMessage(body: string, resumeMessage?: string): string {

@@ -647,8 +647,8 @@ describe("startChildSession groundwork", () => {
       const restored = await restoreChildSession(cwd, "coder-restore", activeSessions, {} as any, () => {
       }, nestedDelegateToolFactory);
       assert.ok(restored, "restoreChildSession should restore a real persisted child session");
-      assert.equal(restored?.sessionFile, snapshot?.session_file);
-      assert.equal(restored?.sessionManager.getSessionFile(), snapshot?.session_file);
+      assert.equal(restored?.session.sessionFile, snapshot?.session_file);
+      assert.equal(restored?.session.sessionManager.getSessionFile(), snapshot?.session_file);
       assert.equal(session.sessionFile, snapshot?.session_file);
     } finally {
       faux.unregister();
@@ -788,5 +788,26 @@ describe("startChildSession groundwork", () => {
   it("source contains nestedDelegateToolFactory seam", () => {
     const src = readFileSync(new URL("../session-factory.ts", import.meta.url).pathname, "utf8");
     assert.ok(src.includes("nestedDelegateToolFactory"));
+  });
+
+  it("session-common fires session_start via bindExtensions and shutdown emits session_shutdown", () => {
+    const common = readFileSync(new URL("../session-common.ts", import.meta.url).pathname, "utf8");
+    assert.ok(common.includes("bindExtensions({})"), "createChildAgentSession must call bindExtensions");
+    assert.ok(common.includes("session_shutdown"), "shutdown helper must emit session_shutdown");
+  });
+
+  it("session-factory calls shutdown in finally", () => {
+    const src = readFileSync(new URL("../session-factory.ts", import.meta.url).pathname, "utf8");
+    assert.ok(src.includes("shutdown()"), "startChildSession must call shutdown() in finally");
+  });
+
+  it("session-restore returns shutdown alongside session", () => {
+    const src = readFileSync(new URL("../session-restore.ts", import.meta.url).pathname, "utf8");
+    assert.ok(src.includes("shutdown"), "restoreChildSession must return shutdown");
+  });
+
+  it("task-resume calls shutdown in finally when session was restored", () => {
+    const src = readFileSync(new URL("../task-resume.ts", import.meta.url).pathname, "utf8");
+    assert.ok(src.includes("shutdown?.()"), "resumeDelegatedTask must call shutdown?.() in finally");
   });
 });

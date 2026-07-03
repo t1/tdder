@@ -59,7 +59,7 @@ export async function startChildSession({
   const existing = readTask(cwd, slug);
   const initialMessage = buildChildInitialMessage(body, existing?.resume_message);
 
-  const { session, shortRole } = await createChildAgentSession({
+  const { session, shortRole, shutdown } = await createChildAgentSession({
     cwd,
     role,
     slug,
@@ -172,6 +172,9 @@ export async function startChildSession({
     parentSignal?.removeEventListener("abort", onAbort);
     unsubscribeAbortObserver();
     stream?.unsubscribe();
+    await shutdown().catch((err: unknown) => {
+      console.error(`[unfolding] session_shutdown failed for task "${slug}":`, err);
+    });
   }
 }
 
