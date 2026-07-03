@@ -87,6 +87,7 @@ export async function resumeDelegatedTask({
     ? streamChildSession(session, shortRole, slug, onUpdate, {
       sessionFile: task?.session_file,
       getContextUsage: () => session.getContextUsage(),
+      getCost: () => session.getSessionStats().cost,
     })
     : undefined;
   const checkpointRecovery = installCheckpointRecovery(session, cwd, slug, {
@@ -131,24 +132,21 @@ export async function resumeDelegatedTask({
         throw error;
       }
     }
-    const stats = session.getSessionStats();
-    const costLine = `  💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`;
     if (stream) {
-      const finalSnapshot = stream.getLines() + "\n" + costLine;
       // Use onUpdate (tool update callback) instead of postOutput to avoid a steer.
       // postOutput → pi.sendMessage while isStreaming=true → steer → extra LLM call →
       // after filterDisplayOnlyMessages the context may end with an assistant message →
       // 400 "does not support assistant message prefill" on Anthropic/Bedrock.
       const finalOutputDetails = { childOutputRole: shortRole, childOutputEvents: stream.getOutputEvents() } satisfies ChildOutputDetails;
-      onUpdate?.({ content: [{ type: "text", text: finalSnapshot }], details: finalOutputDetails });
+      onUpdate?.({ content: [{ type: "text", text: stream.getLines() }], details: finalOutputDetails });
       if (outcome === "aborted") {
         await exportDebugHtml?.(cwd, slug);
-        (resumeDelegatedTask as any).lastFinalSnapshot = finalSnapshot;
+        (resumeDelegatedTask as any).lastFinalSnapshot = stream.getLines();
         (resumeDelegatedTask as any).lastFinalOutputDetails = finalOutputDetails;
         return outcome;
       }
     } else {
-      postOutput(costLine);
+      postOutput(`  💰 $${session.getSessionStats().cost.toFixed(4)} (↑${session.getSessionStats().tokens.input} ↓${session.getSessionStats().tokens.output})`);
     }
 
     await exportDebugHtml?.(cwd, slug);

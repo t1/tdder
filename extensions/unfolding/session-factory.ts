@@ -99,6 +99,7 @@ export async function startChildSession({
   const stream = onUpdate ? streamChildSession(session, shortRole, slug, onUpdate, {
     sessionFile: session.sessionFile,
     getContextUsage: () => session.getContextUsage(),
+    getCost: () => session.getSessionStats().cost,
   }) : undefined;
   const onAbort = () => {
     wasLocallyAborted = true;
@@ -147,11 +148,8 @@ export async function startChildSession({
         throw error;
       }
     }
-    const stats = session.getSessionStats();
-    const costLine = `  💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`;
     if (stream) {
-      const finalSnapshot = stream.getLines() + "\n" + costLine;
-      // Show final transcript + cost via the tool's own update callback, NOT via postOutput.
+      // Show final transcript via the tool's own update callback, NOT via postOutput.
       // postOutput() calls pi.sendMessage() which, while isStreaming=true, enqueues the message
       // as a steer. Each steer triggers an extra inner-loop LLM call. After
       // filterDisplayOnlyMessages removes the custom message from the context, the last remaining
@@ -161,11 +159,11 @@ export async function startChildSession({
       // Using onUpdate here for the final state shows it in the tool-update area (during tool
       // execution) without triggering a steer or an extra LLM call.
       const finalOutputDetails = { childOutputRole: shortRole, childOutputEvents: stream.getOutputEvents() };
-      onUpdate?.({ content: [{ type: "text", text: finalSnapshot }], details: finalOutputDetails });
-      return { session, outcome, finalSnapshot, finalOutputDetails };
+      onUpdate?.({ content: [{ type: "text", text: stream.getLines() }], details: finalOutputDetails });
+      return { session, outcome, finalSnapshot: stream.getLines(), finalOutputDetails };
     }
 
-    postOutput(costLine);
+    postOutput(`  💰 $${session.getSessionStats().cost.toFixed(4)} (↑${session.getSessionStats().tokens.input} ↓${session.getSessionStats().tokens.output})`);
     return { session, outcome };
   } finally {
     checkpointRecovery.unsubscribe();

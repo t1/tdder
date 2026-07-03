@@ -153,6 +153,7 @@ export interface StreamChildSessionOptions {
   tickMs?: number;
   sessionFile?: string;
   getContextUsage?: () => ContextUsageSnapshot | undefined;
+  getCost?: () => number | undefined;
 }
 
 /**
@@ -298,7 +299,7 @@ export function streamChildSession(
 
   const renderElapsedLine = () => {
     const totalSeconds = Math.max(0, Math.floor(((endedAt ?? now()) - startedAt) / 1000));
-    return renderTotalLine(role, totalSeconds, options.getContextUsage?.());
+    return renderTotalLine(role, totalSeconds, options.getContextUsage?.(), options.getCost?.());
   };
 
   const getOutputEvents = (): ChildOutputEvent[] => [
@@ -326,6 +327,7 @@ export function streamChildSession(
     childOutputTotal(
       Math.max(0, Math.floor(((endedAt ?? now()) - startedAt) / 1000)),
       options.getContextUsage?.(),
+      options.getCost?.(),
     ),
   ];
 

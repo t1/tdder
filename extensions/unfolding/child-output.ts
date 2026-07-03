@@ -44,6 +44,7 @@ export interface TotalChildOutputEvent {
   type: "total";
   elapsedSeconds: number;
   contextUsage?: ContextUsageSnapshot;
+  cost?: number;
 }
 
 export type ChildOutputEvent =
@@ -81,8 +82,8 @@ export function childOutputCommissionerNote(text: string): CommissionerNoteChild
   return { type: "t1-unfolding-commissioner-note", text };
 }
 
-export function childOutputTotal(elapsedSeconds: number, contextUsage?: ContextUsageSnapshot): TotalChildOutputEvent {
-  return { type: "total", elapsedSeconds, contextUsage };
+export function childOutputTotal(elapsedSeconds: number, contextUsage?: ContextUsageSnapshot, cost?: number): TotalChildOutputEvent {
+  return { type: "total", elapsedSeconds, contextUsage, cost };
 }
 
 function renderAssistantLine(role: string, icon: "💬" | "⋯", text: string): string {
@@ -109,9 +110,14 @@ export function renderContextUsageSuffix(contextUsage: ContextUsageSnapshot): st
   return percent !== null && percent >= 90 ? `${ANSI_RED_ON}${italic}${ANSI_RED_OFF}` : italic;
 }
 
-export function renderTotalLine(role: string, elapsedSeconds: number, contextUsage?: ContextUsageSnapshot): string {
+export function renderCostSuffix(cost: number): string {
+  return `${ANSI_ITALIC_ON}💰 $${cost.toFixed(4)}${ANSI_ITALIC_OFF}`;
+}
+
+export function renderTotalLine(role: string, elapsedSeconds: number, contextUsage?: ContextUsageSnapshot, cost?: number): string {
   const base = `  [${role}] ⏱ ${formatElapsedDuration(elapsedSeconds)}`;
-  return contextUsage ? `${base} ${renderContextUsageSuffix(contextUsage)}` : base;
+  const withContext = contextUsage ? `${base} ${renderContextUsageSuffix(contextUsage)}` : base;
+  return cost !== undefined ? `${withContext} ${renderCostSuffix(cost)}` : withContext;
 }
 
 export function renderChildOutputPlainText(role: string, events: ChildOutputEvent[]): string {
@@ -161,7 +167,7 @@ export function renderChildOutputPlainText(role: string, events: ChildOutputEven
     }
 
     if (event.type === "total") {
-      rendered.push(renderTotalLine(role, event.elapsedSeconds, event.contextUsage));
+      rendered.push(renderTotalLine(role, event.elapsedSeconds, event.contextUsage, event.cost));
       continue;
     }
 
