@@ -85,9 +85,9 @@ export function childOutputTotal(elapsedSeconds: number, contextUsage?: ContextU
   return { type: "total", elapsedSeconds, contextUsage };
 }
 
-function renderAssistantLine(role: string, icon: "💬" | "🤔", text: string): string {
+function renderAssistantLine(role: string, icon: "💬" | "⋯", text: string): string {
   const prefix = `  [${role}] ${icon} `;
-  return icon === "🤔"
+  return icon === "⋯"
     ? `${prefix}${ANSI_ITALIC_ON}${text}${ANSI_ITALIC_OFF}`
     : `${prefix}${text}`;
 }
@@ -115,7 +115,7 @@ export function renderTotalLine(role: string, elapsedSeconds: number, contextUsa
 }
 
 export function renderChildOutputPlainText(role: string, events: ChildOutputEvent[]): string {
-  const rendered: Array<string | { role: string; icon: "💬" | "🤔"; text: string }> = [];
+  const rendered: Array<string | { role: string; icon: "💬" | "⋯"; text: string }> = [];
   const assistantRowIndexes = new Map<string, number>();
   const pendingWhitespace = new Map<string, string>();
 
@@ -139,7 +139,7 @@ export function renderChildOutputPlainText(role: string, events: ChildOutputEven
     assistantRowIndexes.set(key, rendered.length);
     rendered.push({
       role,
-      icon: kind === "thinking" ? "🤔" : "💬",
+      icon: kind === "thinking" ? "⋯" : "💬",
       text: pending.trimStart(),
     });
   };

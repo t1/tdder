@@ -136,12 +136,12 @@ const INTENTIONALLY_SKIPPED_ASSISTANT_MESSAGE_EVENT_TYPES = new Set([
 
 type StreamRow =
   | { kind: "tool"; toolCallId: string; summary: string; startedAt: number; finishedAt?: number; status: ToolRowStatus; errorSummary?: string; outputTail?: string[] }
-  | { kind: "assistant"; rowKey: string; icon: "💬" | "🤔"; text: string }
+  | { kind: "assistant"; rowKey: string; icon: "💬" | "⋯"; text: string }
   | { kind: "note"; text: string };
 
 function renderAssistantRow(role: string, row: Extract<StreamRow, { kind: "assistant" }>): string {
   const prefix = `  [${role}] ${row.icon} `;
-  return row.icon === "🤔"
+  return row.icon === "⋯"
     ? `${prefix}${ANSI_ITALIC_ON}${row.text}${ANSI_ITALIC_OFF}`
     : `${prefix}${row.text}`;
 }
@@ -315,7 +315,7 @@ export function streamChildSession(
             type: "message_update",
             message: { role: "assistant" },
             assistantMessageEvent: {
-              type: row.icon === "🤔" ? "thinking_delta" : "text_delta",
+              type: row.icon === "⋯" ? "thinking_delta" : "text_delta",
               contentIndex: index,
               delta: row.text,
             },
@@ -376,7 +376,7 @@ export function streamChildSession(
     const row: Extract<StreamRow, { kind: "assistant" }> = {
       kind: "assistant",
       rowKey: key,
-      icon: kind === "text" ? "💬" : "🤔",
+      icon: kind === "text" ? "💬" : "⋯",
       text: pending.trimStart(),
     };
     assistantRows.set(key, row);

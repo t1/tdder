@@ -155,7 +155,7 @@ describe("streamChildSession", () => {
     captured!({type: "message_update", message: { role: "assistant" }, assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: " first"}});
 
     const last = updates[updates.length - 1];
-    assert.ok(last.text.includes(`[po] 🤔 ${ANSI_ITALIC_ON}plan first${ANSI_ITALIC_OFF}`), `expected italic accumulated thinking text, got: ${last.text}`);
+    assert.ok(last.text.includes(`[po] ⋯ ${ANSI_ITALIC_ON}plan first${ANSI_ITALIC_OFF}`), `expected italic accumulated thinking text, got: ${last.text}`);
     assert.deepEqual(last.details.childOutputEvents[0], childOutputHeader("slug"));
     const thinkingEvents = last.details.childOutputEvents.filter((event: any) => event.type === "message_update");
     assert.equal(thinkingEvents.length, 1);
@@ -182,7 +182,7 @@ describe("streamChildSession", () => {
     captured!({type: "message_update", assistantMessageEvent: {type: "text_delta", contentIndex: 1, delta: " more"}});
 
     const last = updates[updates.length - 1];
-    assert.ok(last.includes(`[po] 🤔 ${ANSI_ITALIC_ON}think more${ANSI_ITALIC_OFF}`), `expected italic thinking line, got: ${last}`);
+    assert.ok(last.includes(`[po] ⋯ ${ANSI_ITALIC_ON}think more${ANSI_ITALIC_OFF}`), `expected italic thinking line, got: ${last}`);
     assert.ok(last.includes("[po] 💬 say more"), `expected text line, got: ${last}`);
   });
 
