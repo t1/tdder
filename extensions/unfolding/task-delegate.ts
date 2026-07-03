@@ -7,8 +7,10 @@ import {
   childOutputTool,
   childOutputTotal,
   formatElapsedDuration,
+  renderContextUsageLine,
   type ChildOutputDetails,
   type ChildOutputEvent,
+  type ContextUsageSnapshot,
   ANSI_ITALIC_OFF,
   ANSI_ITALIC_ON,
 } from "./child-output.ts";
@@ -150,6 +152,7 @@ export interface StreamChildSessionOptions {
   clearIntervalFn?: (interval: ReturnType<typeof setInterval>) => void;
   tickMs?: number;
   sessionFile?: string;
+  getContextUsage?: () => ContextUsageSnapshot | undefined;
 }
 
 /**
@@ -295,7 +298,13 @@ export function streamChildSession(
 
   const renderTotalLine = () => {
     const totalSeconds = Math.max(0, Math.floor(((endedAt ?? now()) - startedAt) / 1000));
-    return `  [${role}] ⏱ total — ${formatElapsedDuration(totalSeconds)}`;
+    return `  [${role}] ⏱ ${formatElapsedDuration(totalSeconds)}`;
+  };
+
+  const renderContextLine = (): string | undefined => {
+    const usage = options.getContextUsage?.();
+    if (!usage) return undefined;
+    return renderContextUsageLine(role, usage);
   };
 
   const getOutputEvents = (): ChildOutputEvent[] => [
@@ -320,7 +329,10 @@ export function streamChildSession(
         case "note": return [childOutputNote(row.text)];
       }
     }),
-    childOutputTotal(Math.max(0, Math.floor(((endedAt ?? now()) - startedAt) / 1000))),
+    childOutputTotal(
+      Math.max(0, Math.floor(((endedAt ?? now()) - startedAt) / 1000)),
+      options.getContextUsage?.(),
+    ),
   ];
 
   const getLines = () => [
@@ -333,6 +345,7 @@ export function streamChildSession(
       }
     }),
     renderTotalLine(),
+    ...(renderContextLine() ? [renderContextLine()!] : []),
   ].join("\n");
 
   const flush = () =>

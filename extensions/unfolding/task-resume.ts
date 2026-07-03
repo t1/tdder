@@ -86,6 +86,7 @@ export async function resumeDelegatedTask({
   const stream = onUpdate
     ? streamChildSession(session, shortRole, slug, onUpdate, {
       sessionFile: task?.session_file,
+      getContextUsage: () => session.getContextUsage(),
     })
     : undefined;
   const checkpointRecovery = installCheckpointRecovery(session, cwd, slug, {

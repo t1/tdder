@@ -5,6 +5,8 @@ import { formatElapsedDuration } from "../shared/duration-format.ts";
 
 export const ANSI_ITALIC_ON = "\x1b[3m";
 export const ANSI_ITALIC_OFF = "\x1b[23m";
+export const ANSI_RED_ON = "\x1b[31m";
+export const ANSI_RED_OFF = "\x1b[39m";
 
 export interface HeaderChildOutputEvent {
   type: "header";
@@ -32,9 +34,16 @@ export interface CommissionerNoteChildOutputEvent {
   text: string;
 }
 
+export interface ContextUsageSnapshot {
+  tokens: number | null;
+  contextWindow: number;
+  percent: number | null;
+}
+
 export interface TotalChildOutputEvent {
   type: "total";
   elapsedSeconds: number;
+  contextUsage?: ContextUsageSnapshot;
 }
 
 export type ChildOutputEvent =
@@ -72,8 +81,8 @@ export function childOutputCommissionerNote(text: string): CommissionerNoteChild
   return { type: "t1-unfolding-commissioner-note", text };
 }
 
-export function childOutputTotal(elapsedSeconds: number): TotalChildOutputEvent {
-  return { type: "total", elapsedSeconds };
+export function childOutputTotal(elapsedSeconds: number, contextUsage?: ContextUsageSnapshot): TotalChildOutputEvent {
+  return { type: "total", elapsedSeconds, contextUsage };
 }
 
 function renderAssistantLine(role: string, icon: "💬" | "🤔", text: string): string {
@@ -92,7 +101,19 @@ function renderToolLines(role: string, event: ToolChildOutputEvent): string[] {
 }
 
 function renderTotalLine(role: string, elapsedSeconds: number): string {
-  return `  [${role}] ⏱ total — ${formatElapsedDuration(elapsedSeconds)}`;
+  return `  [${role}] ⏱ ${formatElapsedDuration(elapsedSeconds)}`;
+}
+
+export function renderContextUsageLine(role: string, contextUsage: ContextUsageSnapshot): string {
+  const { tokens, contextWindow, percent } = contextUsage;
+  const pct = percent !== null ? `${Math.round(percent)}%` : "?%";
+  const used = tokens !== null ? `${Math.round(tokens / 1000)}k` : "?k";
+  const max = `${Math.round(contextWindow / 1000)}k`;
+  const text = `  [${role}] ${ANSI_ITALIC_ON}${used}/${max} tokens (${pct})${ANSI_ITALIC_OFF}`;
+  if (percent !== null && percent >= 90) {
+    return `${ANSI_RED_ON}${text}${ANSI_RED_OFF}`;
+  }
+  return text;
 }
 
 export function renderChildOutputPlainText(role: string, events: ChildOutputEvent[]): string {
@@ -143,6 +164,7 @@ export function renderChildOutputPlainText(role: string, events: ChildOutputEven
 
     if (event.type === "total") {
       rendered.push(renderTotalLine(role, event.elapsedSeconds));
+      if (event.contextUsage) rendered.push(renderContextUsageLine(role, event.contextUsage));
       continue;
     }
 

@@ -98,6 +98,7 @@ export async function startChildSession({
   let wasLocallyAborted = signal?.aborted === true || parentSignal?.aborted === true;
   const stream = onUpdate ? streamChildSession(session, shortRole, slug, onUpdate, {
     sessionFile: session.sessionFile,
+    getContextUsage: () => session.getContextUsage(),
   }) : undefined;
   const onAbort = () => {
     wasLocallyAborted = true;
