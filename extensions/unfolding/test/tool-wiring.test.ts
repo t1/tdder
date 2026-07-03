@@ -158,7 +158,7 @@ describe("task_delegate wiring", () => {
   const commonSrc = readFileSync(new URL("../session-common.ts", import.meta.url).pathname, "utf8");
 
   it("errors when role agent file not found", () => {
-    assert.ok(commonSrc.includes("loadAgentSystemPrompt"), "must call loadAgentSystemPrompt");
+    assert.ok(commonSrc.includes("loadAgentRoleConfig"), "must call loadAgentRoleConfig");
     assert.ok(commonSrc.includes("throw") || commonSrc.includes("No agent definition found"), "must fail when agent file not found");
   });
 

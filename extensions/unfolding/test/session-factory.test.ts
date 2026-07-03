@@ -785,6 +785,38 @@ describe("startChildSession groundwork", () => {
     }
   });
 
+  it("PO session uses the tool allowlist declared in roles/po.md", async () => {
+    const { cwd } = makeTestGitRepo("session-factory");
+    const { faux, authStorage, modelRegistry } = fauxSessionSetup("session-po-tools");
+    try {
+      const activeSessions = new Map() as any;
+      const { session } = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "po",
+        slug: "po-tool-allowlist",
+        body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
+        activeSessions,
+        pi: {} as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      const tools = session.getAllTools().map((t: any) => t.name);
+      assert.equal(tools.includes("bash"), false, "PO session must not expose bash");
+      assert.equal(tools.includes("read"), true, "PO session must expose read");
+      assert.equal(tools.includes("write"), true, "PO session must expose write");
+      assert.equal(tools.includes("edit"), true, "PO session must expose edit");
+      assert.equal(tools.includes("ask_sensei"), true, "PO session must expose ask_sensei");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("source contains nestedDelegateToolFactory seam", () => {
     const src = readFileSync(new URL("../session-factory.ts", import.meta.url).pathname, "utf8");
     assert.ok(src.includes("nestedDelegateToolFactory"));

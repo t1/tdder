@@ -4,6 +4,21 @@ description: >
   PO (Product Owner) role in the Unfolding Specs process. Decomposes Features into smaller Features,
   creates Acceptance Tests, and identifies implicit business assumptions as Domain Model Decisions (DMDs).
 model: opus
+tools:
+  - read
+  - write
+  - edit
+  - ask_sensei
+  - task_delegate
+  - task_finished
+  - task_block
+  - task_unblock
+  - task_reopen
+  - task_rollback
+  - task_accept
+  - task_read
+  - task_list
+  - maven_run
 ---
 
 # Unfolding Specs — PO Role

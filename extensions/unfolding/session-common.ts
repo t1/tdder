@@ -2,7 +2,7 @@ import {resolve} from "node:path";
 import type {Model} from "@earendil-works/pi-ai";
 import type {AgentSession, AuthStorage, ExtensionAPI, ModelRegistry} from "@earendil-works/pi-coding-agent";
 import {createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager} from "@earendil-works/pi-coding-agent";
-import {CHILD_FIXED_INSTRUCTION, loadAgentSystemPrompt} from "./task-delegate.ts";
+import {CHILD_FIXED_INSTRUCTION, loadAgentRoleConfig} from "./task-delegate.ts";
 import {createChildTaskTools} from "./child-task-tools.ts";
 
 export type NestedDelegateToolFactory = (shortRole: string) => any;
@@ -59,8 +59,9 @@ export async function createChildAgentSession({
 }> {
   const rolesDir = resolve(new URL(import.meta.url).pathname, "..", "roles");
   const shortRole = role.replace(/^unfolding-/, "");
-  const systemPrompt = loadAgentSystemPrompt(rolesDir, shortRole);
-  if (!systemPrompt) throw new Error(`No agent definition found for role "${shortRole}" in ${rolesDir}`);
+  const roleConfig = loadAgentRoleConfig(rolesDir, shortRole);
+  if (!roleConfig) throw new Error(`No agent definition found for role "${shortRole}" in ${rolesDir}`);
+  const systemPrompt = roleConfig.systemPrompt;
 
   const loader = new DefaultResourceLoader({
     cwd,
@@ -81,6 +82,7 @@ export async function createChildAgentSession({
     model: selectedModel,
     authStorage,
     modelRegistry,
+    tools: roleConfig.tools,
     excludeTools: ["task_list", "task_read"],
     customTools: createChildTaskTools(cwd, slug, nestedDelegateToolFactory(shortRole), {
       activeSessions,

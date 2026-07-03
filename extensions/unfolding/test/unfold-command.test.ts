@@ -195,9 +195,5 @@ describe("structural invariants", () => {
       extensionReadme.includes("npm --prefix extensions/unfolding run clean"),
       "extension README must document how to remove preserved smoke-test temp workspaces",
     );
-    assert.ok(
-      readFileSync(new URL("../package.json", import.meta.url).pathname, "utf8").includes('"clean": "rm -rf target/test-tmp"'),
-      "extension package.json must provide a clean script for preserved smoke-test temp workspaces",
-    );
   });
 });

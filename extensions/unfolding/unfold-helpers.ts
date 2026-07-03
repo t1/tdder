@@ -10,6 +10,24 @@ export function stripFrontmatter(content: string): string {
   return match[1].trim();
 }
 
+/**
+ * Parse the optional `tools:` list from YAML frontmatter.
+ * Returns the array of tool names when declared, or undefined when the key is absent.
+ */
+export function parseFrontmatterTools(content: string): string[] | undefined {
+  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!frontmatter) return undefined;
+  const block = frontmatter[1];
+  // Match a `tools:` block followed by indented list items
+  const toolsMatch = block.match(/^tools:\s*\n((?:[ \t]+-[ \t]+\S[^\n]*\n?)*)(?=[^\s]|$)/m);
+  if (!toolsMatch) return undefined;
+  const items = toolsMatch[1]
+    .split("\n")
+    .map(line => line.replace(/^[ \t]+-[ \t]+/, "").trim())
+    .filter(Boolean);
+  return items.length > 0 ? items : undefined;
+}
+
 export interface UnfoldMessageOptions {
   state: string | null;
   guidance: string | undefined;
