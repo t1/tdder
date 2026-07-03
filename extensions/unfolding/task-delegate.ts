@@ -380,9 +380,7 @@ export function streamChildSession(
     if (event.type !== "message_end") return false;
     if (event.message.role !== "assistant") return false;
     if (event.message.stopReason !== "aborted") return false;
-    const parentId = (event as { parentId?: string }).parentId;
-    const checkpointToolCallId = latestCheckpointToolCallId();
-    return !!checkpointToolCallId && parentId === checkpointToolCallId;
+    return !!latestCheckpointToolCallId();
   };
 
   const handleEvent = (event: AgentSessionEvent) => {

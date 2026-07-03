@@ -375,6 +375,49 @@ describe("streamChildSession", () => {
     assert.ok(!afterAbortTail.includes("❌ request was aborted"), `did not expect synthetic abort failure line, got: ${afterAbortTail}`);
   });
 
+  it("suppresses the aborted assistant tail after a successful task_finished even without parentId", () => {
+    const updates: string[] = [];
+    let captured: ((e: any) => void) | undefined;
+    const fakeSession = {
+      subscribe: (h: any) => {
+        captured = h;
+        return () => {
+        };
+      }
+    } as any;
+    streamChildSession(fakeSession, "ux-designer", "slug", (u: any) => updates.push(u.content[0].text));
+
+    captured!({
+      type: "tool_execution_start",
+      toolCallId: "checkpoint-1",
+      toolName: "task_finished",
+      args: {},
+    });
+    captured!({
+      type: "tool_execution_end",
+      toolCallId: "checkpoint-1",
+      toolName: "task_finished",
+      isError: false,
+      result: { content: [{ type: "text", text: "task finished" }] },
+    });
+
+    const beforeAbortTail = updates[updates.length - 1];
+    captured!({
+      type: "message_end",
+      // no parentId — the runtime may omit it
+      message: {
+        role: "assistant",
+        stopReason: "aborted",
+        content: [],
+        errorMessage: "Request was aborted.",
+      },
+    });
+
+    const afterAbortTail = updates[updates.length - 1];
+    assert.equal(afterAbortTail, beforeAbortTail, "abort tail without parentId should still be suppressed after a checkpoint");
+    assert.ok(!afterAbortTail.includes("❌ request was aborted"), `did not expect synthetic abort failure line, got: ${afterAbortTail}`);
+  });
+
   it("shows reduced unexpected child events in the normal transcript with a log reference", () => {
     const updates: string[] = [];
     let captured: ((e: any) => void) | undefined;
