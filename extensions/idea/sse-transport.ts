@@ -1,4 +1,4 @@
-import { request, type ClientRequest, type IncomingMessage } from "node:http";
+import { Agent, request, type ClientRequest, type IncomingMessage } from "node:http";
 import { parseFrames } from "./sse-parser.ts";
 
 export class SseTransport {
@@ -6,6 +6,7 @@ export class SseTransport {
   onMessage: (data: string) => void = () => {};
   private req?: ClientRequest;
   private _res?: IncomingMessage;
+  private readonly agent = new Agent({ keepAlive: true });
 
   /** The active SSE response stream, or undefined before connect() or after close(). */
   get res(): IncomingMessage | undefined { return this._res; }
@@ -18,7 +19,7 @@ export class SseTransport {
         reject(new Error(`SSE connect timed out after ${timeoutMs}ms — no endpoint event received`));
       }, timeoutMs);
 
-      this.req = request(`${this.baseUrl}/sse`, { method: "GET" });
+      this.req = request(`${this.baseUrl}/sse`, { method: "GET", agent: this.agent });
       this.req.on("error", (err: Error) => {
         clearTimeout(timer);
         reject(err);
@@ -53,6 +54,7 @@ export class SseTransport {
           "content-type": "application/json",
           "content-length": Buffer.byteLength(body).toString(),
         },
+        agent: this.agent,
       });
       req.on("error", reject);
       req.on("response", () => resolve());
@@ -63,5 +65,6 @@ export class SseTransport {
   async close(): Promise<void> {
     this._res?.destroy();
     this.req?.destroy();
+    this.agent.destroy();
   }
 }
