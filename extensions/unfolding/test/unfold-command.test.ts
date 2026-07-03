@@ -13,7 +13,36 @@ import { readFileSync } from "node:fs";
 import {
   stripFrontmatter,
   buildUnfoldMessage,
+  parseFrontmatterTools,
 } from "../unfold-helpers.ts";
+
+// ---------------------------------------------------------------------------
+// parseFrontmatterTools
+// ---------------------------------------------------------------------------
+
+describe("parseFrontmatterTools", () => {
+  const poMd = readFileSync(new URL("../roles/po.md", import.meta.url).pathname, "utf8");
+
+  it("po.md declares the expected tool allowlist", () => {
+    const tools = parseFrontmatterTools(poMd);
+    assert.deepEqual(tools, [
+      "read",
+      "write",
+      "edit",
+      "ask_sensei",
+      "task_delegate",
+      "task_finished",
+      "task_block",
+      "task_unblock",
+      "task_reopen",
+      "task_rollback",
+      "task_accept",
+      "task_read",
+      "task_list",
+      "maven_run",
+    ]);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // stripFrontmatter
