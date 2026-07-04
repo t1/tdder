@@ -88,6 +88,69 @@ When `task_delegate` receives a role name it strips any `unfolding-` prefix, so 
 `"po"` and `"unfolding-po"` resolve correctly.
 Built-in roles: `po`, `architect`, `coder`, `api-designer`, `ux-designer`, `ui-expert`.
 
+### Role file frontmatter
+
+Each role file has a YAML frontmatter block with these keys:
+
+```yaml
+---
+name: <role>           # short role name
+description: >         # one-line description
+  ...
+model: opus|sonnet     # preferred model
+tools:                 # tool allowlist (required)
+  - read
+  - write
+  - idea_*             # wildcard: expands to all live tools matching the prefix
+path-restrictions:     # optional path-level restrictions for read/write/edit
+  - read deny: docs/adr/**
+  - read allow: docs/**
+  - read deny: **
+---
+```
+
+**`tools:`** is an allowlist — only the listed tools are available to the role.
+Everything not listed is excluded, including tools from future extensions.
+Wildcard entries (e.g. `idea_*`, `browser_*`) are resolved against the live tool
+registry at child session spawn time, so dynamically registered MCP tools are
+included when available and silently absent when not.
+
+**`path-restrictions:`** applies fine-grained path-level restrictions to `read`,
+`write`, and `edit` calls. Each rule has the form:
+
+```
+<tools> <action>: <glob>
+```
+
+- `tools`: `read`, `write`, `edit`, or `rw` (shorthand for all three)
+- `action`: `allow` or `deny`
+- `glob`: project-relative path glob
+
+Rules are evaluated in order; **the first matching rule wins**. If no rule matches,
+the path is allowed. Example (PO: docs only, no ADRs):
+
+```yaml
+path-restrictions:
+  - read deny: docs/adr/**   # ADRs are technical — PO must not read them
+  - read allow: docs/**      # rest of docs/ is fine
+  - read deny: **            # everything else (source, build files) is off-limits
+```
+
+**Shared preamble:** the unfolding extension automatically appends a shared
+anti-workaround instruction to every role's system prompt at spawn time:
+
+> If achieving a goal requires combining tools in a way that isn't their stated
+> purpose, stop and use `task_block` or `ask_sensei` rather than improvising.
+
+This is injected by the extension, not written per-role, so it cannot be
+accidentally omitted from a new role file.
+
+**Adding a new role:** create `extensions/unfolding/roles/<name>.md` with
+frontmatter following the schema above. Add tests in
+`extensions/unfolding/test/unfold-command.test.ts` asserting the expected
+`tools:` and `path-restrictions:` entries — the test suite enforces that every
+role file declares both explicitly.
+
 **Decision escalation:** normal ADR/DMD questioning is direct.
 The Architect asks ADR questions, and the PO asks DMD questions. The Orchestrator is no longer the normal relay path
 for those decisions.
