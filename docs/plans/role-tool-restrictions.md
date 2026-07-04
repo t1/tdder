@@ -61,13 +61,13 @@ from unknown or future extensions):
 
 ### Implementation steps
 
-1. Add a `tools:` preamble section to `extensions/unfolding/roles/po.md`
+1. [x] Add a `tools:` preamble section to `extensions/unfolding/roles/po.md`
    declaring the allowlist above.
-2. Update the unfolding extension to parse the preamble and pass it as
+2. [x] Update the unfolding extension to parse the preamble and pass it as
    `tools: [...]` to `createAgentSession()` for PO sessions.
-3. Smoke-test: run the unfolding extension with a PO task and confirm that a
+3. [x] Smoke-test: run the unfolding extension with a PO task and confirm that a
    `bash` call is rejected, while `maven_run` and `read` work normally.
-4. Add a test to the extension's test suite asserting that PO sessions use
+4. [x] Add a test to the extension's test suite asserting that PO sessions use
    the expected tool allowlist.
 
 ## Open Tasks (Other Roles)
@@ -75,10 +75,14 @@ from unknown or future extensions):
 Each role below needs its own tool audit before restrictions are applied.
 The PoC must be working first.
 
-- [ ] **Architect** — needs `read`, `write`, `edit`, `bash` (test running,
-  compilation), `maven_run`, task tools. `bash` is legitimately needed here
-  until all build/test operations have dedicated tools.
-- [ ] **Coder** — similar to Architect; `bash` is currently needed.
+- [ ] **Architect** — needs `read`, `write`, `edit`, `maven_run`, task tools,
+  `ask_sensei`. No `bash` — all build/test/search operations have dedicated
+  tools (`maven_run`, `idea_*`, `jdtls_*`). `bash` is an escape hatch, not a
+  legitimate need. Path restriction: `read` blocked on `docs/ats/*.feature`.
+- [ ] **Coder** — needs `read`, `write`, `edit`, `maven_run`, `ask_sensei`,
+  `task_finished`, `task_block`. No `bash` — same rationale as Architect.
+  No task management tools beyond finishing and blocking (the Coder never
+  delegates).
 - [ ] **UX Designer** — mostly reads `docs/ux/`, writes component files.
   Likely no `bash` or `maven_run` needed.
 - [ ] **API Designer** — reads `docs/api/`, writes resource files.
@@ -93,3 +97,11 @@ The PoC must be working first.
 - [ ] **Path-level `read` restrictions** — once per-role allowlists are stable,
   add `tool_call` interception to enforce isolation rules structurally
   (e.g. Architect cannot read `docs/ats/*.feature`).
+- [x] **Shared anti-workaround preamble** — inject a short rule for all roles
+  via the unfolding extension (not per-role prose), so it cannot be accidentally
+  omitted from a new role:
+  > If achieving a goal requires combining tools in a way that isn't their stated
+  > purpose, stop and use `task_block` or `ask_sensei` rather than improvising.
+  This targets creative tool combinations (e.g. writing a test that reads a
+  forbidden file and parsing its output from `maven_run`) without relying on the
+  LLM's self-assessment of whether something is "obvious".

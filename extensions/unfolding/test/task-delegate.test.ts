@@ -11,7 +11,8 @@ import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {createTask, readTask} from "../task-store.ts";
 import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
-import {installCheckpointRecovery, loadAgentSystemPrompt, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON, CHILD_SESSION_FAILURE_BLOCKED_REASON, FatalChildSessionError} from "../task-delegate.ts";
+import {installCheckpointRecovery, loadAgentSystemPrompt, loadAgentRoleConfig, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON, CHILD_SESSION_FAILURE_BLOCKED_REASON, FatalChildSessionError} from "../task-delegate.ts";
+import {SHARED_PREAMBLE} from "../unfold-helpers.ts";
 
 import { ANSI_ITALIC_ON, ANSI_ITALIC_OFF, childOutputHeader, formatElapsedDuration } from "../child-output.ts";
 
@@ -20,6 +21,21 @@ const rolesDir = resolve(new URL("../roles", import.meta.url).pathname);
 // ---------------------------------------------------------------------------
 // loadAgentSystemPrompt
 // ---------------------------------------------------------------------------
+
+describe("loadAgentRoleConfig", () => {
+  it("appends the shared preamble to every role's system prompt", () => {
+    const config = loadAgentRoleConfig(rolesDir, "po");
+    assert.ok(config !== null, "should load the po role");
+    assert.ok(config!.systemPrompt.includes(SHARED_PREAMBLE), "system prompt must contain the shared preamble");
+  });
+
+  it("places the shared preamble after the role body", () => {
+    const config = loadAgentRoleConfig(rolesDir, "po");
+    const idx = config!.systemPrompt.indexOf(SHARED_PREAMBLE);
+    const bodyIdx = config!.systemPrompt.indexOf("Product Owner");
+    assert.ok(bodyIdx < idx, "role body must appear before the shared preamble");
+  });
+});
 
 describe("loadAgentSystemPrompt", () => {
   it("loads and strips frontmatter from roles/po.md", () => {

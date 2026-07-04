@@ -3,6 +3,10 @@
  * Extracted for testability — no pi SDK dependencies.
  */
 
+export const SHARED_PREAMBLE =
+  "If achieving a goal requires combining tools in a way that isn't their stated purpose, " +
+  "stop and use `task_block` or `ask_sensei` rather than improvising.";
+
 /** Strip YAML frontmatter (--- ... ---) and return the trimmed markdown body. */
 export function stripFrontmatter(content: string): string {
   const match = content.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n([\s\S]*)$/);

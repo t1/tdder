@@ -15,7 +15,7 @@ import {
   ANSI_ITALIC_ON,
 } from "./child-output.ts";
 import { readTask, updateTaskStatus } from "./task-store.ts";
-import { parseFrontmatterTools, stripFrontmatter } from "./unfold-helpers.ts";
+import { parseFrontmatterTools, stripFrontmatter, SHARED_PREAMBLE } from "./unfold-helpers.ts";
 
 export const CHILD_FIXED_INSTRUCTION =
   "Call `task_finished` only when your responsibility for this task is fully complete. " +
@@ -69,7 +69,7 @@ export function loadAgentRoleConfig(rolesDir: string, role: string): AgentRoleCo
   if (!existsSync(path)) return null;
   const content = readFileSync(path, "utf8");
   return {
-    systemPrompt: stripFrontmatter(content),
+    systemPrompt: stripFrontmatter(content) + "\n\n" + SHARED_PREAMBLE,
     tools: parseFrontmatterTools(content),
   };
 }
