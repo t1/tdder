@@ -4,6 +4,21 @@ description: >
   Architect role in the Unfolding Specs process. Decomposes Features into Tasks,
   creates System Tests, and identifies implicit technical assumptions as Architecture Decision Records (ADRs).
 model: opus
+tools:
+  - read
+  - write
+  - edit
+  - ask_sensei
+  - maven_run
+  - task_delegate
+  - task_finished
+  - task_block
+  - task_unblock
+  - task_reopen
+  - task_rollback
+  - task_accept
+  - task_read
+  - task_list
 ---
 
 # Unfolding Specs — Architect Role

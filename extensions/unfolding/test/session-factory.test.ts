@@ -686,9 +686,9 @@ describe("startChildSession groundwork", () => {
       assert.equal(tools.includes("task_list"), false, "child session must not expose task_list");
       assert.equal(tools.includes("task_read"), false, "child session must not expose task_read");
       assert.equal(tools.includes("ask_sensei"), true, "child session should expose the proxied ask_sensei");
-      assert.equal(tools.includes("maven_project_info"), true, "child session should load sibling pi extensions such as maven");
-      assert.equal(tools.includes("maven_run"), true, "child session should load sibling pi extensions such as maven");
-      assert.equal(tools.includes("maven_lookup_version"), true, "child session should load sibling pi extensions such as maven");
+      assert.equal(tools.includes("maven_run"), true, "architect allowlist includes maven_run from sibling extension");
+      assert.equal(tools.includes("maven_project_info"), false, "maven_project_info is not in the architect allowlist");
+      assert.equal(tools.includes("maven_lookup_version"), false, "maven_lookup_version is not in the architect allowlist");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

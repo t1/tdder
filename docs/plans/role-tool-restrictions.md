@@ -75,7 +75,7 @@ from unknown or future extensions):
 Each role below needs its own tool audit before restrictions are applied.
 The PoC must be working first.
 
-- [ ] **Architect** — needs `read`, `write`, `edit`, `maven_run`, task tools,
+- [x] **Architect** — needs `read`, `write`, `edit`, `maven_run`, task tools,
   `ask_sensei`. No `bash` — all build/test/search operations have dedicated
   tools (`maven_run`, `idea_*`, `jdtls_*`). `bash` is an escape hatch, not a
   legitimate need. Path restriction: `read` blocked on `docs/ats/*.feature`.
