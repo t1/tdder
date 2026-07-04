@@ -12,6 +12,7 @@ tools:
   - write
   - edit
   - ask_sensei
+  - browser_*
   - task_finished
   - task_block
 ---

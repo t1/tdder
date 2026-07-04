@@ -10,6 +10,8 @@ tools:
   - edit
   - ask_sensei
   - maven_run
+  - idea_*
+  - jdtls_*
   - task_delegate
   - task_finished
   - task_block

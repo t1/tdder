@@ -57,6 +57,8 @@ describe("parseFrontmatterTools", () => {
       "edit",
       "ask_sensei",
       "maven_run",
+      "idea_*",
+      "jdtls_*",
       "task_delegate",
       "task_finished",
       "task_block",
@@ -76,6 +78,8 @@ describe("parseFrontmatterTools", () => {
       "edit",
       "ask_sensei",
       "maven_run",
+      "idea_*",
+      "jdtls_*",
       "task_finished",
       "task_block",
     ]);
@@ -88,6 +92,7 @@ describe("parseFrontmatterTools", () => {
       "write",
       "edit",
       "ask_sensei",
+      "browser_*",
       "task_finished",
       "task_block",
     ]);
