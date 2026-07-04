@@ -23,6 +23,7 @@ import {
 describe("parseFrontmatterTools", () => {
   const poMd = readFileSync(new URL("../roles/po.md", import.meta.url).pathname, "utf8");
   const architectMd = readFileSync(new URL("../roles/architect.md", import.meta.url).pathname, "utf8");
+  const coderMd = readFileSync(new URL("../roles/coder.md", import.meta.url).pathname, "utf8");
 
   it("po.md declares the expected tool allowlist", () => {
     const tools = parseFrontmatterTools(poMd);
@@ -61,6 +62,18 @@ describe("parseFrontmatterTools", () => {
       "task_accept",
       "task_read",
       "task_list",
+    ]);
+  });
+  it("coder.md declares the expected tool allowlist", () => {
+    const tools = parseFrontmatterTools(coderMd);
+    assert.deepEqual(tools, [
+      "read",
+      "write",
+      "edit",
+      "ask_sensei",
+      "maven_run",
+      "task_finished",
+      "task_block",
     ]);
   });
 });

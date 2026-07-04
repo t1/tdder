@@ -79,7 +79,7 @@ The PoC must be working first.
   `ask_sensei`. No `bash` — all build/test/search operations have dedicated
   tools (`maven_run`, `idea_*`, `jdtls_*`). `bash` is an escape hatch, not a
   legitimate need. Path restriction: `read` blocked on `docs/ats/*.feature`.
-- [ ] **Coder** — needs `read`, `write`, `edit`, `maven_run`, `ask_sensei`,
+- [x] **Coder** — needs `read`, `write`, `edit`, `maven_run`, `ask_sensei`,
   `task_finished`, `task_block`. No `bash` — same rationale as Architect.
   No task management tools beyond finishing and blocking (the Coder never
   delegates).

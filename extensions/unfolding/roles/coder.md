@@ -4,6 +4,14 @@ description: >
   Coder role in the Unfolding Specs process. Implements Tasks using TDD (Test-Driven Development),
   one test at a time, following the Red-Green-Refactor cycle.
 model: sonnet
+tools:
+  - read
+  - write
+  - edit
+  - ask_sensei
+  - maven_run
+  - task_finished
+  - task_block
 ---
 
 # Unfolding Specs — Coder Role
