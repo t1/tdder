@@ -8,6 +8,13 @@ description: >
   Commissioned by the PO for features that expose customer-facing integration
   APIs (API-first).
 model: sonnet
+tools:
+  - read
+  - write
+  - edit
+  - ask_sensei
+  - task_finished
+  - task_block
 ---
 
 # Unfolding Specs — API Designer Role

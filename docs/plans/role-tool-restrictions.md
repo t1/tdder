@@ -83,17 +83,18 @@ The PoC must be working first.
   `task_finished`, `task_block`. No `bash` — same rationale as Architect.
   No task management tools beyond finishing and blocking (the Coder never
   delegates).
-- [ ] **UX Designer** — mostly reads `docs/ux/`, writes component files.
+- [x] **UX Designer** — mostly reads `docs/ux/`, writes component files.
   Likely no `bash` or `maven_run` needed.
-- [ ] **API Designer** — reads `docs/api/`, writes resource files.
+- [x] **API Designer** — reads `docs/api/`, writes resource files.
   Likely no `bash` or `maven_run` needed.
-- [ ] **UI Expert** — TBD.
-- [ ] **Dynamically registered tools** — `idea_*`, `jdtls_*`, and `quarkus_*` tools
-  are registered at startup by connecting to a running IDE/LSP/MCP server, so their
-  names are not statically known. Roles that need them (Architect, Coder) must either
-  snapshot the live tool list at spawn time, or the preamble format must support
-  wildcards (e.g. `idea_*`) that the unfolding extension resolves against the active
-  tool registry before passing to `createAgentSession()`.
+- [x] **UI Expert** — TBD.
+- [ ] **Dynamically registered tools** — `idea_*`, `jdtls_*`, `quarkus_*`, and
+  `browser_*` (Playwright MCP) tools are registered at startup by connecting to
+  a running IDE/LSP/MCP server, so their names are not statically known. Roles
+  that need them (Architect, Coder: `idea_*`/`jdtls_*`; UX Designer: `browser_*`)
+  must either snapshot the live tool list at spawn time, or the preamble format
+  must support wildcards (e.g. `idea_*`) that the unfolding extension resolves
+  against the active tool registry before passing to `createAgentSession()`.
 - [ ] **Path-level `read` restrictions** — once per-role allowlists are stable,
   add `tool_call` interception to enforce isolation rules structurally
   (e.g. Architect cannot read `docs/ats/*.feature`).

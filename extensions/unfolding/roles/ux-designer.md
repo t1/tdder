@@ -7,6 +7,13 @@ description: >
   (interaction flows, states, component hierarchy). Commissioned by the PO for
   features that involve user-visible rendering.
 model: opus
+tools:
+  - read
+  - write
+  - edit
+  - ask_sensei
+  - task_finished
+  - task_block
 ---
 
 # Unfolding Specs — UX Designer Role

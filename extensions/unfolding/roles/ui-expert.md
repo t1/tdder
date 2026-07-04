@@ -5,6 +5,13 @@ description: >
   concrete technology (CSS framework, interaction library, HTML structure). Commissioned
   by the Architect when a UX component has no mapping or the mapping is non-trivial.
 model: sonnet
+tools:
+  - read
+  - write
+  - edit
+  - ask_sensei
+  - task_finished
+  - task_block
 ---
 
 # Unfolding Specs — UI Expert Role

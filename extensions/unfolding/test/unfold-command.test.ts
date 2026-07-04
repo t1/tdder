@@ -24,6 +24,9 @@ describe("parseFrontmatterTools", () => {
   const poMd = readFileSync(new URL("../roles/po.md", import.meta.url).pathname, "utf8");
   const architectMd = readFileSync(new URL("../roles/architect.md", import.meta.url).pathname, "utf8");
   const coderMd = readFileSync(new URL("../roles/coder.md", import.meta.url).pathname, "utf8");
+  const uxDesignerMd = readFileSync(new URL("../roles/ux-designer.md", import.meta.url).pathname, "utf8");
+  const apiDesignerMd = readFileSync(new URL("../roles/api-designer.md", import.meta.url).pathname, "utf8");
+  const uiExpertMd = readFileSync(new URL("../roles/ui-expert.md", import.meta.url).pathname, "utf8");
 
   it("po.md declares the expected tool allowlist", () => {
     const tools = parseFrontmatterTools(poMd);
@@ -72,6 +75,42 @@ describe("parseFrontmatterTools", () => {
       "edit",
       "ask_sensei",
       "maven_run",
+      "task_finished",
+      "task_block",
+    ]);
+  });
+
+  it("ux-designer.md declares the expected tool allowlist", () => {
+    const tools = parseFrontmatterTools(uxDesignerMd);
+    assert.deepEqual(tools, [
+      "read",
+      "write",
+      "edit",
+      "ask_sensei",
+      "task_finished",
+      "task_block",
+    ]);
+  });
+
+  it("api-designer.md declares the expected tool allowlist", () => {
+    const tools = parseFrontmatterTools(apiDesignerMd);
+    assert.deepEqual(tools, [
+      "read",
+      "write",
+      "edit",
+      "ask_sensei",
+      "task_finished",
+      "task_block",
+    ]);
+  });
+
+  it("ui-expert.md declares the expected tool allowlist", () => {
+    const tools = parseFrontmatterTools(uiExpertMd);
+    assert.deepEqual(tools, [
+      "read",
+      "write",
+      "edit",
+      "ask_sensei",
       "task_finished",
       "task_block",
     ]);
