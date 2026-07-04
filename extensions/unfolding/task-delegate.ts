@@ -15,7 +15,7 @@ import {
   ANSI_ITALIC_ON,
 } from "./child-output.ts";
 import { readTask, updateTaskStatus } from "./task-store.ts";
-import { parseFrontmatterTools, stripFrontmatter, SHARED_PREAMBLE } from "./unfold-helpers.ts";
+import { parseFrontmatterTools, parseFrontmatterPathRestrictions, parsePathRestrictions, stripFrontmatter, SHARED_PREAMBLE, type PathRestrictionRule } from "./unfold-helpers.ts";
 
 export const CHILD_FIXED_INSTRUCTION =
   "Call `task_finished` only when your responsibility for this task is fully complete. " +
@@ -62,6 +62,7 @@ export function loadAgentSystemPrompt(rolesDir: string, role: string): string | 
 export interface AgentRoleConfig {
   systemPrompt: string;
   tools?: string[];
+  pathRestrictions?: PathRestrictionRule[];
 }
 
 export function loadAgentRoleConfig(rolesDir: string, role: string): AgentRoleConfig | null {
@@ -71,6 +72,7 @@ export function loadAgentRoleConfig(rolesDir: string, role: string): AgentRoleCo
   return {
     systemPrompt: stripFrontmatter(content) + "\n\n" + SHARED_PREAMBLE,
     tools: parseFrontmatterTools(content),
+    pathRestrictions: parseFrontmatterPathRestrictions(content),
   };
 }
 

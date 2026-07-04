@@ -1,3 +1,5 @@
+import { matchesGlob } from "node:path";
+
 /**
  * Pure helper functions for the /unfold command.
  * Extracted for testability — no pi SDK dependencies.
@@ -27,6 +29,62 @@ export function resolveToolAllowlist(allowlist: string[], liveTools: string[]): 
     }
   }
   return result;
+}
+
+export interface PathRestrictionRule {
+  tools: string[];
+  action: "allow" | "deny";
+  glob: string;
+}
+
+/**
+ * Parse a `path-restrictions:` frontmatter list into typed rules.
+ *
+ * Each entry has the form: `<tools> <action>: <glob>`
+ * - tools: `read`, `write`, `edit`, or `rw` (expands to read, write, edit)
+ * - action: `allow` or `deny`
+ * - glob: path glob matched against project-relative paths
+ */
+export function parsePathRestrictions(entries: string[]): PathRestrictionRule[] {
+  return entries.map(entry => {
+    const match = entry.match(/^(\S+)\s+(allow|deny):\s+(.+)$/);
+    if (!match) throw new Error(`Invalid path restriction: "${entry}"`);
+    const [, toolsStr, action, glob] = match;
+    const tools = toolsStr === "rw" ? ["read", "write", "edit"] : [toolsStr];
+    return { tools, action: action as "allow" | "deny", glob };
+  });
+}
+
+/**
+ * Check whether a tool call on a given path is allowed by the restriction rules.
+ *
+ * Rules are evaluated in order; the first matching rule wins.
+ * If no rule matches, the path is allowed (default allow).
+ */
+export function isPathAllowed(tool: string, path: string, rules: PathRestrictionRule[]): boolean {
+  for (const rule of rules) {
+    if (!rule.tools.includes(tool)) continue;
+    if (matchesGlob(path, rule.glob)) return rule.action === "allow";
+  }
+  return true;
+}
+
+
+/**
+ * Parse the optional `path-restrictions:` list from YAML frontmatter.
+ * Returns parsed rules when declared, or undefined when the key is absent.
+ */
+export function parseFrontmatterPathRestrictions(content: string): PathRestrictionRule[] | undefined {
+  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!frontmatter) return undefined;
+  const block = frontmatter[1];
+  const restrictionsMatch = block.match(/^path-restrictions:\s*\n((?:[ \t]+-[ \t]+\S[^\n]*\n?)*)(?=[^\s]|$)/m);
+  if (!restrictionsMatch) return undefined;
+  const items = restrictionsMatch[1]
+    .split("\n")
+    .map(line => line.replace(/^[ \t]+-[ \t]+/, "").trim())
+    .filter(Boolean);
+  return items.length > 0 ? parsePathRestrictions(items) : undefined;
 }
 
 export const SHARED_PREAMBLE =

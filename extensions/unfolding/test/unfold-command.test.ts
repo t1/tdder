@@ -15,6 +15,9 @@ import {
   buildUnfoldMessage,
   parseFrontmatterTools,
   resolveToolAllowlist,
+  parsePathRestrictions,
+  parseFrontmatterPathRestrictions,
+  isPathAllowed,
 } from "../unfold-helpers.ts";
 
 // ---------------------------------------------------------------------------
@@ -124,6 +127,60 @@ describe("parseFrontmatterTools", () => {
 });
 
 // ---------------------------------------------------------------------------
+// parseFrontmatterPathRestrictions — role files
+// ---------------------------------------------------------------------------
+
+describe("parseFrontmatterPathRestrictions (role files)", () => {
+  const poMd = readFileSync(new URL("../roles/po.md", import.meta.url).pathname, "utf8");
+  const architectMd = readFileSync(new URL("../roles/architect.md", import.meta.url).pathname, "utf8");
+  const coderMd = readFileSync(new URL("../roles/coder.md", import.meta.url).pathname, "utf8");
+  const uxDesignerMd = readFileSync(new URL("../roles/ux-designer.md", import.meta.url).pathname, "utf8");
+  const apiDesignerMd = readFileSync(new URL("../roles/api-designer.md", import.meta.url).pathname, "utf8");
+
+  it("po.md blocks docs/adr/ reads then allows docs/ reads then blocks everything else", () => {
+    const rules = parseFrontmatterPathRestrictions(poMd);
+    assert.ok(rules, "PO must declare path restrictions");
+    assert.equal(isPathAllowed("read", "docs/adr/INDEX.md", rules!), false, "PO must not read docs/adr/");
+    assert.equal(isPathAllowed("read", "docs/product.md", rules!), true, "PO may read other docs/");
+    assert.equal(isPathAllowed("read", "src/Main.java", rules!), false, "PO must not read source files");
+    assert.equal(isPathAllowed("write", "docs/product.md", rules!), true, "write is not restricted by read rules");
+  });
+
+  it("architect.md blocks docs/ats/*.feature reads", () => {
+    const rules = parseFrontmatterPathRestrictions(architectMd);
+    assert.ok(rules, "Architect must declare path restrictions");
+    assert.equal(isPathAllowed("read", "docs/ats/register-owner.feature", rules!), false, "Architect must not read AT feature files");
+    assert.equal(isPathAllowed("read", "docs/ats/INDEX.md", rules!), true, "Architect may read other docs/ats/ files");
+    assert.equal(isPathAllowed("read", "src/Main.java", rules!), true, "Architect may read source files");
+  });
+
+  it("coder.md allows docs/adr/ then blocks docs/ then blocks ST files", () => {
+    const rules = parseFrontmatterPathRestrictions(coderMd);
+    assert.ok(rules, "Coder must declare path restrictions");
+    assert.equal(isPathAllowed("read", "docs/adr/INDEX.md", rules!), true, "Coder may read docs/adr/");
+    assert.equal(isPathAllowed("read", "docs/product.md", rules!), false, "Coder must not read other docs/");
+    assert.equal(isPathAllowed("write", "docs/adr/INDEX.md", rules!), false, "Coder must not write to docs/");
+    assert.equal(isPathAllowed("read", "src/test/system/FooST.java", rules!), false, "Coder must not read ST files");
+    assert.equal(isPathAllowed("write", "src/test/system/FooST.java", rules!), false, "Coder must not write ST files");
+    assert.equal(isPathAllowed("read", "src/main/java/Foo.java", rules!), true, "Coder may read source files");
+  });
+
+  it("ux-designer.md blocks docs/rules/ reads", () => {
+    const rules = parseFrontmatterPathRestrictions(uxDesignerMd);
+    assert.ok(rules, "UX Designer must declare path restrictions");
+    assert.equal(isPathAllowed("read", "docs/rules/pricing.feature", rules!), false, "UX Designer must not read rules");
+    assert.equal(isPathAllowed("read", "docs/ux/INDEX.md", rules!), true, "UX Designer may read docs/ux/");
+  });
+
+  it("api-designer.md blocks docs/rules/ reads", () => {
+    const rules = parseFrontmatterPathRestrictions(apiDesignerMd);
+    assert.ok(rules, "API Designer must declare path restrictions");
+    assert.equal(isPathAllowed("read", "docs/rules/pricing.feature", rules!), false, "API Designer must not read rules");
+    assert.equal(isPathAllowed("read", "docs/api/INDEX.md", rules!), true, "API Designer may read docs/api/");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // resolveToolAllowlist
 // ---------------------------------------------------------------------------
 
@@ -154,6 +211,70 @@ describe("resolveToolAllowlist", () => {
   it("returns the list as-is when there are no wildcards", () => {
     const result = resolveToolAllowlist(["read", "write", "maven_run"], ["read", "write", "maven_run", "bash"]);
     assert.deepEqual(result, ["read", "write", "maven_run"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parsePathRestrictions / isPathAllowed
+// ---------------------------------------------------------------------------
+
+describe("parsePathRestrictions", () => {
+  it("parses a read deny rule", () => {
+    const rules = parsePathRestrictions(["read deny: docs/adr/**"]);
+    assert.deepEqual(rules, [{ tools: ["read"], action: "deny", glob: "docs/adr/**" }]);
+  });
+
+  it("parses rw as read, write, and edit", () => {
+    const rules = parsePathRestrictions(["rw deny: **/*ST.java"]);
+    assert.deepEqual(rules, [{ tools: ["read", "write", "edit"], action: "deny", glob: "**/*ST.java" }]);
+  });
+
+  it("parses multiple rules in order", () => {
+    const rules = parsePathRestrictions(["read allow: docs/adr/**", "read deny: docs/**"]);
+    assert.deepEqual(rules, [
+      { tools: ["read"], action: "allow", glob: "docs/adr/**" },
+      { tools: ["read"], action: "deny", glob: "docs/**" },
+    ]);
+  });
+});
+
+describe("isPathAllowed", () => {
+  it("returns true when path matches an allow rule", () => {
+    const rules = parsePathRestrictions(["read allow: docs/adr/**", "read deny: docs/**"]);
+    assert.equal(isPathAllowed("read", "docs/adr/INDEX.md", rules), true);
+  });
+
+  it("returns false when path matches a deny rule", () => {
+    const rules = parsePathRestrictions(["read allow: docs/adr/**", "read deny: docs/**"]);
+    assert.equal(isPathAllowed("read", "docs/product.md", rules), false);
+  });
+
+  it("returns true when no rule matches (default allow)", () => {
+    const rules = parsePathRestrictions(["read deny: docs/adr/**"]);
+    assert.equal(isPathAllowed("read", "src/Main.java", rules), true);
+  });
+
+  it("first matching rule wins", () => {
+    const rules = parsePathRestrictions(["read deny: docs/**", "read allow: docs/adr/**"]);
+    // deny comes first — docs/adr/INDEX.md should be denied
+    assert.equal(isPathAllowed("read", "docs/adr/INDEX.md", rules), false);
+  });
+
+  it("read restriction does not affect write", () => {
+    const rules = parsePathRestrictions(["read deny: docs/adr/**"]);
+    assert.equal(isPathAllowed("write", "docs/adr/INDEX.md", rules), true);
+  });
+});
+
+describe("parseFrontmatterPathRestrictions", () => {
+  it("returns undefined when key is absent", () => {
+    assert.equal(parseFrontmatterPathRestrictions("---\nname: test\n---\n# body"), undefined);
+  });
+
+  it("parses rules from frontmatter", () => {
+    const content = "---\nname: po\npath-restrictions:\n  - read deny: docs/adr/**\n---\n# body";
+    const rules = parseFrontmatterPathRestrictions(content);
+    assert.deepEqual(rules, [{ tools: ["read"], action: "deny", glob: "docs/adr/**" }]);
   });
 });
 

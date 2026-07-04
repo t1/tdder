@@ -19,6 +19,10 @@ tools:
   - task_read
   - task_list
   - maven_run
+path-restrictions:
+  - read deny: docs/adr/**
+  - read allow: docs/**
+  - read deny: **
 ---
 
 # Unfolding Specs — PO Role

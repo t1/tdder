@@ -221,4 +221,10 @@ describe("task_delegate wiring", () => {
     assert.ok(commonSrc.includes("resolveToolAllowlist"), "session-common must call resolveToolAllowlist");
     assert.ok(commonSrc.includes("getAllTools"), "session-common must read live tools from pi.getAllTools()");
   });
+
+  it("monkey-patches emitToolCall to enforce path restrictions after session creation", () => {
+    assert.ok(commonSrc.includes("emitToolCall"), "session-common must patch emitToolCall for path restrictions");
+    assert.ok(commonSrc.includes("isPathAllowed"), "session-common must call isPathAllowed");
+    assert.ok(commonSrc.includes("pathRestrictions"), "session-common must read pathRestrictions from roleConfig");
+  });
 });

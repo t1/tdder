@@ -15,6 +15,8 @@ tools:
   - ask_sensei
   - task_finished
   - task_block
+path-restrictions:
+  - read deny: docs/rules/**
 ---
 
 # Unfolding Specs — API Designer Role

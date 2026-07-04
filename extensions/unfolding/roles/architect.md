@@ -21,6 +21,8 @@ tools:
   - task_accept
   - task_read
   - task_list
+path-restrictions:
+  - read deny: docs/ats/*.feature
 ---
 
 # Unfolding Specs — Architect Role

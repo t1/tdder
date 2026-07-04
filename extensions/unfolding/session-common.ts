@@ -4,7 +4,7 @@ import type {AgentSession, AuthStorage, ExtensionAPI, ModelRegistry} from "@eare
 import {createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager} from "@earendil-works/pi-coding-agent";
 import {CHILD_FIXED_INSTRUCTION, loadAgentRoleConfig} from "./task-delegate.ts";
 import {createChildTaskTools} from "./child-task-tools.ts";
-import {resolveToolAllowlist} from "./unfold-helpers.ts";
+import {resolveToolAllowlist, isPathAllowed} from "./unfold-helpers.ts";
 
 export type NestedDelegateToolFactory = (shortRole: string) => any;
 
@@ -99,6 +99,25 @@ export async function createChildAgentSession({
   });
   session.setSessionName(slug);
   await session.bindExtensions({});
+
+  if (roleConfig.pathRestrictions?.length) {
+    const restrictions = roleConfig.pathRestrictions;
+    const runner = (session as any)._extensionRunner;
+    if (runner) {
+      const original = runner.emitToolCall.bind(runner);
+      runner.emitToolCall = async (event: any) => {
+        const toolName = event.toolName as string;
+        const path = event.input?.path as string | undefined;
+        if (path && (toolName === "read" || toolName === "write" || toolName === "edit")) {
+          if (!isPathAllowed(toolName, path, restrictions)) {
+            return { block: true, reason: `Path '${path}' is not allowed for the ${toolName} tool in this role.` };
+          }
+        }
+        return original(event);
+      };
+    }
+  }
+
   activeSessions.set(slug, session);
   return {session, shortRole, shutdown: () => emitSessionShutdown(session)};
 }

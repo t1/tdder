@@ -95,7 +95,7 @@ The PoC must be working first.
   must either snapshot the live tool list at spawn time, or the preamble format
   must support wildcards (e.g. `idea_*`) that the unfolding extension resolves
   against the active tool registry before passing to `createAgentSession()`.
-- [ ] **Path-level `read` restrictions** — once per-role allowlists are stable,
+- [x] **Path-level `read` restrictions** — once per-role allowlists are stable,
   add `tool_call` interception to enforce isolation rules structurally
   (e.g. Architect cannot read `docs/ats/*.feature`).
 - [x] **Shared anti-workaround preamble** — inject a short rule for all roles

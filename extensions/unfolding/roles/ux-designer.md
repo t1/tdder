@@ -15,6 +15,8 @@ tools:
   - browser_*
   - task_finished
   - task_block
+path-restrictions:
+  - read deny: docs/rules/**
 ---
 
 # Unfolding Specs — UX Designer Role

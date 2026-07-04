@@ -14,6 +14,10 @@ tools:
   - jdtls_*
   - task_finished
   - task_block
+path-restrictions:
+  - read allow: docs/adr/**
+  - rw deny: docs/**
+  - rw deny: **/*ST.java
 ---
 
 # Unfolding Specs — Coder Role
