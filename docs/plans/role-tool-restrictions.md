@@ -88,7 +88,7 @@ The PoC must be working first.
 - [x] **API Designer** — reads `docs/api/`, writes resource files.
   Likely no `bash` or `maven_run` needed.
 - [x] **UI Expert** — TBD.
-- [ ] **Dynamically registered tools** — `idea_*`, `jdtls_*`, `quarkus_*`, and
+- [x] **Dynamically registered tools** — `idea_*`, `jdtls_*`, `quarkus_*`, and
   `browser_*` (Playwright MCP) tools are registered at startup by connecting to
   a running IDE/LSP/MCP server, so their names are not statically known. Roles
   that need them (Architect, Coder: `idea_*`/`jdtls_*`; UX Designer: `browser_*`)

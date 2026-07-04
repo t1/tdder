@@ -14,6 +14,7 @@ import {
   stripFrontmatter,
   buildUnfoldMessage,
   parseFrontmatterTools,
+  resolveToolAllowlist,
 } from "../unfold-helpers.ts";
 
 // ---------------------------------------------------------------------------
@@ -114,6 +115,40 @@ describe("parseFrontmatterTools", () => {
       "task_finished",
       "task_block",
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveToolAllowlist
+// ---------------------------------------------------------------------------
+
+describe("resolveToolAllowlist", () => {
+  it("passes static entries through unchanged regardless of live list", () => {
+    const result = resolveToolAllowlist(["read", "task_block"], ["read", "write", "maven_run"]);
+    assert.deepEqual(result, ["read", "task_block"]);
+  });
+
+  it("expands a wildcard to all matching live tools", () => {
+    const result = resolveToolAllowlist(["read", "idea_*"], ["read", "idea_search_symbol", "idea_build_project", "maven_run"]);
+    assert.deepEqual(result, ["read", "idea_search_symbol", "idea_build_project"]);
+  });
+
+  it("expands a wildcard with no matches to nothing", () => {
+    const result = resolveToolAllowlist(["read", "browser_*"], ["read", "maven_run"]);
+    assert.deepEqual(result, ["read"]);
+  });
+
+  it("expands multiple wildcards mixed with static entries", () => {
+    const result = resolveToolAllowlist(
+      ["read", "idea_*", "task_block", "browser_*"],
+      ["read", "idea_search_symbol", "idea_build_project", "browser_navigate", "maven_run"],
+    );
+    assert.deepEqual(result, ["read", "idea_search_symbol", "idea_build_project", "task_block", "browser_navigate"]);
+  });
+
+  it("returns the list as-is when there are no wildcards", () => {
+    const result = resolveToolAllowlist(["read", "write", "maven_run"], ["read", "write", "maven_run", "bash"]);
+    assert.deepEqual(result, ["read", "write", "maven_run"]);
   });
 });
 

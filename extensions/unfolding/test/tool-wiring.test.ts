@@ -216,4 +216,9 @@ describe("task_delegate wiring", () => {
     const delegateSrc = readFileSync(new URL("../task-delegate-tool.ts", import.meta.url).pathname, "utf8");
     assert.ok(delegateSrc.includes("exportTaskCommissionerDebugHtmlIfEnabled"), "task_delegate must export commissioner session on handover in debug mode");
   });
+
+  it("resolves wildcard tool entries against the live pi tool list before spawning", () => {
+    assert.ok(commonSrc.includes("resolveToolAllowlist"), "session-common must call resolveToolAllowlist");
+    assert.ok(commonSrc.includes("getAllTools"), "session-common must read live tools from pi.getAllTools()");
+  });
 });

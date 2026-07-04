@@ -3,6 +3,32 @@
  * Extracted for testability — no pi SDK dependencies.
  */
 
+/**
+ * Resolve a tool allowlist that may contain glob-style wildcards (e.g. `idea_*`)
+ * against the live tool names available in the current session.
+ *
+ * - Static entries (no `*`) pass through unchanged.
+ * - Wildcard entries (ending with `*`) are expanded to all live tools whose
+ *   names start with the prefix before `*`.
+ * - Wildcards that match nothing are silently dropped.
+ * - Order follows the allowlist: static entries at their position, wildcard
+ *   matches inserted at the wildcard's position.
+ */
+export function resolveToolAllowlist(allowlist: string[], liveTools: string[]): string[] {
+  const result: string[] = [];
+  for (const entry of allowlist) {
+    if (entry.endsWith("*")) {
+      const prefix = entry.slice(0, -1);
+      for (const live of liveTools) {
+        if (live.startsWith(prefix)) result.push(live);
+      }
+    } else {
+      result.push(entry);
+    }
+  }
+  return result;
+}
+
 export const SHARED_PREAMBLE =
   "If achieving a goal requires combining tools in a way that isn't their stated purpose, " +
   "stop and use `task_block` or `ask_sensei` rather than improvising.";
