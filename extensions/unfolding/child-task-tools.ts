@@ -13,6 +13,7 @@ export interface ChildCommissionerContext {
   postOutput: (lines: string) => void;
   pi: ExtensionAPI;
   askSensei?: AskSenseiFn;
+  role?: string;
   model?: Model<any>;
   authStorage?: AuthStorage;
   modelRegistry?: ModelRegistry;
@@ -65,7 +66,10 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
             "ask_sensei failed: no commissioner UI callback is available for this child session",
           );
         }
-        const answer = await commissionerCtx.askSensei(params);
+        const labeledParams: AskSenseiParams = commissionerCtx.role
+          ? { ...params, role: commissionerCtx.role }
+          : params;
+        const answer = await commissionerCtx.askSensei(labeledParams);
         return {
           content: [{ type: "text", text: answer }],
           details: { answer },

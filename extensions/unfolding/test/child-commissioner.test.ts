@@ -416,7 +416,7 @@ describe("child commissioner tools", () => {
       );
 
       assert.match(result.content[0].text, /Outcome: finished/);
-      assert.deepEqual(asks, [{ question: "Nested question?" }]);
+      assert.deepEqual(asks, [{ question: "Nested question?", role: "coder" }]);
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

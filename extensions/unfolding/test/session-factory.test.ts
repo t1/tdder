@@ -687,8 +687,8 @@ describe("startChildSession groundwork", () => {
       assert.equal(tools.includes("task_read"), false, "child session must not expose task_read");
       assert.equal(tools.includes("ask_sensei"), true, "child session should expose the proxied ask_sensei");
       assert.equal(tools.includes("maven_run"), true, "architect allowlist includes maven_run from sibling extension");
-      assert.equal(tools.includes("maven_project_info"), false, "maven_project_info is not in the architect allowlist");
-      assert.equal(tools.includes("maven_lookup_version"), false, "maven_lookup_version is not in the architect allowlist");
+      assert.equal(tools.includes("maven_project_info"), true, "architect allowlist maven_* includes maven_project_info");
+      assert.equal(tools.includes("maven_lookup_version"), true, "architect allowlist maven_* includes maven_lookup_version");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);
@@ -733,7 +733,7 @@ describe("startChildSession groundwork", () => {
       });
 
       assert.equal(result.outcome, "finished");
-      assert.deepEqual(asks, [{ question: "Architect direct question?", options: ["A", "B"] }]);
+      assert.deepEqual(asks, [{ question: "Architect direct question?", options: ["A", "B"], role: "architect" }]);
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);
@@ -778,7 +778,7 @@ describe("startChildSession groundwork", () => {
       });
 
       assert.equal(result.outcome, "finished");
-      assert.deepEqual(asks, [{ question: "PO direct question?" }]);
+      assert.deepEqual(asks, [{ question: "PO direct question?", role: "po" }]);
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

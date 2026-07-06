@@ -7,6 +7,7 @@ export interface AskSenseiParams {
   context?: string;
   options?: string[];
   placeholder?: string;
+  role?: string;
 }
 
 export type AskSenseiFn = (params: AskSenseiParams) => Promise<string>;
@@ -17,7 +18,9 @@ export async function askSenseiViaUi(
   params: AskSenseiParams,
   ctx: AskSenseiContext,
 ): Promise<string> {
-  const prompt = params.context ? `${params.context}\n\n${params.question}` : params.question;
+  const rolePrefix = params.role ? `[${params.role}]` : undefined;
+  const contextParts = [rolePrefix, params.context].filter(Boolean);
+  const prompt = contextParts.length > 0 ? `${contextParts.join(" ")}\n\n${params.question}` : params.question;
   const options = params.options?.filter(option => option.length > 0) ?? [];
 
   if (options.length === 0) {

@@ -75,7 +75,13 @@ export async function createChildAgentSession({
 
   const selectedModel = model ?? resolveCurrentModel(pi);
   const liveToolNames = pi.getAllTools?.().map((t: any) => t.name) ?? [];
-  const resolvedTools = roleConfig.tools ? resolveToolAllowlist(roleConfig.tools, liveToolNames) : undefined;
+  // When the allowlist contains wildcards, we can't resolve extension tools yet
+  // (they load during bindExtensions). Pass no tools filter to createAgentSession
+  // and apply the full resolved allowlist via setActiveToolsByName afterwards.
+  const hasWildcards = roleConfig.tools?.some(t => t.endsWith("*")) ?? false;
+  const resolvedTools = roleConfig.tools && !hasWildcards
+    ? resolveToolAllowlist(roleConfig.tools, liveToolNames)
+    : undefined;
 
   const {session} = await createAgentSession({
     sessionStartEvent: {type: "session_start", reason: "startup"},
@@ -92,6 +98,7 @@ export async function createChildAgentSession({
       postOutput,
       pi,
       askSensei: (pi as any).__unfoldingAskSensei,
+      role: shortRole,
       model: selectedModel,
       modelRegistry,
       debugExportsEnabled: (pi as any).__unfoldingDebugExportsEnabled === true,
@@ -99,6 +106,12 @@ export async function createChildAgentSession({
   });
   session.setSessionName(slug);
   await session.bindExtensions({});
+
+  if (hasWildcards && roleConfig.tools) {
+    const allToolNames = session.getAllTools().map((t: any) => t.name);
+    const reResolved = resolveToolAllowlist(roleConfig.tools, allToolNames);
+    session.setActiveToolsByName(reResolved);
+  }
 
   if (roleConfig.pathRestrictions?.length) {
     const restrictions = roleConfig.pathRestrictions;

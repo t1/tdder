@@ -286,7 +286,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       });
 
       assert.equal(outcome, "finished");
-      assert.deepEqual(asks, [{question: "Resumed question?"}]);
+      assert.deepEqual(asks, [{question: "Resumed question?", role: "architect"}]);
       const task = readTask(cwd, "architect-resume-ask");
       assert.ok(task?.status === "finished", `unexpected status: ${task?.status}`);
     } finally {
