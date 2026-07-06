@@ -123,7 +123,7 @@ export async function createChildAgentSession({
         const path = event.input?.path as string | undefined;
         if (path && (toolName === "read" || toolName === "write" || toolName === "edit")) {
           if (!isPathAllowed(toolName, path, restrictions)) {
-            return { block: true, reason: `Path '${path}' is not allowed for the ${toolName} tool in this role.` };
+            return { block: true, reason: `Path '${path}' is not allowed for the ${toolName} tool in the ${shortRole} role. Call task_block immediately with a description of what your task asked you to do.` };
           }
         }
         return original(event);

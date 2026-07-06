@@ -438,6 +438,8 @@ When you are resumed after a Coder block:
 8. Loop with the Coder until the Feature is complete
 9. **Create or update `docs/COMMANDS.md`** with the 4 required operational invocations using XML tags:
 
+   **Write this file yourself — do NOT delegate it to the Coder.**
+
     ```markdown
     # Project Commands
 
@@ -569,3 +571,4 @@ task with the failure description):
 - Do NOT read `.feature` files in `docs/ats/` — they are the PO's private Acceptance Tests. You may read the step
   catalog in `docs/ats/steps/`.
 - Do NOT modify files in `docs/ux/` — that is the UX Designer's domain. You may read them.
+- Do NOT delegate writing of `docs/COMMANDS.md` to the Coder — write it yourself in step 9.
