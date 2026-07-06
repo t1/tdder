@@ -138,7 +138,6 @@ export async function resumeDelegatedTask({
       // after filterDisplayOnlyMessages the context may end with an assistant message →
       // 400 "does not support assistant message prefill" on Anthropic/Bedrock.
       const finalOutputDetails = { childOutputRole: shortRole, childOutputEvents: stream.getOutputEvents() } satisfies ChildOutputDetails;
-      onUpdate?.({ content: [{ type: "text", text: stream.getLines() }], details: finalOutputDetails });
       if (outcome === "aborted") {
         await exportDebugHtml?.(cwd, slug);
         (resumeDelegatedTask as any).lastFinalSnapshot = stream.getLines();

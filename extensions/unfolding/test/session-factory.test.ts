@@ -817,6 +817,50 @@ describe("startChildSession groundwork", () => {
     }
   });
 
+  it("onUpdate receives each transcript line exactly once — no duplicate final flush", async () => {
+    const {cwd} = makeTestGitRepo("session-factory");
+    const provider = `session-no-duplicate-flush-${Date.now()}`;
+    const faux = registerFauxProvider({provider, models: [{id: "test-model"}]});
+    faux.setResponses([
+      fauxAssistantMessage([
+        fauxToolCall("task_finished", {}),
+      ], {stopReason: "toolUse"}),
+      fauxAssistantMessage("done"),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const onUpdateCalls: string[] = [];
+    try {
+      await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "coder",
+        slug: "coder-no-dup-flush",
+        body: "Call task_finished.",
+        activeSessions: new Map() as any,
+        pi: {} as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory,
+        onUpdate: (u: any) => onUpdateCalls.push(u.content[0].text),
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      // Every onUpdate payload containing the finished checkpoint row
+      // should appear exactly once — not duplicated by the terminal flush.
+      const withCheckpoint = onUpdateCalls.filter(t => t.includes("task_finished") && t.includes("✓"));
+      assert.equal(
+        withCheckpoint.length, 1,
+        `expected task_finished ✓ in exactly one onUpdate call, got ${withCheckpoint.length}\nonUpdateCalls:\n${onUpdateCalls.map((t, i) => `[${i}]: ${t}`).join("\n---\n")}`,
+      );
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("source contains nestedDelegateToolFactory seam", () => {
     const src = readFileSync(new URL("../session-factory.ts", import.meta.url).pathname, "utf8");
     assert.ok(src.includes("nestedDelegateToolFactory"));
