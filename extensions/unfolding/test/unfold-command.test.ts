@@ -83,6 +83,8 @@ describe("parseFrontmatterTools", () => {
       "maven_*",
       "idea_*",
       "jdtls_*",
+      "task_delegate",
+      "task_accept",
       "task_finished",
       "task_block",
     ]);
