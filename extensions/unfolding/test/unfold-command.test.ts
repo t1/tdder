@@ -271,6 +271,17 @@ describe("isPathAllowed", () => {
     const rules = parsePathRestrictions(["read deny: docs/adr/**"]);
     assert.equal(isPathAllowed("write", "docs/adr/INDEX.md", rules), true);
   });
+
+  it("glob matching is case-sensitive (deny does not match different case)", () => {
+    const rules = parsePathRestrictions(["read deny: docs/adr/**"]);
+    // 'DOCS/adr/INDEX.md' has a different case prefix — must NOT be denied
+    assert.equal(isPathAllowed("read", "DOCS/adr/INDEX.md", rules), true);
+  });
+
+  it("glob matching is case-sensitive (deny matches exact case)", () => {
+    const rules = parsePathRestrictions(["read deny: docs/adr/**"]);
+    assert.equal(isPathAllowed("read", "docs/adr/INDEX.md", rules), false);
+  });
 });
 
 describe("parseFrontmatterPathRestrictions", () => {

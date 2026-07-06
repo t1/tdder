@@ -1,4 +1,4 @@
-import picomatch from "picomatch";
+import {matchesGlob} from "path";
 
 /**
  * Pure helper functions for the /unfold command.
@@ -64,7 +64,7 @@ export function parsePathRestrictions(entries: string[]): PathRestrictionRule[] 
 export function isPathAllowed(tool: string, path: string, rules: PathRestrictionRule[]): boolean {
   for (const rule of rules) {
     if (!rule.tools.includes(tool)) continue;
-    if (picomatch.isMatch(path, rule.glob, {nocase: false})) return rule.action === "allow";
+    if (matchesGlob(path, rule.glob)) return rule.action === "allow";
   }
   return true;
 }
