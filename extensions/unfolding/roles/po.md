@@ -60,7 +60,9 @@ For the **next unresolved issue**, classify it first:
     - Example: scope, terminology, workflow, priority, user-visible behavior, or domain edge-case policy.
     - Write or update the DMD draft in `docs/dmd/`.
     - Ask the Sensei directly with `ask_sensei`, one question at a time, using the DMD question/options verbatim.
-    - Do **not** write the DMD `Decision` section yourself before the Sensei answers.
+    - Do **not** write the DMD `Decision` section yourself — fill it only from what `ask_sensei` returns.
+    - Do **not** skip `ask_sensei`, treat the question as decided, or act on a personal conclusion; always call
+      `ask_sensei` and use its answer before continuing.
 
 2. **Clear business rule or conscious deferral**
     - Decide locally, document it in the Feature, business rules, or product brief, and continue.
@@ -506,7 +508,8 @@ to create it, then wait for the result before continuing.
 
 If the extracted content is a pi tool invocation such as `maven_run(...)`, call that tool with exactly those arguments.
 If the tool is not available to you (e.g. `bash`), delegate an `[ARCH]` task asking the Architect to update
-`docs/COMMANDS.md` with an invocation you can execute; if the Architect doesn't know any such tool, she should ask the Sensei.
+`docs/COMMANDS.md` with an invocation you can execute; if the Architect doesn't know any such tool, she should ask the
+Sensei.
 
 **Step 2: Run the tests**
 
