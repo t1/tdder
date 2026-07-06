@@ -23,6 +23,9 @@ tools:
   - task_list
 path-restrictions:
   - read deny: docs/ats/*.feature
+  - write allow: **/src/test/java/test/acceptance/**
+  - write allow: **/src/test/java/test/system/**
+  - write deny: **/src/test/java/**
 ---
 
 # Unfolding Specs — Architect Role
@@ -106,6 +109,7 @@ Strict separation of test types is a core architectural constraint.
 | Aspect         | Unit / Component Tests       | Business Rule Tests                          | System Tests (STs)               | Acceptance Tests (ATs)                          |
 |----------------|------------------------------|----------------------------------------------|----------------------------------|-------------------------------------------------|
 | **Package**    | `test.unit.*`                | `test.rules.*`                               | `test.system.*`                  | `test.acceptance.*`                             |
+| **Path**       | `src/test/java/test/unit/`   | (Cucumber runner)                            | `src/test/java/test/system/`     | `src/test/java/test/acceptance/`                |
 | **Suffix**     | `*Test.java`                 | (Cucumber runner)                            | `*ST.java`                       | (Cucumber runner)                               |
 | **Owner**      | Coder                        | PO (steps: Architect)                        | Architect                        | PO (steps: Architect)                           |
 | **Run by**     | `mvn test`                   | `mvn test -Prules`                           | `mvn verify`                     | `mvn verify -Pat`                               |
@@ -118,7 +122,7 @@ Strict separation of test types is a core architectural constraint.
 
 - A test MUST live in its designated package — no exceptions.
 - File suffix determines which plugin picks it up: `*Test.java` → Surefire, `*ST.java` → Failsafe.
-- The Coder MUST NOT read, run, or modify `*ST.java` files.
+- The Coder MUST NOT read, run, or modify files in `src/test/java/test/system/` or `src/test/java/test/acceptance/`.
 - The Architect MUST NOT read `.feature` files in `docs/ats/`.
 - Unit/Component tests CAN use `@QuarkusComponentTest`, but MUST NOT use `@QuarkusTest` or even
   `@QuarkusIntegrationTest`

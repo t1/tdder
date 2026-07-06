@@ -146,23 +146,30 @@ describe("parseFrontmatterPathRestrictions (role files)", () => {
     assert.equal(isPathAllowed("write", "docs/product.md", rules!), true, "write is not restricted by read rules");
   });
 
-  it("architect.md blocks docs/ats/*.feature reads", () => {
+  it("architect.md blocks docs/ats/*.feature reads and restricts test writes to acceptance+system", () => {
     const rules = parseFrontmatterPathRestrictions(architectMd);
     assert.ok(rules, "Architect must declare path restrictions");
     assert.equal(isPathAllowed("read", "docs/ats/register-owner.feature", rules!), false, "Architect must not read AT feature files");
     assert.equal(isPathAllowed("read", "docs/ats/INDEX.md", rules!), true, "Architect may read other docs/ats/ files");
     assert.equal(isPathAllowed("read", "src/Main.java", rules!), true, "Architect may read source files");
+    assert.equal(isPathAllowed("write", "src/test/java/test/acceptance/RegisterOwnerAT.java", rules!), true, "Architect may write acceptance tests");
+    assert.equal(isPathAllowed("write", "src/test/java/test/system/RegisterOwnerST.java", rules!), true, "Architect may write system tests");
+    assert.equal(isPathAllowed("write", "src/test/java/test/unit/RegisterOwnerTest.java", rules!), false, "Architect must not write unit tests");
+    assert.equal(isPathAllowed("write", "src/main/java/Foo.java", rules!), true, "Architect may write source files");
   });
 
-  it("coder.md allows docs/adr/ then blocks docs/ then blocks ST files", () => {
+  it("coder.md allows docs/adr/ then blocks docs/ then restricts test writes to unit", () => {
     const rules = parseFrontmatterPathRestrictions(coderMd);
     assert.ok(rules, "Coder must declare path restrictions");
     assert.equal(isPathAllowed("read", "docs/adr/INDEX.md", rules!), true, "Coder may read docs/adr/");
     assert.equal(isPathAllowed("read", "docs/product.md", rules!), false, "Coder must not read other docs/");
     assert.equal(isPathAllowed("write", "docs/adr/INDEX.md", rules!), false, "Coder must not write to docs/");
-    assert.equal(isPathAllowed("read", "src/test/system/FooST.java", rules!), false, "Coder must not read ST files");
-    assert.equal(isPathAllowed("write", "src/test/system/FooST.java", rules!), false, "Coder must not write ST files");
+    assert.equal(isPathAllowed("write", "src/test/java/test/unit/TodoTest.java", rules!), true, "Coder may write unit tests");
+    assert.equal(isPathAllowed("write", "src/test/java/test/unit/com/example/TodoTest.java", rules!), true, "Coder may write unit tests in sub-packages");
+    assert.equal(isPathAllowed("write", "src/test/java/test/system/RegisterOwnerST.java", rules!), false, "Coder must not write system tests");
+    assert.equal(isPathAllowed("write", "src/test/java/test/acceptance/RegisterOwnerAT.java", rules!), false, "Coder must not write acceptance tests");
     assert.equal(isPathAllowed("read", "src/main/java/Foo.java", rules!), true, "Coder may read source files");
+    assert.equal(isPathAllowed("write", "src/main/java/Foo.java", rules!), true, "Coder may write source files");
   });
 
   it("ux-designer.md blocks docs/rules/ reads", () => {
