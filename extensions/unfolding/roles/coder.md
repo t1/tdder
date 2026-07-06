@@ -9,7 +9,7 @@ tools:
   - write
   - edit
   - ask_sensei
-  - maven_run
+  - maven_*
   - idea_*
   - jdtls_*
   - task_finished
@@ -47,7 +47,8 @@ You communicate via `task_finished` and `task_block` — do NOT read or write ta
 
 ## Your Process
 
-Your **current working directory is the project root**. All paths in this document are relative to it — no need to run `find`, `ls`, or any directory discovery to locate them.
+Your **current working directory is the project root**. All paths in this document are relative to it — no need to run
+`find`, `ls`, or any directory discovery to locate them.
 
 ### 1. Load Prior Decisions
 
