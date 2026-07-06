@@ -2,11 +2,12 @@ import type { Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock, taskRollback } from "./task-tools.ts";
-import { waitForChildDecision, CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
+import { CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
 import { exportTaskCommissionerDebugHtmlIfEnabled, exportTaskDebugHtmlIfEnabled } from "./debug-export.ts";
 import { readTask } from "./task-store.ts";
 import type { AskSenseiFn, AskSenseiParams } from "./ask-sensei.ts";
 import { UnfoldingFatalError } from "./fatal-error.ts";
+import { resumeDelegatedTask } from "./task-resume.ts";
 
 export interface ChildCommissionerContext {
   activeSessions: Map<string, AgentSession>;
@@ -84,40 +85,33 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
         slug: Type.String({ description: "Task slug" }),
         reason: Type.String({ description: "Why the task is being reopened" }),
       }),
-      async execute(_id: string, params: { slug: string; reason: string }, signal: any, _onUpdate: any, ctx: any) {
-        const childSession = commissionerCtx.activeSessions.get(params.slug);
-        if (!childSession) throw new Error(`task_reopen: no live session found for slug "${params.slug}"`);
-
-        // Wait for the session to finish aborting before we prompt it
-        while (childSession.isStreaming) {
-          await new Promise(r => setTimeout(r, 50));
-        }
-
+      async execute(_id: string, params: { slug: string; reason: string }, signal: any, onUpdate: any, ctx: any) {
         await exportTaskCommissionerDebugHtmlIfEnabled(
           cwd,
           params.slug,
           commissionerCtx.debugExportsEnabled ?? false,
           ctx.sessionManager?.getSessionFile(),
         );
-        taskReopen(cwd, params.slug, params.reason);
-        const task = readTask(cwd, params.slug);
-        const resumeMessage = task?.resume_message ?? params.reason;
-
-        childSession.prompt(`${resumeMessage}\n\n${CHILD_FIXED_INSTRUCTION}`).catch((err: unknown) => {
-          const stack = err instanceof Error ? err.stack : String(err);
-          console.error(`[unfolding] child task_reopen prompt for "${params.slug}" failed:`, stack);
-        });
-
-        const outcome = await waitForChildDecision(
-          async () => readTask(cwd, params.slug),
-          undefined,
-          undefined,
+        const outcome = await resumeDelegatedTask({
+          action: "reopen",
+          cwd,
+          slug: params.slug,
+          reason: params.reason,
+          activeSessions: commissionerCtx.activeSessions,
           signal,
-        );
-
-        await exportTaskDebugHtmlIfEnabled(cwd, params.slug, commissionerCtx.debugExportsEnabled ?? false);
+          parentSignal: ctx.signal,
+          onUpdate,
+          postOutput: commissionerCtx.postOutput,
+          mutateTask: (cwd, slug, reason) => taskReopen(cwd, slug, reason ?? params.reason),
+          pi: commissionerCtx.pi,
+          model: commissionerCtx.model,
+          authStorage: commissionerCtx.authStorage,
+          modelRegistry: commissionerCtx.modelRegistry,
+          exportDebugHtml: commissionerCtx.debugExportsEnabled
+            ? (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, true)
+            : undefined,
+        });
         if (outcome === "aborted") commissionerCtx.activeSessions.delete(params.slug);
-
         const blockedReason = outcome === "blocked" ? readTask(cwd, params.slug)?.blocked_reason : undefined;
         const outcomeText = outcome === "blocked"
           ? `Task "${params.slug}" reopened. Outcome: blocked. blocked_reason: ${blockedReason ?? "(no reason given)"}`
@@ -136,39 +130,33 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
         slug: Type.String({ description: "Task slug" }),
         reason: Type.Optional(Type.String({ description: "Why the task is now unblocked" })),
       }),
-      async execute(_id: string, params: { slug: string; reason?: string }, signal: any, _onUpdate: any, ctx: any) {
-        const childSession = commissionerCtx.activeSessions.get(params.slug);
-        if (!childSession) throw new Error(`task_unblock: no live session found for slug "${params.slug}"`);
-
-        while (childSession.isStreaming) {
-          await new Promise(r => setTimeout(r, 50));
-        }
-
+      async execute(_id: string, params: { slug: string; reason?: string }, signal: any, onUpdate: any, ctx: any) {
         await exportTaskCommissionerDebugHtmlIfEnabled(
           cwd,
           params.slug,
           commissionerCtx.debugExportsEnabled ?? false,
           ctx.sessionManager?.getSessionFile(),
         );
-        taskUnblock(cwd, params.slug, params.reason);
-        const task = readTask(cwd, params.slug);
-        const resumeMessage = task?.resume_message ?? params.reason ?? "unblocked";
-
-        childSession.prompt(`${resumeMessage}\n\n${CHILD_FIXED_INSTRUCTION}`).catch((err: unknown) => {
-          const stack = err instanceof Error ? err.stack : String(err);
-          console.error(`[unfolding] child task_unblock prompt for "${params.slug}" failed:`, stack);
-        });
-
-        const outcome = await waitForChildDecision(
-          async () => readTask(cwd, params.slug),
-          undefined,
-          undefined,
+        const outcome = await resumeDelegatedTask({
+          action: "unblock",
+          cwd,
+          slug: params.slug,
+          reason: params.reason,
+          activeSessions: commissionerCtx.activeSessions,
           signal,
-        );
-
-        await exportTaskDebugHtmlIfEnabled(cwd, params.slug, commissionerCtx.debugExportsEnabled ?? false);
+          parentSignal: ctx.signal,
+          onUpdate,
+          postOutput: commissionerCtx.postOutput,
+          mutateTask: (cwd, slug, reason) => taskUnblock(cwd, slug, reason),
+          pi: commissionerCtx.pi,
+          model: commissionerCtx.model,
+          authStorage: commissionerCtx.authStorage,
+          modelRegistry: commissionerCtx.modelRegistry,
+          exportDebugHtml: commissionerCtx.debugExportsEnabled
+            ? (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, true)
+            : undefined,
+        });
         if (outcome === "aborted") commissionerCtx.activeSessions.delete(params.slug);
-
         const blockedReason = outcome === "blocked" ? readTask(cwd, params.slug)?.blocked_reason : undefined;
         const outcomeText = outcome === "blocked"
           ? `Task "${params.slug}" unblocked. Outcome: blocked. blocked_reason: ${blockedReason ?? "(no reason given)"}`
