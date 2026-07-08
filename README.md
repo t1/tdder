@@ -45,6 +45,20 @@ when matching files are detected.
 Extensions add active behaviour beyond passive skills — they register commands, tools, and UI components
 directly into the coding agent.
 
+The sections below already document the larger extensions in detail. To avoid duplicating that prose,
+here is a compact overview of what each extension contributes:
+
+| Extension             | Commands                                | Tools                                                                                                                                                                                             | Other behaviour                                                                               |
+|-----------------------|-----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `hygiene`             | —                                       | —                                                                                                                                                                                                 | Injects prompt reminders to load `project-hygiene`, `java`, and `github-safety` when detected |
+| `idea` (pi only)      | —                                       | JetBrains MCP-backed `idea_*` tools for code exploration, refactoring, build/run, and debugging                                                                                                   | Lazy-connects to IntelliJ IDEA and shows footer status                                        |
+| `jdtls` (pi only)     | —                                       | `jdtls_get_file_problems`, `jdtls_search_symbol`, `jdtls_get_symbol_info`, `jdtls_rename_refactoring`, `jdtls_reformat_file`, `jdtls_get_project_modules`, `jdtls_code_action`, `jdtls_read_file` | Starts Eclipse JDT Language Server lazily for Java projects                                   |
+| `maven`               | `/maven`                                | `maven_project_info`, `maven_run`, `maven_lookup_version`, `maven_available_java_versions`                                                                                                        | Also ships the standalone `tdder-maven` CLI                                                   |
+| `mlx` (pi only)       | —                                       | —                                                                                                                                                                                                 | Injects default MLX repetition settings via `before_provider_request`                         |
+| `quarkus` (pi only)   | `/quarkus`                              | Dynamic `quarkus_*` tools mirrored from `quarkus-agent-mcp`                                                                                                                                       | Detects Quarkus projects, starts MCP lazily, and shows footer status                          |
+| `shared`              | —                                       | —                                                                                                                                                                                                 | Shared code used by other extensions; no end-user tools                                       |
+| `unfolding` (pi only) | `/unfold`, `/tasks`, `/connect-session` | `ask_sensei`, `task_list`, `task_read`, `task_delegate`, `task_accept`, `task_reopen`, `task_unblock`, `task_rollback`                                                                            | Child sessions additionally use `task_finished` and `task_block`                              |
+
 ### quarkus (pi only)
 
 Integrates [quarkus-agent-mcp](https://github.com/quarkusio/quarkus-agent-mcp) into
@@ -116,7 +130,8 @@ role/commissioner rules, and extension-specific test instructions, see:
 Structured Maven execution with test report parsing, compilation error extraction,
 Maven Central version lookup, and Adoptium Java release lookup.
 
-**pi extension:** registers `maven_run`, `maven_project_info`, `maven_lookup_version`, and `maven_available_java_versions` tools
+**pi extension:** registers `maven_run`, `maven_project_info`, `maven_lookup_version`, and
+`maven_available_java_versions` tools
 plus a `/maven` slash command with live progress widget.
 
 **CLI (`tdder-maven`):** the same functionality as a standalone command, usable from any agent

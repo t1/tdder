@@ -1085,3 +1085,111 @@ describe("registered task tools", () => {
     }
   });
 });
+
+
+describe("/connect-session command", () => {
+  function setupPi() {
+    const commands = new Map<string, any>();
+    const execCalls: Array<{cmd: string; args: string[]}> = [];
+    const pi = {
+      on() {},
+      registerMessageRenderer() {},
+      registerCommand(name: string, def: any) { commands.set(name, def); },
+      registerTool() {},
+      sendMessage() {},
+      sendUserMessage() {},
+      getAllTools() { return []; },
+      getCommands() { return []; },
+      async exec(cmd: string, args: string[]) {
+        execCalls.push({cmd, args});
+        return {code: 0};
+      },
+    };
+    initUnfolding(pi as any);
+    return {commands, execCalls};
+  }
+
+  it("shows a picker with tasks that have an existing session file", async () => {
+    const {cwd} = makeTestGitRepo("connect-cmd");
+    try {
+      const {commands, execCalls} = setupPi();
+      const sessionFile = join(cwd, "fake-session.jsonl");
+      writeFileSync(sessionFile, "");
+      createTask(cwd, {slug: "coder-1", from: "orchestrator", to: "coder", body: "Code", session_file: sessionFile});
+
+      const selectCalls: string[][] = [];
+      const notifyCalls: string[] = [];
+      const ctx = {
+        cwd,
+        sessionManager: {getSessionFile: () => join(cwd, "root.jsonl")},
+        ui: {
+          async select(_prompt: string, opts: string[]) {
+            selectCalls.push(opts);
+            return opts[0]; // pick coder-1
+          },
+          notify(msg: string) { notifyCalls.push(msg); },
+        },
+      };
+
+      await commands.get("connect-session")?.handler(undefined, ctx);
+
+      assert.equal(selectCalls.length, 1, "picker should appear");
+      assert.match(selectCalls[0][0], /\[coder\] coder-1/);
+      assert.match(selectCalls[0][selectCalls[0].length - 1], /Stay here/);
+      // No TMUX in test env → fallback notify
+      assert.ok(notifyCalls.some(m => m.includes(sessionFile)), "fallback notify should include session file");
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("shows 'No sub-sessions found' when no tasks have an existing session file", async () => {
+    const {cwd} = makeTestGitRepo("connect-cmd-empty");
+    try {
+      const {commands} = setupPi();
+      createTask(cwd, {slug: "coder-1", from: "orchestrator", to: "coder", body: "Code", session_file: "/nonexistent/path.jsonl"});
+
+      const notifyCalls: Array<{msg: string; level: string}> = [];
+      const ctx = {
+        cwd,
+        sessionManager: {getSessionFile: () => undefined},
+        ui: {
+          async select() { return undefined; },
+          notify(msg: string, level: string) { notifyCalls.push({msg, level}); },
+        },
+      };
+
+      await commands.get("connect-session")?.handler(undefined, ctx);
+
+      assert.ok(notifyCalls.some(n => n.msg.includes("No sub-sessions")), "should notify no sessions");
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("does not open tmux when user picks Stay here", async () => {
+    const {cwd} = makeTestGitRepo("connect-cmd-stay");
+    try {
+      const {commands, execCalls} = setupPi();
+      const sessionFile = join(cwd, "arch.jsonl");
+      writeFileSync(sessionFile, "");
+      createTask(cwd, {slug: "arch-1", from: "orchestrator", to: "architect", body: "Design", session_file: sessionFile});
+
+      const ctx = {
+        cwd,
+        sessionManager: {getSessionFile: () => undefined},
+        ui: {
+          async select(_prompt: string, opts: string[]) {
+            return opts[opts.length - 1]; // Stay here
+          },
+          notify() {},
+        },
+      };
+
+      await commands.get("connect-session")?.handler(undefined, ctx);
+      assert.equal(execCalls.length, 0, "tmux must not be opened for Stay here");
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+});

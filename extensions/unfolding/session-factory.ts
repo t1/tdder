@@ -1,6 +1,7 @@
 import type { Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { existsSync } from "node:fs";
 import { createSnapshotCommit, ensureGitRepoWithHead, isWorkspaceDirty } from "./git-task-state.ts";
 import { createTask, readTask, updateTaskStatus, type Task } from "./task-store.ts";
 import {
@@ -57,13 +58,19 @@ export async function startChildSession({
   modelRegistry,
 }: StartChildSessionParams): Promise<ChildSessionRunResult> {
   const existing = readTask(cwd, slug);
-  const initialMessage = buildChildInitialMessage(body, existing?.resume_message);
+  const resuming = !!(existing?.session_file && existsSync(existing.session_file));
+  const initialMessage = resuming
+    ? buildChildInitialMessage(body, existing?.resume_message ?? "continue")
+    : buildChildInitialMessage(body);
+  const sessionManager = resuming
+    ? SessionManager.open(existing!.session_file!)
+    : SessionManager.create(cwd);
 
   const { session, shortRole, shutdown } = await createChildAgentSession({
     cwd,
     role,
     slug,
-    sessionManager: SessionManager.create(cwd),
+    sessionManager,
     activeSessions,
     pi,
     postOutput,

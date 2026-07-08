@@ -16,16 +16,18 @@ import { Type } from "typebox";
 import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
 import { taskList, taskRead, taskAccept, taskReopen, taskUnblock, taskRollback } from "./task-tools.ts";
 import { readTask } from "./task-store.ts";
+import { listTasks } from "./task-store.ts";
 import type { SessionLike } from "./task-tools.ts";
 import { resumeDelegatedTask } from "./task-resume.ts";
 import { filterDisplayOnlyMessages } from "./display-only.ts";
 import { makeTaskDelegateDefinition } from "./task-delegate-tool.ts";
 import { createAskSenseiFn, refreshAskSenseiCallback } from "./ask-sensei.ts";
 import { abortSessionStack } from "./abort-flow.ts";
-import { FatalChildSessionError } from "./task-delegate.ts";
+import { FatalChildSessionError, loadAgentRoleConfig } from "./task-delegate.ts";
 import { isUnfoldingFatalError } from "./fatal-error.ts";
 import { exportTaskCommissionerDebugHtmlIfEnabled, exportTaskDebugHtmlIfEnabled } from "./debug-export.ts";
 import { childOutputCommissionerNote, renderChildOutputBox, renderChildOutputResult, type ChildOutputDetails } from "./child-output.ts";
+import { buildConnectOptions, launchInTmux } from "./connect-session.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -182,6 +184,43 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     },
   });
 
+  pi.registerCommand("connect-session", {
+    description: "Pick an unfolding sub-session to open in a new tmux window",
+    handler: async (_args, ctx) => {
+      const tasks = listTasks(ctx.cwd).filter(
+        t => t.session_file && existsSync(t.session_file),
+      );
+      if (tasks.length === 0) {
+        ctx.ui.notify("No sub-sessions found.", "info");
+        return;
+      }
+      const options = buildConnectOptions(
+        tasks,
+        ctx.sessionManager?.getSessionFile(),
+      );
+      const labels = options.map(o => o.label);
+      const chosen = await ctx.ui.select("Connect to a sub-session:", labels);
+      if (!chosen || chosen === options[options.length - 1]?.label) return;
+      const option = options.find(o => o.label === chosen);
+      if (!option) return;
+      const rolesDir = resolve(new URL(import.meta.url).pathname, "..", "roles");
+      const shortRole = option.role.replace(/^unfolding-/, "");
+      const systemPrompt = loadAgentRoleConfig(rolesDir, shortRole)?.systemPrompt;
+      let result;
+      try {
+        result = await launchInTmux(option, (cmd, args) => pi.exec(cmd, args), process.env.TMUX, systemPrompt);
+      } catch (err) {
+        ctx.ui.notify(`Failed to open tmux window: ${err instanceof Error ? err.message : String(err)}`, "error");
+        return;
+      }
+      if (result.launched) {
+        ctx.ui.notify(`Opened [${option.slug}] in a new tmux window.`, "info");
+      } else {
+        ctx.ui.notify(`Not inside tmux. Run manually:\n${result.fallbackCommand}`, "warning");
+      }
+    },
+  });
+
   pi.registerTool({
     name: "ask_sensei",
     label: "Ask Sensei",
@@ -242,6 +281,8 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       postOutput,
       undefined,
       (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, debugExportsEnabled),
+      undefined,
+      undefined,
     ),
     renderShell: "self",
     renderCall: (_args, _theme) => new Text("", 0, 0),

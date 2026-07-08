@@ -17,6 +17,27 @@ Pass `--debug` to export sessions to HTML for inspection. Debug exports are writ
 
 The timestamp uses local time in ISO format to the second (`YYYY-MM-DDTHH:MM:SS`).
 
+## Connecting to an aborted session
+
+Press **Esc** at any time to abort the full running stack. After the abort settles, a session
+picker appears listing every sub-session that was running at the time, plus a **Stay here**
+option (equivalent to pressing Esc again).
+
+Selecting a sub-session opens it in a **new tmux window** (requires tmux):
+
+```
+tmux new-window -n <slug> "pi --session <session-file>"
+```
+
+This gives you a real interactive pi session with the full conversation history of that role,
+so you can talk to it directly without the orchestrator in the loop.
+
+When you are done, close the tmux window and use `/resume` in the root session to pick up where
+you left off, or start a new `/unfold` run.
+
+If you are **not inside tmux**, a notification shows the `pi --session <file>` command to run
+manually instead.
+
 ## Task tools
 
 Used by the orchestrator and delegate sub-sessions to coordinate work:
