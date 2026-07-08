@@ -11,6 +11,7 @@ import {
 } from "../version-lookup.ts";
 import {
   ADOPTIUM_AVAILABLE_RELEASES_URL,
+  fetchJavaReleaseMetadata,
   normalizeAvailableJavaVersions,
 } from "../java-version-lookup.ts";
 
@@ -185,5 +186,42 @@ describe("normalizeAvailableJavaVersions", () => {
       }),
       /most_recent_feature_release/,
     );
+  });
+});
+
+describe("fetchJavaReleaseMetadata", () => {
+  it("derives release date and non-negative age from the earliest GA asset timestamp", async () => {
+    const fetchMock: typeof fetch = async () => new Response(JSON.stringify([
+      { timestamp: "2025-09-17T11:42:50Z" },
+    ]), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock;
+    try {
+      const result = await fetchJavaReleaseMetadata(25);
+      assert.equal(result.releaseDate, "2025-09-17T11:42:50Z");
+      assert.ok(Number.isInteger(result.ageDays));
+      assert.ok(result.ageDays >= 0);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it("fails when the GA assets response is empty", async () => {
+    const fetchMock: typeof fetch = async () => new Response(JSON.stringify([]), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock;
+    try {
+      await assert.rejects(() => fetchJavaReleaseMetadata(25), /non-empty JSON array/);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 });

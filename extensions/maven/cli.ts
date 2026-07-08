@@ -25,7 +25,7 @@ import {
   type MavenRunOptions,
 } from "./maven-project.ts";
 import {buildMetadataUrl, fetchMetadata, formatVersionLookupError, selectVersion, VersionLookupError} from "./version-lookup.ts";
-import {fetchAvailableJavaVersions, ADOPTIUM_AVAILABLE_RELEASES_URL} from "./java-version-lookup.ts";
+import {fetchAvailableJavaVersions, fetchJavaReleaseMetadata, ADOPTIUM_AVAILABLE_RELEASES_URL} from "./java-version-lookup.ts";
 import {INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE} from "./guidance.ts";
 import type {JavaVersionLookupJson, MavenRunJson, VersionLookupFailureJson, VersionLookupJson} from "./tool-types.ts";
 import {toMavenRunJson, toProjectInfoJson} from "./tool-types.ts";
@@ -245,11 +245,19 @@ async function cmdAvailableJavaVersions(args: Record<string, string | boolean>):
   }
 
   const versions = await fetchAvailableJavaVersions();
+  const [latestFeatureMetadata, latestLtsMetadata] = await Promise.all([
+    fetchJavaReleaseMetadata(versions.mostRecentFeatureRelease),
+    fetchJavaReleaseMetadata(versions.mostRecentLts),
+  ]);
   const result: JavaVersionLookupJson = {
     availableLtsReleases: versions.availableLtsReleases,
     availableReleases: versions.availableReleases,
     latestFeatureRelease: versions.mostRecentFeatureRelease,
     latestLtsRelease: versions.mostRecentLts,
+    latestFeatureReleaseDate: latestFeatureMetadata.releaseDate,
+    latestFeatureReleaseAgeDays: latestFeatureMetadata.ageDays,
+    latestLtsReleaseDate: latestLtsMetadata.releaseDate,
+    latestLtsReleaseAgeDays: latestLtsMetadata.ageDays,
     metadataUrl: ADOPTIUM_AVAILABLE_RELEASES_URL,
   };
 

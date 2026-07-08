@@ -24,7 +24,7 @@ import { MavenProjectInfo, MavenRun, spawnMaven, type MavenRunOptions, type RawR
 import { loadJarSkills } from "./jar-skills.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { buildMetadataUrl, fetchMetadata, formatVersionLookupError, selectVersion, VersionLookupError } from "./version-lookup.ts";
-import { fetchAvailableJavaVersions, ADOPTIUM_AVAILABLE_RELEASES_URL } from "./java-version-lookup.ts";
+import { fetchAvailableJavaVersions, fetchJavaReleaseMetadata, ADOPTIUM_AVAILABLE_RELEASES_URL } from "./java-version-lookup.ts";
 import type { JavaVersionLookupJson, MavenRunJson, VersionLookupFailureJson, VersionLookupJson } from "./tool-types.ts";
 import { toMavenRunJson, toProjectInfoJson } from "./tool-types.ts";
 import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
@@ -338,6 +338,8 @@ export default function (pi: ExtensionAPI) {
       "Use maven_available_java_versions when asked for the latest Java version, available Java releases, or the latest LTS Java version.",
       "For factual 'latest available Java version' questions, use latestFeatureRelease.",
       "For recommendation questions like 'what Java version should I use?', prefer latestLtsRelease unless the user explicitly wants the newest non-LTS release.",
+      "When recommending an LTS version, take latestLtsReleaseAgeDays into account: a brand-new LTS may need extra caution, while an older LTS has had more time to mature and be adopted.",
+      "Do not rely on memory or vague claims like 'widely used' to judge Java adoption; use the returned release-age metadata instead.",
       "Do not treat 'latest' and 'recommended' as synonyms, and do not guess Java release numbers from memory.",
     ],
     parameters: Type.Object({}),
@@ -346,11 +348,19 @@ export default function (pi: ExtensionAPI) {
       onUpdate?.({ content: [{ type: "text" as const, text: `Fetching ${ADOPTIUM_AVAILABLE_RELEASES_URL}…` }], details: undefined });
 
       const versions = await fetchAvailableJavaVersions(signal);
+      const [latestFeatureMetadata, latestLtsMetadata] = await Promise.all([
+        fetchJavaReleaseMetadata(versions.mostRecentFeatureRelease, signal),
+        fetchJavaReleaseMetadata(versions.mostRecentLts, signal),
+      ]);
       const result: JavaVersionLookupJson = {
         availableLtsReleases: versions.availableLtsReleases,
         availableReleases: versions.availableReleases,
         latestFeatureRelease: versions.mostRecentFeatureRelease,
         latestLtsRelease: versions.mostRecentLts,
+        latestFeatureReleaseDate: latestFeatureMetadata.releaseDate,
+        latestFeatureReleaseAgeDays: latestFeatureMetadata.ageDays,
+        latestLtsReleaseDate: latestLtsMetadata.releaseDate,
+        latestLtsReleaseAgeDays: latestLtsMetadata.ageDays,
         metadataUrl: ADOPTIUM_AVAILABLE_RELEASES_URL,
       };
 

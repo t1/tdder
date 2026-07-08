@@ -53,6 +53,10 @@ export interface JavaVersionLookupJson {
   availableReleases: number[];
   latestFeatureRelease: number;
   latestLtsRelease: number;
+  latestFeatureReleaseDate: string;
+  latestFeatureReleaseAgeDays: number;
+  latestLtsReleaseDate: string;
+  latestLtsReleaseAgeDays: number;
   metadataUrl: string;
 }
 

@@ -3,8 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync, readFileSync, chmodSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { homedir, tmpdir } from "node:os";
-import { parsePom } from "../project-info.ts";
+import { tmpdir } from "node:os";
 
 import { parseClasspath, extractSkillsFromJar, loadJarSkills } from "../jar-skills.ts";
 
@@ -33,6 +32,37 @@ function makeJar(name: string, skills: Record<string, string>): string {
   }
   spawnSync("jar", ["cf", jar, "-C", src, "."], { cwd: tmp });
   return jar;
+}
+
+function buildFixtureJarArtifact(localRepo: string): { groupId: string; artifactId: string; version: string } {
+  const groupId = "test.fixture";
+  const artifactId = "skill-jar";
+  const version = "1.0.0";
+  const producerDir = join(tmp, "fixture-skill-jar-project");
+  mkdirSync(join(producerDir, "src", "main", "resources", "META-INF", ".agent", "skills"), { recursive: true });
+  writeFileSync(join(producerDir, "pom.xml"), `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>${groupId}</groupId>
+  <artifactId>${artifactId}</artifactId>
+  <version>${version}</version>
+  <packaging>jar</packaging>
+</project>`, "utf8");
+  writeFileSync(
+    join(producerDir, "src", "main", "resources", "META-INF", ".agent", "skills", "bulma-java.md"),
+    "# bulma-java\nFixture skill from test artifact.\n",
+    "utf8",
+  );
+
+  const install = spawnSync("mvn", ["install", "-q", "-DskipTests", `-Dmaven.repo.local=${localRepo}`], {
+    cwd: producerDir,
+    encoding: "utf8",
+  });
+  assert.equal(install.status, 0, `fixture jar install failed:\n${install.stderr || install.stdout}`);
+
+  return { groupId, artifactId, version };
 }
 
 // ---------------------------------------------------------------------------
@@ -141,33 +171,31 @@ exit 1
 // loadJarSkills — integration
 // ---------------------------------------------------------------------------
 
-const bulmaJavaDir = join(homedir(), "workspace/t1/bulma-java");
-
-describe("loadJarSkills (integration — requires bulma-java source)", { skip: !existsSync(bulmaJavaDir) }, () => {
+describe("loadJarSkills (integration)", { timeout: 20000 }, () => {
   let fixtureDir: string;
+  let localRepo: string;
 
   before(() => {
-    const install = spawnSync("mvn", ["install", "-DskipTests", "-q"], {
-      cwd: bulmaJavaDir,
-      encoding: "utf8",
-    });
-    assert.equal(install.status, 0, `bulma-java install failed:\n${install.stderr}`);
-
-    const { version } = parsePom(join(bulmaJavaDir, "pom.xml"));
+    localRepo = mkdtempSync(join(tmpdir(), "jar-skills-local-repo-"));
+    const artifact = buildFixtureJarArtifact(localRepo);
     fixtureDir = mkdtempSync(join(tmpdir(), "jar-skills-fixture-"));
+    mkdirSync(join(fixtureDir, ".mvn"), { recursive: true });
+    writeFileSync(join(fixtureDir, ".mvn", "maven.config"), `-Dmaven.repo.local=${localRepo}\n`, "utf8");
     writeFileSync(
       join(fixtureDir, "pom.xml"),
-      `<?xml version="1.0"?>
-<project>
+      `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>test</groupId>
   <artifactId>jar-skills-fixture</artifactId>
   <version>1.0</version>
   <dependencies>
     <dependency>
-      <groupId>com.github.t1</groupId>
-      <artifactId>bulma-java</artifactId>
-      <version>${version}</version>
+      <groupId>${artifact.groupId}</groupId>
+      <artifactId>${artifact.artifactId}</artifactId>
+      <version>${artifact.version}</version>
     </dependency>
   </dependencies>
 </project>`,
@@ -175,9 +203,12 @@ describe("loadJarSkills (integration — requires bulma-java source)", { skip: !
     );
   });
 
-  after(() => rmSync(fixtureDir, { recursive: true, force: true }));
+  after(() => {
+    rmSync(fixtureDir, { recursive: true, force: true });
+    rmSync(localRepo, { recursive: true, force: true });
+  });
 
-  it("returns a temp dir containing bulma-java.md", async () => {
+  it("returns a temp dir containing bulma-java.md", { timeout: 15000 }, async () => {
     const skillsDir = await loadJarSkills(fixtureDir);
     try {
       assert.ok(skillsDir !== null, "expected a skills dir but got null");
@@ -185,6 +216,7 @@ describe("loadJarSkills (integration — requires bulma-java source)", { skip: !
       assert.ok(existsSync(skillFile), `expected ${skillFile} to exist`);
       const content = readFileSync(skillFile, "utf8");
       assert.ok(content.includes("bulma-java"), "skill content should mention bulma-java");
+      assert.ok(content.includes("Fixture skill"), "skill content should come from the fixture artifact");
     } finally {
       if (skillsDir) rmSync(skillsDir, { recursive: true, force: true });
     }

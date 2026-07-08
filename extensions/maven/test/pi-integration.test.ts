@@ -127,6 +127,14 @@ describe("extension loading", () => {
     assert.ok(mavenExtension.tools.has("maven_available_java_versions"), "maven_available_java_versions not registered");
   });
 
+  it("guides LTS recommendations to use release age instead of memory", () => {
+    const tool = mavenExtension.tools.get("maven_available_java_versions")!;
+    assert.deepEqual(tool.definition.promptGuidelines?.slice(3, 5), [
+      "When recommending an LTS version, take latestLtsReleaseAgeDays into account: a brand-new LTS may need extra caution, while an older LTS has had more time to mature and be adopted.",
+      "Do not rely on memory or vague claims like 'widely used' to judge Java adoption; use the returned release-age metadata instead.",
+    ]);
+  });
+
   it("registers the /maven command", () => {
     assert.ok(mavenExtension.commands.has("maven"), "/maven command not registered");
   });
@@ -269,6 +277,10 @@ describe("maven_available_java_versions tool", () => {
     assert.ok(Number.isInteger(json.latestLtsRelease), "latestLtsRelease should be an integer");
     assert.ok(Array.isArray(json.availableReleases), "availableReleases should be an array");
     assert.ok(Array.isArray(json.availableLtsReleases), "availableLtsReleases should be an array");
+    assert.equal(typeof json.latestFeatureReleaseDate, "string", "latestFeatureReleaseDate should be a string");
+    assert.equal(typeof json.latestLtsReleaseDate, "string", "latestLtsReleaseDate should be a string");
+    assert.ok(Number.isInteger(json.latestFeatureReleaseAgeDays), "latestFeatureReleaseAgeDays should be an integer");
+    assert.ok(Number.isInteger(json.latestLtsReleaseAgeDays), "latestLtsReleaseAgeDays should be an integer");
     assert.equal(json.metadataUrl, "https://api.adoptium.net/v3/info/available_releases");
   });
 
