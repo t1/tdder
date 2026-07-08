@@ -51,6 +51,12 @@ Your **current working directory is the project root**. All paths in this docume
 
 **Turn economy rule:** your commissioner is waiting on a checkpoint, not on a diary. Keep reasoning terse and spend turns on artifact creation, delegation, or explicit blocking. If a thought does not change the next concrete action, do not emit it.
 
+### 0. Resume Any In-Progress Sub-Task
+
+Before doing anything else, check the task list for any sub-task with status `in_progress`.
+If one exists, delegate to it immediately with body `"continue"` — it will resume where it left off.
+Do not investigate what was already implemented or re-read prior state first.
+
 ### 1. Orient from State
 
 Read `docs/state.yaml` to know where the process left off. If it doesn't exist,
@@ -555,6 +561,9 @@ Example of good trade-offs (authentication for a first release):
 2. Create an `[DMD]` task on the team task list with the DMD title and
    file path in the description
 3. Wait for the Orchestrator to relay the Sensei's decision
+
+**Do not continue to the `[ARCH]` task, treat the question as decided, or act on a personal conclusion
+until the Orchestrator has relayed the Sensei's decision.**
 
 ### After the Sensei Decides
 

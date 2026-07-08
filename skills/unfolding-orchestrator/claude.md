@@ -19,7 +19,9 @@
 4.
 `Agent(subagent_type="unfolding-po", team_name="unfolding", name="po", prompt="Pick up your [PO] task from the task list and begin.")`
 
-If resuming, create a task for the appropriate role per the phase table in
+If resuming, first check the task list. If any sub-task has status `in_progress`, spawn that agent
+immediately with a prompt of `"continue"` — it will resume the existing session where it left off.
+Otherwise, create a task for the appropriate role per the phase table in
 `SKILL.md` and spawn the agent.
 
 ## Ensure Agents Are Active

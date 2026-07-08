@@ -110,6 +110,12 @@ Your **current working directory is the project root**. All paths in this docume
 turns on artifact creation, delegation, or explicit blocking. If a thought does not change the next concrete action, do
 not emit it.
 
+### 0. Resume Any In-Progress Sub-Task
+
+Before doing anything else, call `task_list` and check whether any sub-task has status `in_progress`.
+If one does, call `task_delegate` on it immediately with body `"continue"` — it will resume the existing
+session where it left off. Do not investigate what was already implemented or re-read prior state first.
+
 ### 1. Orient from State
 
 Read `docs/state.yaml` to know where the process left off. If it doesn't exist,

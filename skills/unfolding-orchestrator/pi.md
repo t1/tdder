@@ -25,7 +25,9 @@ If the workspace is genuinely empty, include that explicitly in the body,
 e.g. that there is no existing code or tech stack to explore and the PO should start
 with `docs/product.md`, ATs, rules, indexes, and any needed DMDs directly.
 
-If resuming, create a task for the appropriate role per the phase table in
+If resuming, first call `task_list`. If any sub-task has status `in_progress`, call `task_delegate`
+on it immediately with the original body — it will resume the existing session where it left off.
+Otherwise, create a task for the appropriate role per the phase table in
 `SKILL.md` and call `task_delegate` with that role.
 
 ## Handle Blocked Tasks
