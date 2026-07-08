@@ -34,12 +34,12 @@ describe("structural invariants", () => {
     const indexSrc = readFileSync(new URL("../index.ts", import.meta.url).pathname, "utf8");
     const delegateSrc = readFileSync(new URL("../task-delegate-tool.ts", import.meta.url).pathname, "utf8");
     const childSrc = readFileSync(new URL("../child-task-tools.ts", import.meta.url).pathname, "utf8");
-    for (const name of ["task_list", "task_read", "task_accept", "task_reopen", "task_unblock", "task_rollback"]) {
-      assert.ok(indexSrc.includes(`"${name}"`), `index.ts must register tool "${name}"`);
+    for (const name of ["task_list", "task_read", "task_accept", "task_reopen", "task_unblock", "task_rollback", "task_continue"]) {
+      assert.ok(indexSrc.includes(`"${name}"`) || delegateSrc.includes(`"${name}"`), `task tooling must define "${name}"`);
     }
     assert.ok(delegateSrc.includes('name: "task_delegate"'), "task-delegate-tool.ts must define task_delegate");
-    for (const name of ["task_finished", "task_block"]) {
-      assert.ok(childSrc.includes(`"${name}"`), `child-task-tools.ts must define tool "${name}"`);
+    for (const name of ["task_finished", "task_block", "task_continue"]) {
+      assert.ok(childSrc.includes(`"${name}"`) || delegateSrc.includes(`"${name}"`), `task tooling must define tool "${name}"`);
     }
   });
 });
@@ -53,7 +53,7 @@ describe("taskList", () => {
     const cwd = makeTestTempDir("tools-test");
     try {
       createTask(cwd, { slug: "po-define-login", from: "orchestrator", to: "po", body: "Define login" });
-      createTask(cwd, { slug: "arch-impl-login", from: "po", to: "architect", body: "Implement login" });
+      createTask(cwd, { slug: "arch-impl-login", from: "po", to: "architect", body: "Implement login", parent_slug: "po-define-login" });
       const result = taskList(cwd);
       assert.ok(result.includes("po-define-login"), "should include orchestrator task");
       assert.ok(!result.includes("arch-impl-login"), "should not include sub-delegated task");
@@ -66,7 +66,7 @@ describe("taskList", () => {
     const cwd = makeTestTempDir("tools-test");
     try {
       createTask(cwd, { slug: "po-define-login", from: "orchestrator", to: "po", body: "Define login" });
-      createTask(cwd, { slug: "arch-impl-login", from: "po", to: "architect", body: "Implement login" });
+      createTask(cwd, { slug: "arch-impl-login", from: "po", to: "architect", body: "Implement login", parent_slug: "po-define-login" });
       const result = taskList(cwd, "*");
       assert.ok(result.includes("po-define-login"));
       assert.ok(result.includes("arch-impl-login"));
@@ -156,7 +156,7 @@ describe("taskFinished", () => {
   it("sets task status to finished", () => {
     const cwd = makeTestTempDir("tools-test");
     try {
-      createTask(cwd, { slug: "finish-me", from: "orchestrator", to: "coder", body: "Do it" });
+      createTask(cwd, { slug: "finish-me", from: "orchestrator", to: "po", body: "Do it" });
       taskFinished(cwd, "finish-me");
       const result = taskList(cwd);
       assert.ok(result.includes("finished"));
@@ -174,7 +174,7 @@ describe("taskBlock", () => {
   it("sets task status to blocked with reason", () => {
     const cwd = makeTestTempDir("tools-test");
     try {
-      createTask(cwd, { slug: "block-me", from: "po", to: "coder", body: "Do it" });
+      createTask(cwd, { slug: "block-me", from: "orchestrator", to: "po", body: "Do it" });
       taskBlock(cwd, "block-me", "waiting for decision");
       const result = taskRead(cwd, "block-me");
       assert.ok(result.includes("blocked"));
@@ -187,7 +187,7 @@ describe("taskBlock", () => {
   it("throws when blocked_reason is missing", () => {
     const cwd = makeTestTempDir("tools-test");
     try {
-      createTask(cwd, { slug: "block-no-reason", from: "po", to: "coder", body: "Do it" });
+      createTask(cwd, { slug: "block-no-reason", from: "orchestrator", to: "po", body: "Do it" });
       assert.throws(() => taskBlock(cwd, "block-no-reason", undefined), /blocked_reason/);
     } finally {
       cleanupTestTempDir(cwd);

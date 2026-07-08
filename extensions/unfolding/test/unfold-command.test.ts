@@ -40,14 +40,13 @@ describe("parseFrontmatterTools", () => {
       "edit",
       "ask_sensei",
       "task_delegate",
+      "task_continue",
       "task_finished",
       "task_block",
       "task_unblock",
       "task_reopen",
       "task_rollback",
       "task_accept",
-      "task_read",
-      "task_list",
       "maven_run",
     ]);
   });
@@ -64,14 +63,13 @@ describe("parseFrontmatterTools", () => {
       "jdtls_*",
       "quarkus_*",
       "task_delegate",
+      "task_continue",
       "task_finished",
       "task_block",
       "task_unblock",
       "task_reopen",
       "task_rollback",
       "task_accept",
-      "task_read",
-      "task_list",
     ]);
   });
   it("coder.md declares the expected tool allowlist", () => {
@@ -336,32 +334,46 @@ Some content here.`;
 // ---------------------------------------------------------------------------
 
 describe("buildUnfoldMessage", () => {
-  it("starts directly with no state and no guidance", () => {
-    const msg = buildUnfoldMessage({ state: null, guidance: undefined });
+  it("builds a fresh-project kickoff message", () => {
+    const msg = buildUnfoldMessage({
+      workflowInstruction: "No live top-level PO line found — this appears to be a fresh project. Start the unfolding process now by delegating to the PO.",
+      guidance: undefined,
+      freshProject: true,
+    });
     assert.ok(msg.includes("fresh project"), "should mention fresh project");
-    assert.ok(msg.includes("Start the unfolding process now."), "should tell a fresh project to start directly");
-    assert.ok(!msg.includes("pick up where the process left off"), "should not imply prior progress on a fresh project");
+    assert.ok(msg.includes("delegating to the PO"), "should tell a fresh project how to start");
     assert.ok(msg.includes("no existing code or tech stack to explore yet"), "should include fresh-project anti-exploration note");
     assert.ok(!msg.includes("Sensei guidance"), "should not mention sensei guidance");
   });
 
-  it("includes state yaml block when state is present", () => {
-    const msg = buildUnfoldMessage({ state: "feature:\n  name: Foo", guidance: undefined });
-    assert.ok(msg.includes("```yaml"), "should include yaml code block");
-    assert.ok(msg.includes("feature:"), "should include state content");
-    assert.ok(msg.includes("Please continue from the current state."), "should use continuation wording when state exists");
-    assert.ok(!msg.includes("fresh project"), "should not mention fresh project");
+  it("builds a resume message without synthetic bookmark wrappers", () => {
+    const msg = buildUnfoldMessage({
+      workflowInstruction: "Current top-level PO line `po-login` is in progress. Continue that line; do not start a new one.",
+      guidance: undefined,
+    });
+    assert.ok(msg.includes("po-login"), "should include the line slug");
+    assert.ok(msg.includes("Continue that line"), "should use direct continuation wording");
+    assert.ok(!msg.includes("workflow bookmark"), "should not mention bookmarks");
+    assert.ok(!msg.includes("```text"), "should not include a synthetic code block");
   });
 
   it("includes guidance when provided", () => {
-    const msg = buildUnfoldMessage({ state: null, guidance: "focus on login" });
+    const msg = buildUnfoldMessage({
+      workflowInstruction: "No live top-level PO line found — this appears to be a fresh project. Start the unfolding process now by delegating to the PO.",
+      guidance: "focus on login",
+      freshProject: true,
+    });
     assert.ok(msg.includes("Sensei guidance: focus on login"), "should include guidance");
     assert.ok(msg.includes("no existing code or tech stack to explore yet"), "should keep fresh-project anti-exploration note with guidance");
   });
 
-  it("includes both state and guidance when both are provided", () => {
-    const msg = buildUnfoldMessage({ state: "phase: defining", guidance: "use REST" });
-    assert.ok(msg.includes("phase: defining"));
+  it("includes both workflow instruction and guidance", () => {
+    const msg = buildUnfoldMessage({
+      workflowInstruction: "Current top-level PO line `po-login` is blocked: waiting for product clarification. Resolve the commissioner issue and then resume that line; do not start a new one.",
+      guidance: "use REST",
+    });
+    assert.ok(msg.includes("po-login"));
+    assert.ok(msg.includes("waiting for product clarification"));
     assert.ok(msg.includes("Sensei guidance: use REST"));
   });
 });

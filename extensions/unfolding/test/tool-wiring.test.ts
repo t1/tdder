@@ -184,6 +184,10 @@ describe("task_delegate wiring", () => {
     assert.ok(src.includes("parent_slug"), "must accept and forward parent_slug");
   });
 
+  it("defines task_continue alongside task_delegate", () => {
+    assert.ok(src.includes('name: "task_continue"'), "task-delegate-tool.ts must define task_continue");
+  });
+
   it("uses shortRole as 'from' when creating a task (not hardcoded 'orchestrator')", () => {
     assert.ok(src.includes("from,"), "createTask must use the 'from' closure variable, not a literal");
     assert.ok(!src.includes('from: "orchestrator"'), "'from' must not be hardcoded in the factory body");

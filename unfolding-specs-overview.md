@@ -45,7 +45,7 @@ runtime-specific handoff mechanism.
 
 | Role             | Role Definition / Runtime Hook         | Responsibility                                                                                    |
 |------------------|----------------------------------------|---------------------------------------------------------------------------------------------------|
-| **Orchestrator** | skill / command / extension entrypoint | Dispatches role runs, mediates runtime-specific Sensei interaction, proxies restricted actions, owns `docs/state.yaml` |
+| **Orchestrator** | skill / command / extension entrypoint | Dispatches role runs, mediates runtime-specific Sensei interaction, proxies restricted actions, and owns the top-level PO line |
 | **PO**           | `unfolding-po.md`                      | Decomposes Features, writes Acceptance Tests and Business Rules, proposes DMDs                    |
 | **Architect**    | `unfolding-architect.md`               | Decomposes Features into Tasks, writes System Tests, proposes ADRs                                |
 | **Coder**        | `unfolding-coder.md`                   | Implements Tasks using TDD (Red-Green-Refactor)                                                   |
@@ -84,7 +84,7 @@ These terms describe the process independently of Claude Code or pi:
   invoking a subagent.
 - **Sensei escalation** — any question that requires human judgment and must reach the human,
   either directly from the owning role when the runtime supports it or via the dispatcher when it does not.
-- **Process state** — the durable checkpoint that allows `/unfold` to resume.
+- **Process state** — the runtime-specific live checkpoint that allows `/unfold` to resume.
 
 ## Runtime Mapping
 
@@ -97,7 +97,7 @@ These terms describe the process independently of Claude Code or pi:
 | **Handoff**           | `SendMessage` plus task references                  | Durable task/artifact update plus extension-routed or session-directed message |
 | **Activation**        | `Agent(...)` / ensure-active                        | Start or resume the target role session/subagent                               |
 | **Sensei escalation** | Runtime-dependent: often orchestrator-mediated      | Runtime-dependent: direct role questioning or orchestrator/extension-mediated   |
-| **Process state**     | `docs/state.yaml`                                   | `docs/state.yaml`                                                              |
+| **Process state**     | Runtime-specific workflow checkpoint                | Runtime-specific workflow checkpoint                                            |
 
 ## Communication Model
 
@@ -161,7 +161,7 @@ mediates. The process remains valid even when a runtime needs more mediation.
 | UX component catalog          | `docs/ux/`            | UX Designer  |
 | UX tech mappings              | `docs/ux-mapping/`    | Architect    |
 | API resource catalog          | `docs/api/`           | API Designer |
-| Process state                 | `docs/state.yaml`     | Orchestrator |
+| Live workflow state           | Runtime-specific     | Orchestrator |
 
 ## Commits
 
@@ -177,5 +177,5 @@ AT files in `docs/ats/` use the slug as file name; business rules in
 
 ## Entry Points
 
-- `/unfold` — resumes from `docs/state.yaml`
+- `/unfold` — resumes from the runtime-specific live workflow checkpoint
 - `/unfold <guidance>` — passes free-text as Sensei guidance to the first role run dispatched

@@ -8,19 +8,18 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { resolve, join, dirname } from "node:path";
+import { resolve, dirname } from "node:path";
 import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentSession } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { stripFrontmatter, buildUnfoldMessage } from "./unfold-helpers.ts";
 import { taskList, taskRead, taskAccept, taskReopen, taskUnblock, taskRollback } from "./task-tools.ts";
-import { readTask } from "./task-store.ts";
-import { listTasks } from "./task-store.ts";
-import type { SessionLike } from "./task-tools.ts";
+import { readTask, listTasks, classifyDirectDelegate } from "./task-store.ts";
+import { assertValidRootWorkflow } from "./task-summary.ts";
 import { resumeDelegatedTask } from "./task-resume.ts";
 import { filterDisplayOnlyMessages } from "./display-only.ts";
-import { makeTaskDelegateDefinition } from "./task-delegate-tool.ts";
+import { makeTaskDelegateDefinition, makeTaskContinueDefinition } from "./task-delegate-tool.ts";
 import { createAskSenseiFn, refreshAskSenseiCallback } from "./ask-sensei.ts";
 import { abortSessionStack } from "./abort-flow.ts";
 import { FatalChildSessionError, loadAgentRoleConfig } from "./task-delegate.ts";
@@ -45,13 +44,6 @@ function loadOrchestratorSkill(): string | null {
   const path = orchestratorSkillPath();
   if (!existsSync(path)) return null;
   return stripFrontmatter(readFileSync(path, "utf8"));
-}
-
-/** Load docs/state.yaml from the project cwd. Returns null if absent. */
-function loadStateYaml(cwd: string): string | null {
-  const path = join(cwd, "docs/state.yaml");
-  if (!existsSync(path)) return null;
-  return readFileSync(path, "utf8").trim();
 }
 
 function inferInheritedExtensionPaths(pi: ExtensionAPI): string[] {
@@ -156,8 +148,11 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       const argText = args?.trim() || "";
       const debug = argText.includes("--debug");
       const guidance = argText.replace(/(^|\s)--debug(?=\s|$)/g, " ").trim() || undefined;
-      const state = loadStateYaml(ctx.cwd);
-      const freshProjectGuidance = !state
+      const allTasks = listTasks(ctx.cwd);
+      assertValidRootWorkflow(allTasks);
+      const directDelegate = classifyDirectDelegate(ctx.cwd, "orchestrator");
+      const freshProject = directDelegate.kind === "none";
+      const freshProjectGuidance = freshProject
         ? [
             guidance,
             "This is a genuinely empty project: no existing code, no pom.xml, no tech stack to discover yet.",
@@ -165,7 +160,14 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
             "Start directly with docs/product.md, then the first planning artifacts (ATs, rules, indexes, step catalogs, and only genuinely needed DMDs).",
           ].filter(Boolean).join("\n\n")
         : guidance;
-      const message = buildUnfoldMessage({ state, guidance: freshProjectGuidance });
+      const workflowInstruction = directDelegate.kind === "none"
+        ? "No live top-level PO line found — this appears to be a fresh project. Start the unfolding process now by delegating to the PO."
+        : directDelegate.kind === "in_progress"
+          ? `Current top-level PO line \`${directDelegate.task.slug}\` is in progress. Continue that line; do not start a new one.`
+          : directDelegate.kind === "blocked"
+            ? `Current top-level PO line \`${directDelegate.task.slug}\` is blocked${directDelegate.task.blocked_reason ? `: ${directDelegate.task.blocked_reason}` : "."} Resolve the commissioner issue and then resume that line; do not start a new one.`
+            : `Current top-level PO line \`${directDelegate.task.slug}\` is finished but unresolved. Resolve it with task_accept(...), task_reopen(...), or task_rollback(...); do not start a new one.`;
+      const message = buildUnfoldMessage({ workflowInstruction, guidance: freshProjectGuidance, freshProject });
 
       // Arm the system-prompt injection for the upcoming turn.
       pendingSkillInjection = skill;
@@ -176,18 +178,12 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     },
   });
 
-  pi.registerCommand("tasks", {
-    description: "Show all delegated tasks with status, blocked reason, and live session cost",
-    handler: async (_args, ctx) => {
-      const text = taskList(ctx.cwd, "*", activeSessions as Map<string, SessionLike>);
-      ctx.ui.notify(text, "info");
-    },
-  });
-
   pi.registerCommand("connect-session", {
     description: "Pick an unfolding sub-session to open in a new tmux window",
     handler: async (_args, ctx) => {
-      const tasks = listTasks(ctx.cwd).filter(
+      const allTasks = listTasks(ctx.cwd);
+      assertValidRootWorkflow(allTasks);
+      const tasks = allTasks.filter(
         t => t.session_file && existsSync(t.session_file),
       );
       if (tasks.length === 0) {
@@ -254,6 +250,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       from: Type.Optional(Type.String({ description: "Filter by delegating role. Default: 'orchestrator' (your own tasks). Use '*' to see all tasks across all roles — only do this when explicitly investigating the full task tree." })),
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
+      assertValidRootWorkflow(listTasks(ctx.cwd));
       const text = taskList(ctx.cwd, params.from ?? "orchestrator", activeSessions as Map<string, SessionLike>);
       console.log(`[task_list] from=${params.from ?? "orchestrator"}: ${text.slice(0, 200)}`);
       return { content: [{ type: "text", text }], details: {} };
@@ -267,6 +264,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       refreshAskSenseiCallback(pi, ctx);
+      assertValidRootWorkflow(listTasks(ctx.cwd));
       const text = taskRead(ctx.cwd, params.slug);
       console.log(`[task_read] slug=${params.slug}`);
       return { content: [{ type: "text", text }], details: {} };
@@ -282,6 +280,20 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       undefined,
       (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, debugExportsEnabled),
       undefined,
+    ),
+    renderShell: "self",
+    renderCall: (_args, _theme) => new Text("", 0, 0),
+    renderResult: (result: AgentToolResult<ChildOutputDetails>, options, theme) => renderChildOutputResult(result, options, theme),
+  });
+
+  pi.registerTool({
+    ...makeTaskContinueDefinition(
+      "orchestrator",
+      activeSessions,
+      pi,
+      postOutput,
+      undefined,
+      (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, debugExportsEnabled),
       undefined,
     ),
     renderShell: "self",

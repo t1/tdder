@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {createTask, readTask} from "../task-store.ts";
+import { makeTaskContinueDefinition, makeTaskDelegateDefinition } from "../task-delegate-tool.ts";
 import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
 import {installCheckpointRecovery, loadAgentSystemPrompt, loadAgentRoleConfig, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON, CHILD_SESSION_FAILURE_BLOCKED_REASON, FatalChildSessionError} from "../task-delegate.ts";
 import {SHARED_PREAMBLE} from "../unfold-helpers.ts";
@@ -21,6 +22,36 @@ const rolesDir = resolve(new URL("../roles", import.meta.url).pathname);
 // ---------------------------------------------------------------------------
 // loadAgentSystemPrompt
 // ---------------------------------------------------------------------------
+
+describe("task_continue", () => {
+  it("returns an instruction when no direct delegate exists", async () => {
+    const cwd = makeTestTempDir("delegate-continue");
+    try {
+      const tool = makeTaskContinueDefinition("po", new Map() as any, {} as any, () => {});
+      await assert.rejects(
+        () => tool.execute("1", {}, undefined, undefined, { cwd, signal: undefined }),
+        /There is no direct delegate to continue\. If you need new delegated work, call task_delegate\(role, slug, body\)\./,
+      );
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("task_delegate rejects creating a new delegate while a direct delegate is already in progress", async () => {
+    const cwd = makeTestTempDir("delegate-continue");
+    try {
+      createTask(cwd, { slug: "po-root", from: "orchestrator", to: "po", body: "root" });
+      createTask(cwd, { slug: "arch-001", from: "po", to: "architect", body: "existing", parent_slug: "po-root" });
+      const tool = makeTaskDelegateDefinition("po", new Map() as any, {} as any, () => {}, undefined, undefined, "po-root");
+      await assert.rejects(
+        () => tool.execute("1", { role: "architect", slug: "arch-002", body: "new" }, undefined, undefined, { cwd, signal: undefined }),
+        /direct delegate "arch-001" is already in progress\. Call task_continue instead\./,
+      );
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+});
 
 describe("loadAgentRoleConfig", () => {
   it("appends the shared preamble to every role's system prompt", () => {

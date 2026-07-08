@@ -21,7 +21,8 @@ describe("installCheckpointRecovery auto-retry handling", () => {
     } as any;
 
     try {
-      createTask(cwd, { slug: "arch-retry", from: "po", to: "architect", body: "Do work" });
+      createTask(cwd, { slug: "po-root", from: "orchestrator", to: "po", body: "Root" });
+      createTask(cwd, { slug: "arch-retry", from: "po", to: "architect", body: "Do work", parent_slug: "po-root" });
       const recovery = installCheckpointRecovery(fakeSession, cwd, "arch-retry", {
         onRecoveryNote: (line) => notes.push(line),
       });
@@ -85,7 +86,8 @@ describe("installCheckpointRecovery auto-retry handling", () => {
     } as any;
 
     try {
-      createTask(cwd, { slug: "arch-retry-fail", from: "po", to: "architect", body: "Do work" });
+      createTask(cwd, { slug: "po-root", from: "orchestrator", to: "po", body: "Root" });
+      createTask(cwd, { slug: "arch-retry-fail", from: "po", to: "architect", body: "Do work", parent_slug: "po-root" });
       const recovery = installCheckpointRecovery(fakeSession, cwd, "arch-retry-fail", {
         onRecoveryNote: (line) => notes.push(line),
       });

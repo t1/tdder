@@ -1,7 +1,7 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {execFileSync} from "node:child_process";
-import {existsSync, readFileSync, readdirSync, writeFileSync} from "node:fs";
+import {existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync} from "node:fs";
 import {join} from "node:path";
 import {AuthStorage, ModelRegistry} from "@earendil-works/pi-coding-agent";
 import initUnfolding from "../index.ts";
@@ -49,7 +49,8 @@ function setupPi(activeSessions?: Map<string, any>) {
     sendMessage(message: any) {
       sentMessages.push(message);
     },
-    sendUserMessage() {
+    sendUserMessage(message: any) {
+      sentMessages.push(message);
     },
     getAllTools() {
       return [
@@ -70,6 +71,56 @@ function setupPi(activeSessions?: Map<string, any>) {
 }
 
 describe("registered task tools", () => {
+  it("hard-fails task_list diagnostics on an invalid top-level tree", async () => {
+    const cwd = makeTestTempDir("invalid-root-tree");
+    try {
+      writeFileSync(join(cwd, ".keep"), "");
+      mkdirSync(join(cwd, ".pi", "unfolding", "tasks"), { recursive: true });
+      writeFileSync(join(cwd, ".pi", "unfolding", "tasks", "bad-root.yaml"), [
+        "slug: arch-root",
+        "status: in_progress",
+        "from: orchestrator",
+        "to: architect",
+        "body: |",
+        "  bad root",
+        "",
+      ].join("\n"));
+      const { tools } = setupPi();
+      const tool = tools.get("task_list");
+      await assert.rejects(
+        () => tool.execute("1", {}, undefined, undefined, { cwd, signal: undefined }),
+        /top-level task must be orchestrator -> po/,
+      );
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("hard-fails task_read diagnostics on an invalid top-level tree", async () => {
+    const cwd = makeTestTempDir("invalid-root-tree");
+    try {
+      writeFileSync(join(cwd, ".keep"), "");
+      mkdirSync(join(cwd, ".pi", "unfolding", "tasks"), { recursive: true });
+      writeFileSync(join(cwd, ".pi", "unfolding", "tasks", "bad-root.yaml"), [
+        "slug: arch-root",
+        "status: in_progress",
+        "from: orchestrator",
+        "to: architect",
+        "body: |",
+        "  bad root",
+        "",
+      ].join("\n"));
+      const { tools } = setupPi();
+      const tool = tools.get("task_read");
+      await assert.rejects(
+        () => tool.execute("1", { slug: "arch-root" }, undefined, undefined, { cwd, signal: undefined }),
+        /top-level task must be orchestrator -> po/,
+      );
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("ask_sensei uses select plus editor for multiple-choice questions in rpc mode", async () => {
     const {tools} = setupPi();
     const tool = tools.get("ask_sensei");
@@ -167,7 +218,7 @@ describe("registered task tools", () => {
 
   it("child ask_sensei proxies through commissioner callback", async () => {
     const asks: any[] = [];
-    const [tool] = createChildTaskTools(".", "child", {name: "task_delegate"} as any, {
+    const [tool] = createChildTaskTools(".", "child", {name: "task_delegate"} as any, {name: "task_continue"} as any, {
       activeSessions: new Map() as any,
       postOutput: () => {
       },
@@ -217,7 +268,7 @@ describe("registered task tools", () => {
   });
 
   it("child ask_sensei fails hard when the commissioner callback is missing", async () => {
-    const [tool] = createChildTaskTools(".", "child", {name: "task_delegate"} as any, {
+    const [tool] = createChildTaskTools(".", "child", {name: "task_delegate"} as any, {name: "task_continue"} as any, {
       activeSessions: new Map() as any,
       postOutput: () => {
       },
@@ -245,7 +296,7 @@ describe("registered task tools", () => {
         session_file: sessionFile,
       });
 
-      const [tool] = createChildTaskTools(cwd, "child-finished", {name: "task_delegate"} as any, {
+      const [tool] = createChildTaskTools(cwd, "child-finished", {name: "task_delegate"} as any, {name: "task_continue"} as any, {
         activeSessions: new Map() as any,
         postOutput: () => {
         },
@@ -282,7 +333,7 @@ describe("registered task tools", () => {
         session_file: sessionFile,
       });
 
-      const [tool] = createChildTaskTools(cwd, "child-blocked", {name: "task_delegate"} as any, {
+      const [tool] = createChildTaskTools(cwd, "child-blocked", {name: "task_delegate"} as any, {name: "task_continue"} as any, {
         activeSessions: new Map() as any,
         postOutput: () => {
         },
@@ -329,7 +380,7 @@ describe("registered task tools", () => {
         getSessionStats: () => ({cost: 0, tokens: {input: 0, output: 0}}),
       });
 
-      const [tool] = createChildTaskTools(cwd, "commissioner", {name: "task_delegate"} as any, {
+      const [tool] = createChildTaskTools(cwd, "commissioner", {name: "task_delegate"} as any, {name: "task_continue"} as any, {
         activeSessions: activeSessions as any,
         postOutput: () => {
         },
@@ -374,7 +425,7 @@ describe("registered task tools", () => {
         getSessionStats: () => ({cost: 0, tokens: {input: 0, output: 0}}),
       });
 
-      const [tool] = createChildTaskTools(cwd, "commissioner", {name: "task_delegate"} as any, {
+      const [tool] = createChildTaskTools(cwd, "commissioner", {name: "task_delegate"} as any, {name: "task_continue"} as any, {
         activeSessions: activeSessions as any,
         postOutput: () => {
         },
@@ -467,6 +518,95 @@ describe("registered task tools", () => {
   });
 
 
+  it("/unfold sends a fresh-project instruction when no top-level PO line exists", async () => {
+    const cwd = makeTestTempDir("unfold-command");
+    try {
+      const {commands, sentMessages} = setupPi();
+      const unfold = commands.get("unfold");
+      assert.ok(unfold, "unfold command must be registered");
+
+      await unfold.handler("", {
+        cwd,
+        isIdle: () => true,
+        ui: { notify() {} },
+      });
+
+      assert.equal(sentMessages.length, 1);
+      assert.match(sentMessages[0], /No live top-level PO line found/);
+      assert.match(sentMessages[0], /delegating to the PO/);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("/unfold sends an in-progress resume instruction for the top-level PO line", async () => {
+    const cwd = makeTestTempDir("unfold-command");
+    try {
+      createTask(cwd, { slug: "po-login", from: "orchestrator", to: "po", body: "Define login" });
+      const {commands, sentMessages} = setupPi();
+      const unfold = commands.get("unfold");
+      assert.ok(unfold, "unfold command must be registered");
+
+      await unfold.handler("", {
+        cwd,
+        isIdle: () => true,
+        ui: { notify() {} },
+      });
+
+      assert.equal(sentMessages.length, 1);
+      assert.match(sentMessages[0], /Current top-level PO line `po-login` is in progress/);
+      assert.match(sentMessages[0], /do not start a new one/);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("/unfold sends a blocked instruction for the top-level PO line", async () => {
+    const cwd = makeTestTempDir("unfold-command");
+    try {
+      createTask(cwd, { slug: "po-login", from: "orchestrator", to: "po", body: "Define login" });
+      updateTaskStatus(cwd, "po-login", "blocked", "waiting for product clarification");
+      const {commands, sentMessages} = setupPi();
+      const unfold = commands.get("unfold");
+      assert.ok(unfold, "unfold command must be registered");
+
+      await unfold.handler("", {
+        cwd,
+        isIdle: () => true,
+        ui: { notify() {} },
+      });
+
+      assert.equal(sentMessages.length, 1);
+      assert.match(sentMessages[0], /Current top-level PO line `po-login` is blocked: waiting for product clarification/);
+      assert.match(sentMessages[0], /Resolve the commissioner issue and then resume that line/);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("/unfold sends a finished instruction for the top-level PO line", async () => {
+    const cwd = makeTestTempDir("unfold-command");
+    try {
+      createTask(cwd, { slug: "po-login", from: "orchestrator", to: "po", body: "Define login" });
+      updateTaskStatus(cwd, "po-login", "finished");
+      const {commands, sentMessages} = setupPi();
+      const unfold = commands.get("unfold");
+      assert.ok(unfold, "unfold command must be registered");
+
+      await unfold.handler("", {
+        cwd,
+        isIdle: () => true,
+        ui: { notify() {} },
+      });
+
+      assert.equal(sentMessages.length, 1);
+      assert.match(sentMessages[0], /Current top-level PO line `po-login` is finished but unresolved/);
+      assert.match(sentMessages[0], /task_accept\(\.\.\.\), task_reopen\(\.\.\.\), or task_rollback\(\.\.\.\)/);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("task_delegate aborts the full session stack without leaking the nested transcript into tool-result content", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
     try {
@@ -501,7 +641,7 @@ describe("registered task tools", () => {
     }
   });
 
-  it("task_delegate aborts the full session stack and exports child html when the child outcome is aborted and /unfold --debug enabled", async () => {
+  it("task_continue aborts the full session stack and exports child html when the child outcome is aborted and /unfold --debug enabled", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
     const sessionDir = makeTestTempDir("index-tools-session");
     try {
@@ -519,7 +659,7 @@ describe("registered task tools", () => {
       createTask(cwd, {
         slug: "aborted-debug",
         from: "orchestrator",
-        to: "coder",
+        to: "po",
         body: "Do work",
         session_file: sessionFile,
       });
@@ -538,13 +678,9 @@ describe("registered task tools", () => {
 
       const controller = new AbortController();
       controller.abort();
-      const tool = tools.get("task_delegate");
-      assert.ok(tool, "task_delegate tool must be registered");
-      const result = await tool.execute("1", {
-        role: "coder",
-        slug: "aborted-debug",
-        body: "Do work"
-      }, controller.signal, undefined, {cwd, abort() {
+      const tool = tools.get("task_continue");
+      assert.ok(tool, "task_continue tool must be registered");
+      const result = await tool.execute("1", {}, controller.signal, undefined, {cwd, abort() {
       }});
 
       assert.match(result.content[0].text, /^Task "aborted-debug" aborted\./);
@@ -903,7 +1039,7 @@ describe("registered task tools", () => {
       createTask(cwd, {
         slug: "unblock-debug",
         from: "orchestrator",
-        to: "coder",
+        to: "po",
         body: "Do work",
       });
       updateTaskStatus(cwd, "unblock-debug", "blocked", "waiting");
@@ -997,7 +1133,7 @@ describe("registered task tools", () => {
       createTask(cwd, {
         slug: "reopen-debug",
         from: "orchestrator",
-        to: "coder",
+        to: "po",
         body: "Do work",
       });
       updateTaskStatus(cwd, "reopen-debug", "finished");
@@ -1115,7 +1251,7 @@ describe("/connect-session command", () => {
       const {commands, execCalls} = setupPi();
       const sessionFile = join(cwd, "fake-session.jsonl");
       writeFileSync(sessionFile, "");
-      createTask(cwd, {slug: "coder-1", from: "orchestrator", to: "coder", body: "Code", session_file: sessionFile});
+      createTask(cwd, {slug: "po-1", from: "orchestrator", to: "po", body: "Code", session_file: sessionFile});
 
       const selectCalls: string[][] = [];
       const notifyCalls: string[] = [];
@@ -1134,7 +1270,7 @@ describe("/connect-session command", () => {
       await commands.get("connect-session")?.handler(undefined, ctx);
 
       assert.equal(selectCalls.length, 1, "picker should appear");
-      assert.match(selectCalls[0][0], /\[coder\] coder-1/);
+      assert.match(selectCalls[0][0], /\[po\] po-1/);
       assert.match(selectCalls[0][selectCalls[0].length - 1], /Stay here/);
       // No TMUX in test env → fallback notify
       assert.ok(notifyCalls.some(m => m.includes(sessionFile)), "fallback notify should include session file");
@@ -1147,7 +1283,7 @@ describe("/connect-session command", () => {
     const {cwd} = makeTestGitRepo("connect-cmd-empty");
     try {
       const {commands} = setupPi();
-      createTask(cwd, {slug: "coder-1", from: "orchestrator", to: "coder", body: "Code", session_file: "/nonexistent/path.jsonl"});
+      createTask(cwd, {slug: "po-1", from: "orchestrator", to: "po", body: "Code", session_file: "/nonexistent/path.jsonl"});
 
       const notifyCalls: Array<{msg: string; level: string}> = [];
       const ctx = {
@@ -1173,7 +1309,7 @@ describe("/connect-session command", () => {
       const {commands, execCalls} = setupPi();
       const sessionFile = join(cwd, "arch.jsonl");
       writeFileSync(sessionFile, "");
-      createTask(cwd, {slug: "arch-1", from: "orchestrator", to: "architect", body: "Design", session_file: sessionFile});
+      createTask(cwd, {slug: "po-1", from: "orchestrator", to: "po", body: "Design", session_file: sessionFile});
 
       const ctx = {
         cwd,

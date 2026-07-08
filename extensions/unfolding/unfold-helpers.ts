@@ -117,29 +117,21 @@ export function parseFrontmatterTools(content: string): string[] | undefined {
 }
 
 export interface UnfoldMessageOptions {
-  state: string | null;
+  workflowInstruction: string;
   guidance: string | undefined;
+  freshProject?: boolean;
 }
 
 /** Build the user message that kicks off an /unfold orchestrator turn. */
-export function buildUnfoldMessage({ state, guidance }: UnfoldMessageOptions): string {
-  const parts: string[] = [];
-
-  if (state) {
-    parts.push(`Current state (docs/state.yaml):\n\`\`\`yaml\n${state}\n\`\`\``);
-  } else {
-    parts.push("No docs/state.yaml found — this appears to be a fresh project.");
-  }
+export function buildUnfoldMessage({ workflowInstruction, guidance, freshProject = false }: UnfoldMessageOptions): string {
+  const parts: string[] = [workflowInstruction];
 
   if (guidance) {
     parts.push(`Sensei guidance: ${guidance}`);
   }
 
-  if (!state) {
+  if (freshProject) {
     parts.push("Fresh-project note: there is no existing code or tech stack to explore yet. Start by creating the product brief, then the first planning artifacts (ATs, rules, indexes, and any genuinely needed DMDs) directly.");
-    parts.push("Start the unfolding process now.");
-  } else {
-    parts.push("Please continue from the current state.");
   }
 
   return parts.join("\n\n");

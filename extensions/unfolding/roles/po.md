@@ -10,14 +10,13 @@ tools:
   - edit
   - ask_sensei
   - task_delegate
+  - task_continue
   - task_finished
   - task_block
   - task_unblock
   - task_reopen
   - task_rollback
   - task_accept
-  - task_read
-  - task_list
   - maven_run
 path-restrictions:
   - read deny: docs/adr/**
@@ -33,7 +32,7 @@ one minimal Feature at a time.
 
 ## Coordination
 
-You work via tools — `task_delegate`, `ask_sensei`, `task_block`, `task_finished`, `task_unblock`, `task_reopen`,
+You work via tools — `task_delegate`, `task_continue`, `ask_sensei`, `task_block`, `task_finished`, `task_unblock`, `task_reopen`,
 `task_rollback`.
 Do NOT read or write task files manually; always use the tools.
 
@@ -92,9 +91,10 @@ For the **next unresolved issue**, classify it first:
 - **One question at a time:** do not batch dependent DMD questions.
 - **When you need another agent** (UX Designer, API Designer, Architect): call `task_delegate` with the role, a slug,
   and the full task body. You remain the commissioner until that sub-agent line is complete.
+- **When you were interrupted while waiting on your current direct delegate:** call `task_continue`.
 - **When you need to unblock, reopen, or discard a sub-agent line:** use `task_unblock`, `task_reopen`, or
   `task_rollback`.
-  Do NOT poll with `task_read` or `sleep`.
+  Do NOT poll or inspect task files manually.
 - **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block` with a clear reason.
 - **When you are done with your task:** call `task_finished` only when the current Feature has no remaining delegated
   implementation or verification work.
@@ -110,18 +110,12 @@ Your **current working directory is the project root**. All paths in this docume
 turns on artifact creation, delegation, or explicit blocking. If a thought does not change the next concrete action, do
 not emit it.
 
-### 0. Resume Any In-Progress Sub-Task
+### 0. Resume Your Direct Delegate When Explicitly Told To
 
-Before doing anything else, call `task_list` and check whether any sub-task has status `in_progress`.
-If one does, call `task_delegate` on it immediately with body `"continue"` — it will resume the existing
-session where it left off. Do not investigate what was already implemented or re-read prior state first.
+If your commissioner tells you that you were interrupted while waiting on your direct delegate, call `task_continue`
+immediately. Do not investigate what was already implemented first.
 
-### 1. Orient from State
-
-Read `docs/state.yaml` to know where the process left off. If it doesn't exist,
-this is a fresh project — proceed from the beginning.
-
-### 2. Load Product Context
+### 1. Load Product Context
 
 Read `docs/product.md` for the product brief — domain, target users, current
 priorities, and constraints. If it doesn't exist (first Feature), create it
@@ -177,7 +171,7 @@ determine the next number, check `docs/ats/INDEX.md` for the highest
 existing prefix and increment by one. Business rules in `docs/rules/` are
 named by domain concept (e.g., `pet-validation.feature`), not by feature
 slug — no numeric prefix. The slug (without the numeric prefix) is included
-in `docs/state.yaml` and in the `[ARCH]` task as the stable feature identifier
+in the `[ARCH]` task as the stable feature identifier
 for later Orchestrator-owned semantic commits.
 
 Even when we need multiple things (interfaces, channels, delivery mechanisms, etc.

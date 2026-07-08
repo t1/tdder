@@ -1,8 +1,8 @@
 # Unfolding extension
 
-Implements the **Unfolding Specs** workflow: the orchestrator breaks a feature down into delegated
-tasks for specialist roles (PO, architect, coder, …), coordinates them through file-based
-checkpoints, and assembles the results.
+Implements the **Unfolding Specs** workflow: the orchestrator owns only the top-level PO line, while
+specialist roles (PO, architect, coder, …) coordinate through runtime-managed delegated tasks and
+live task files.
 
 ## Usage
 
@@ -12,8 +12,10 @@ starts the Unfolding Specs process. Run it in any project where you want to unfo
 Pass `--debug` to export sessions to HTML for inspection. Debug exports are written to
 `.pi/unfolding/exports/` with these triggers:
 
-- child session → `.pi/unfolding/exports/<local-iso-timestamp>-<slug>.html` on `task_finished`, `task_block`, and aborted child outcomes
-- commissioner session → `.pi/unfolding/exports/<local-iso-timestamp>-<slug>.commissioner.html` on `task_delegate`, `task_reopen`, and `task_unblock`
+- child session → `.pi/unfolding/exports/<local-iso-timestamp>-<slug>.html` on `task_finished`, `task_block`, and
+  aborted child outcomes
+- commissioner session → `.pi/unfolding/exports/<local-iso-timestamp>-<slug>.commissioner.html` on `task_delegate`,
+  `task_reopen`, and `task_unblock`
 
 The timestamp uses local time in ISO format to the second (`YYYY-MM-DDTHH:MM:SS`).
 
@@ -42,31 +44,38 @@ manually instead.
 
 Used by the orchestrator and delegate sub-sessions to coordinate work:
 
-| Tool            | Used by      | Purpose                                                            |
-|-----------------|--------------|--------------------------------------------------------------------|
-| `task_delegate` | orchestrator | Delegate work to a role sub-session; blocks until finished/blocked |
-| `task_list`     | orchestrator | List all tasks with slug, status, and assigned role                |
-| `task_read`     | orchestrator | Read full details of a task                                        |
-| `task_accept`   | orchestrator | Accept a finished task (deletes the file; point of no return)      |
-| `task_reopen`   | orchestrator | Send a finished task back with a reason; child resumes             |
-| `task_unblock`  | orchestrator | Unblock a blocked task, optionally with context; child resumes     |
-| `task_rollback` | orchestrator | Restore the workspace to its pre-delegation state and delete task  |
-| `ask_sensei`    | orchestrator, delegate | Ask the human a single question via pi UI and return the answer |
-| `task_finished` | delegate     | Mark own task finished; blocks until orchestrator accepts/reopens  |
-| `task_block`    | delegate     | Mark own task blocked with reason; blocks until orchestrator acts  |
+| Tool            | Used by                             | Purpose                                                                         |
+|-----------------|-------------------------------------|---------------------------------------------------------------------------------|
+| `task_delegate` | orchestrator, delegate commissioner | Delegate new work to one direct role sub-session; blocks until finished/blocked |
+| `task_continue` | orchestrator, delegate commissioner | Continue the one current direct delegate line and return its current outcome    |
+| `task_list`     | orchestrator                        | List delegated tasks for orchestrator diagnosis/investigation                   |
+| `task_read`     | orchestrator                        | Read full details of a task for orchestrator diagnosis/investigation            |
+| `task_accept`   | orchestrator                        | Accept a finished task (deletes the file; point of no return)                   |
+| `task_reopen`   | orchestrator                        | Send a finished task back with a reason; child resumes                          |
+| `task_unblock`  | orchestrator                        | Unblock a blocked task, optionally with context; child resumes                  |
+| `task_rollback` | orchestrator                        | Restore the workspace to its pre-delegation state and delete task               |
+| `ask_sensei`    | orchestrator, delegate              | Ask the human a single question via pi UI and return the answer                 |
+| `task_finished` | delegate                            | Mark own task finished; blocks until orchestrator accepts/reopens               |
+| `task_block`    | delegate                            | Mark own task blocked with reason; blocks until orchestrator acts               |
 
 ## Coordination protocol
 
 Tasks are stored as YAML files in `.pi/unfolding/tasks/` (gitignored).
 Parent and child sessions are separate pi processes; they rendezvous by polling the task file
-at 500 ms intervals. No shared memory or locking is used. Task files are coordination state, not
+at 500 ms intervals. No shared memory or locking is used. Task files are live coordination state, not
 long-term workflow history: `task_accept` and `task_rollback` both delete the task file.
+
+The extension also writes `.pi/unfolding/tasks.yaml` as a compact live summary for humans. It contains only the
+currently existing task chain, ordered by creation order, and is deleted when no tasks remain. It is never read for
+workflow control. The summary is derived from live task files only.
 
 ## Child-session live output
 
 Delegated child progress forwarded into the commissioner session includes
-live tool rows (`⚙`) with in-place human-readable elapsed timers (`59s`, `1m 5s`, `2h 3m 4s`) plus terminal markers (`✓` / `✗`), a total running-time line
-at the end (`[role] ⏱ total context-size cost`), nested delegated-task live updates, assistant text (`💬`), assistant thinking (`🤔`, rendered italic),
+live tool rows (`⚙`) with in-place human-readable elapsed timers (`59s`, `1m 5s`, `2h 3m 4s`) plus terminal markers (
+`✓` / `✗`), a total running-time line
+at the end (`[role] ⏱ total context-size cost`), nested delegated-task live updates, assistant text (`💬`), assistant
+thinking (`🤔`, rendered italic),
 assistant stream errors (`❌`), terminal child-session failures surfaced from assistant `message_end`
 (such as connection/stream aborts), and an explicit warning when a thinking-bearing assistant message is truncated
 by the length limit (`⚠ thinking truncated by length limit`).
@@ -81,8 +90,10 @@ Unfolding distinguishes three failure classes before a child reaches
 `task_finished` or `task_block`:
 
 - `stopReason: "length"` (truncation) → queue exactly one follow-up recovery prompt on the same child session
-- normal turn end without a checkpoint → queue exactly one follow-up reminding the child to call `task_finished` or `task_block`
-- child-session/provider/stream failure (`stopReason: "error"`, `"aborted"`, connection/stream errors) → block immediately with an honest system-generated reason instead of pretending the child merely forgot the protocol step
+- normal turn end without a checkpoint → queue exactly one follow-up reminding the child to call `task_finished` or
+  `task_block`
+- child-session/provider/stream failure (`stopReason: "error"`, `"aborted"`, connection/stream errors) → block
+  immediately with an honest system-generated reason instead of pretending the child merely forgot the protocol step
 
 If truncation or missing-checkpoint recovery still fails on the follow-up turn, the task becomes a normal
 blocked task with the corresponding honest system-generated reason, and the commissioner then decides whether to
@@ -96,6 +107,21 @@ note that it did so. Delegated tasks then record `base_sha` and, when the worksp
 internal `snapshot_sha`. `task_rollback` restores the exact pre-task state, including tracked files,
 untracked files, and pre-existing dirty workspace changes. This design assumes serialized child execution
 in a shared workspace; parallel code-writing child sessions would require isolated workspaces.
+
+## Delegation cardinality
+
+In pi, every commissioner may have at most one direct delegate task at a time. A commissioner must resolve that direct
+child with `task_accept`, `task_reopen`, `task_unblock`, or `task_rollback` before creating another. If a commissioner
+is resumed while waiting on that child, it should call `task_continue` rather than `task_delegate`.
+
+The Orchestrator is just another commissioner here, with one additional ownership rule: its only valid direct delegate
+is the top-level PO line. It must not directly commission Architect, Coder, UI Expert, UX Designer, or API Designer.
+
+`task_list` and `task_read` remain intentionally available to the Orchestrator as live-workflow diagnostics. The
+Orchestrator may use them both when the Sensei asks for investigation and when it detects an obvious workflow anomaly on
+its own, such as an unclear blockage, an unresolved finished top-level PO line, or inconsistent task metadata. That
+investigation scope is still limited to coordination state; it does not authorize code-level supervision or bypassing
+normal PO-owned delegation.
 
 These git commits are **internal rollback mechanics**, not semantic project history. Delegated roles must not create
 semantic feature commits, because an ancestor commissioner may later roll back their entire subtree. Only the

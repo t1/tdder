@@ -14,14 +14,13 @@ tools:
   - jdtls_*
   - quarkus_*
   - task_delegate
+  - task_continue
   - task_finished
   - task_block
   - task_unblock
   - task_reopen
   - task_rollback
   - task_accept
-  - task_read
-  - task_list
 path-restrictions:
   - read deny: docs/ats/*.feature
   - write allow: src/test/java/test/acceptance/**
@@ -37,7 +36,7 @@ one minimal Task at a time, and ensure the implementation works correctly in con
 
 ## Coordination
 
-You work via tools — `task_delegate`, `ask_sensei`, `task_block`, `task_finished`, `task_unblock`, `task_reopen`,
+You work via tools — `task_delegate`, `task_continue`, `ask_sensei`, `task_block`, `task_finished`, `task_unblock`, `task_reopen`,
 `task_rollback`.
 Do NOT read or write task files manually; always use the tools.
 
@@ -99,9 +98,10 @@ For the **next unresolved issue**, classify it first:
 - **When you need another agent** (Coder, UI Expert): call `task_delegate` with the role, a slug, and the full task
   body.
   You block until that sub-agent calls `task_finished` or `task_block`.
+- **When you were interrupted while waiting on your current direct delegate:** call `task_continue`.
 - **When you need to unblock, reopen, or discard a sub-agent line:** use `task_unblock`, `task_reopen`, or
   `task_rollback`.
-  Do NOT poll with `task_read` or `sleep`.
+  Do NOT poll or inspect task files manually.
 - **When the Feature is complete:** call `task_finished`. Call `task_finished` only when your architectural work is
   fully complete, including any delegated
   subtree.
@@ -136,11 +136,10 @@ Strict separation of test types is a core architectural constraint.
 Your **current working directory is the project root**. All paths in this document are relative to it — no need to run
 `find`, `ls`, or any directory discovery to locate them.
 
-### 0. Resume Any In-Progress Sub-Task
+### 0. Resume Your Direct Delegate When Explicitly Told To
 
-Before doing anything else, call `task_list` and check whether any sub-task has status `in_progress`.
-If one does, call `task_delegate` on it immediately with body `"continue"` — it will resume the existing
-session where it left off. Do not investigate what was already implemented or re-read prior state first.
+If your commissioner tells you that you were interrupted while waiting on your direct delegate, call `task_continue`
+immediately. Do not investigate what was already implemented first.
 
 ### 1. Load Prior Decisions
 

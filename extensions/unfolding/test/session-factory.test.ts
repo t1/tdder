@@ -685,6 +685,7 @@ describe("startChildSession groundwork", () => {
       const tools = session.getAllTools().map(t => t.name);
       assert.equal(tools.includes("task_list"), false, "child session must not expose task_list");
       assert.equal(tools.includes("task_read"), false, "child session must not expose task_read");
+      assert.equal(tools.includes("task_continue"), true, "child session should expose task_continue");
       assert.equal(tools.includes("ask_sensei"), true, "child session should expose the proxied ask_sensei");
       assert.equal(tools.includes("maven_run"), true, "architect allowlist includes maven_run from sibling extension");
       assert.equal(tools.includes("maven_project_info"), true, "architect allowlist maven_* includes maven_project_info");

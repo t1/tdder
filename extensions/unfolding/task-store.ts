@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, appendFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import { assertValidTaskTree, writeTaskSummary } from "./task-summary.ts";
 
 
 const GITIGNORE_RULES = [
@@ -114,10 +115,28 @@ function taskFiles(cwd: string): Array<{ file: string; task: Task }> {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter(f => f.endsWith(".yaml"))
+    .sort()
     .map(f => ({
       file: join(dir, f),
       task: deserialize(readFileSync(join(dir, f), "utf8")),
     }));
+}
+
+function rewriteSummary(cwd: string): void {
+  const tasks = listTasks(cwd);
+  if (tasks.length === 0) {
+    writeTaskSummary(cwd, tasks);
+    return;
+  }
+
+  const roots = tasks.filter(task => !task.parent_slug);
+  if (roots.length === 1 && roots[0]?.from === "orchestrator") {
+    assertValidTaskTree(tasks);
+    writeTaskSummary(cwd, tasks);
+    return;
+  }
+
+  writeTaskSummary(cwd, []);
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +155,7 @@ export function createTask(cwd: string, input: TaskInput): Task {
   const rand = Math.random().toString(36).slice(2, 6);
   const filename = join(dir, `${ts}-${rand}.yaml`);
   writeFileSync(filename, serialize(task));
+  rewriteSummary(cwd);
   return task;
 }
 
@@ -154,6 +174,33 @@ export function readTask(cwd: string, slug: string): Task | null {
 
 export function listTasks(cwd: string): Task[] {
   return taskFiles(cwd).map(({ task }) => task);
+}
+
+export function listDirectDelegates(cwd: string, from: string, parentSlug?: string): Task[] {
+  return listTasks(cwd).filter(task =>
+    parentSlug
+      ? task.parent_slug === parentSlug
+      : task.from === from && !task.parent_slug,
+  );
+}
+
+export function getSingleDirectDelegate(cwd: string, from: string, parentSlug?: string): Task | null {
+  const delegates = listDirectDelegates(cwd, from, parentSlug);
+  if (delegates.length === 0) return null;
+  if (delegates.length > 1) {
+    throw new Error("Invariant violation: multiple direct delegates exist. Call task_block and report the corrupted task state to your commissioner.");
+  }
+  return delegates[0]!;
+}
+
+export type DirectDelegateClassification =
+  | { kind: "none" }
+  | { kind: "in_progress" | "blocked" | "finished"; task: Task };
+
+export function classifyDirectDelegate(cwd: string, from: string, parentSlug?: string): DirectDelegateClassification {
+  const delegate = getSingleDirectDelegate(cwd, from, parentSlug);
+  if (!delegate) return { kind: "none" };
+  return { kind: delegate.status, task: delegate };
 }
 
 // ---------------------------------------------------------------------------
@@ -181,6 +228,7 @@ export function updateTaskStatus(
     delete updated.resume_message;
   }
   writeFileSync(found.file, serialize(updated));
+  rewriteSummary(cwd);
 }
 
 // ---------------------------------------------------------------------------
@@ -191,4 +239,5 @@ export function deleteTask(cwd: string, slug: string): void {
   const found = taskFiles(cwd).find(({ task }) => task.slug === slug);
   if (!found) throw new Error(`Task "${slug}" not found`);
   unlinkSync(found.file);
+  rewriteSummary(cwd);
 }

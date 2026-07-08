@@ -16,8 +16,8 @@ I'd be happy to hear about them!
 - **Extensible**: Add language skills (Java, TypeScript, ...) and build-system skills (Maven, npm, ...)
 - **Unfolding Architecture**: Progressive architectural decisions — start simple, add complexity only when it reduces
   complexity
-- **Unfolding Specs**: Orchestrated feature development — orchestrator breaks features into delegated tasks,
-  coordinates specialist roles (PO, architect, coder, …) through file-based checkpoints
+- **Unfolding Specs**: Orchestrated feature development — orchestrator launches the top-level PO line, while specialist
+  roles coordinate through runtime-managed delegated tasks
 - **Configurable human-in-the-loop**: Control how often the AI pauses for your input
 
 ## Skills
@@ -48,16 +48,16 @@ directly into the coding agent.
 The sections below already document the larger extensions in detail. To avoid duplicating that prose,
 here is a compact overview of what each extension contributes:
 
-| Extension             | Commands                                | Tools                                                                                                                                                                                             | Other behaviour                                                                               |
-|-----------------------|-----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
-| `hygiene`             | —                                       | —                                                                                                                                                                                                 | Injects prompt reminders to load `project-hygiene`, `java`, and `github-safety` when detected |
-| `idea` (pi only)      | —                                       | JetBrains MCP-backed `idea_*` tools for code exploration, refactoring, build/run, and debugging                                                                                                   | Lazy-connects to IntelliJ IDEA and shows footer status                                        |
-| `jdtls` (pi only)     | —                                       | `jdtls_get_file_problems`, `jdtls_search_symbol`, `jdtls_get_symbol_info`, `jdtls_rename_refactoring`, `jdtls_reformat_file`, `jdtls_get_project_modules`, `jdtls_code_action`, `jdtls_read_file` | Starts Eclipse JDT Language Server lazily for Java projects                                   |
-| `maven`               | `/maven`                                | `maven_project_info`, `maven_run`, `maven_lookup_version`, `maven_available_java_versions`                                                                                                        | Also ships the standalone `tdder-maven` CLI                                                   |
-| `mlx` (pi only)       | —                                       | —                                                                                                                                                                                                 | Injects default MLX repetition settings via `before_provider_request`                         |
-| `quarkus` (pi only)   | `/quarkus`                              | Dynamic `quarkus_*` tools mirrored from `quarkus-agent-mcp`                                                                                                                                       | Detects Quarkus projects, starts MCP lazily, and shows footer status                          |
-| `shared`              | —                                       | —                                                                                                                                                                                                 | Shared code used by other extensions; no end-user tools                                       |
-| `unfolding` (pi only) | `/unfold`, `/tasks`, `/connect-session` | `ask_sensei`, `task_list`, `task_read`, `task_delegate`, `task_accept`, `task_reopen`, `task_unblock`, `task_rollback`                                                                            | Child sessions additionally use `task_finished` and `task_block`                              |
+| Extension             | Commands                      | Tools                                                                                                                                                                                             | Other behaviour                                                                                                            |
+|-----------------------|-------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
+| `hygiene`             | —                             | —                                                                                                                                                                                                 | Injects prompt reminders to load `project-hygiene`, `java`, and `github-safety` when detected                              |
+| `idea` (pi only)      | —                             | JetBrains MCP-backed `idea_*` tools for code exploration, refactoring, build/run, and debugging                                                                                                   | Lazy-connects to IntelliJ IDEA and shows footer status                                                                     |
+| `jdtls` (pi only)     | —                             | `jdtls_get_file_problems`, `jdtls_search_symbol`, `jdtls_get_symbol_info`, `jdtls_rename_refactoring`, `jdtls_reformat_file`, `jdtls_get_project_modules`, `jdtls_code_action`, `jdtls_read_file` | Starts Eclipse JDT Language Server lazily for Java projects                                                                |
+| `maven`               | `/maven`                      | `maven_project_info`, `maven_run`, `maven_lookup_version`, `maven_available_java_versions`                                                                                                        | Also ships the standalone `tdder-maven` CLI                                                                                |
+| `mlx` (pi only)       | —                             | —                                                                                                                                                                                                 | Injects default MLX repetition settings via `before_provider_request`                                                      |
+| `quarkus` (pi only)   | `/quarkus`                    | Dynamic `quarkus_*` tools mirrored from `quarkus-agent-mcp`                                                                                                                                       | Detects Quarkus projects, starts MCP lazily, and shows footer status                                                       |
+| `shared`              | —                             | —                                                                                                                                                                                                 | Shared code used by other extensions; no end-user tools                                                                    |
+| `unfolding` (pi only) | `/unfold`, `/connect-session` | `ask_sensei`, `task_delegate`, `task_continue`, `task_accept`, `task_reopen`, `task_unblock`, `task_rollback`                                                                                     | Child sessions additionally use `task_finished` and `task_block`; root sessions can diagnose with `task_list`, `task_read` |
 
 ### quarkus (pi only)
 
@@ -116,9 +116,8 @@ because their output is analytical rather than a simple pass/fail signal.
 
 ### unfolding (pi only)
 
-Implements the **Unfolding Specs** workflow: the orchestrator breaks a feature down into delegated
-tasks for specialist roles (PO, architect, coder, …), coordinates them through file-based
-checkpoints, and assembles the results.
+Implements the **Unfolding Specs** workflow: the orchestrator owns the top-level PO line, while
+specialist roles delegate work through runtime-managed live tasks and explicit checkpoints.
 
 For command usage, task tools, coordination protocol, recovery behavior, rollback mechanics,
 role/commissioner rules, and extension-specific test instructions, see:

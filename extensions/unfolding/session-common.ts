@@ -4,6 +4,7 @@ import type {AgentSession, AuthStorage, ExtensionAPI, ModelRegistry} from "@eare
 import {createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager} from "@earendil-works/pi-coding-agent";
 import {CHILD_FIXED_INSTRUCTION, loadAgentRoleConfig} from "./task-delegate.ts";
 import {createChildTaskTools} from "./child-task-tools.ts";
+import { makeTaskContinueDefinition } from "./task-delegate-tool.ts";
 import {resolveToolAllowlist, isPathAllowed} from "./unfold-helpers.ts";
 
 export type NestedDelegateToolFactory = (shortRole: string) => any;
@@ -93,7 +94,7 @@ export async function createChildAgentSession({
     modelRegistry,
     tools: resolvedTools,
     excludeTools: ["task_list", "task_read"],
-    customTools: createChildTaskTools(cwd, slug, nestedDelegateToolFactory(shortRole), {
+    customTools: createChildTaskTools(cwd, slug, nestedDelegateToolFactory(shortRole), makeTaskContinueDefinition(shortRole, activeSessions, pi, postOutput, undefined, undefined, slug), {
       activeSessions,
       postOutput,
       pi,

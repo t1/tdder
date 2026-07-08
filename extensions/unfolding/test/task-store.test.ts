@@ -12,7 +12,9 @@ import {
   listTasks,
   updateTaskStatus,
   deleteTask,
+  classifyDirectDelegate,
 } from "../task-store.ts";
+import { assertValidRootWorkflow, assertValidTaskTree } from "../task-summary.ts";
 import { makeTestTempDir, cleanupTestTempDir } from "./test-temp.ts";
 import { makeTestGitRepo } from "./test-git-repo.ts";
 
@@ -43,7 +45,7 @@ describe("createTask", () => {
   it("writes task and export ignore rules to .git/info/exclude without touching .gitignore", () => {
     const { cwd } = makeTestGitRepo("task-test");
     try {
-      createTask(cwd, { slug: "gitignore-me", from: "po", to: "architect", body: "Implement login" });
+      createTask(cwd, { slug: "gitignore-me", from: "orchestrator", to: "po", body: "Implement login" });
       const exclude = readFileSync(join(cwd, ".git", "info", "exclude"), "utf8");
       assert.ok(exclude.includes(".pi/unfolding/tasks/"));
       assert.ok(exclude.includes(".pi/unfolding/exports/"));
@@ -55,7 +57,7 @@ describe("createTask", () => {
   it("uses an opaque filename, not the slug", () => {
     const cwd = makeTestTempDir("task-test");
     try {
-      createTask(cwd, { slug: "arch-impl-login", from: "po", to: "architect", body: "Implement login" });
+      createTask(cwd, { slug: "arch-impl-login", from: "orchestrator", to: "po", body: "Implement login" });
       const files = readdirSync(join(cwd, ".pi/unfolding/tasks"));
       assert.equal(files.length, 1);
       assert.ok(!files[0].includes("arch-impl-login"), `filename must not contain slug, got: ${files[0]}`);
@@ -67,9 +69,9 @@ describe("createTask", () => {
   it("throws when a task with the same slug already exists", () => {
     const cwd = makeTestTempDir("task-test");
     try {
-      createTask(cwd, { slug: "duplicate-slug", from: "po", to: "architect", body: "First" });
+      createTask(cwd, { slug: "duplicate-slug", from: "orchestrator", to: "po", body: "First" });
       assert.throws(
-        () => createTask(cwd, { slug: "duplicate-slug", from: "po", to: "architect", body: "Second" }),
+        () => createTask(cwd, { slug: "duplicate-slug", from: "orchestrator", to: "po", body: "Second" }),
         /duplicate-slug/,
       );
     } finally {
@@ -121,7 +123,7 @@ describe("listTasks", () => {
     const cwd = makeTestTempDir("task-test");
     try {
       createTask(cwd, { slug: "task-a", from: "orchestrator", to: "po", body: "A" });
-      createTask(cwd, { slug: "task-b", from: "po", to: "architect", body: "B" });
+      createTask(cwd, { slug: "task-b", from: "po", to: "architect", body: "B", parent_slug: "task-a" });
       const tasks = listTasks(cwd);
       assert.equal(tasks.length, 2);
       const slugs = tasks.map(t => t.slug).sort();
@@ -149,7 +151,7 @@ describe("updateTaskStatus", () => {
   it("updates status to finished", () => {
     const cwd = makeTestTempDir("task-test");
     try {
-      createTask(cwd, { slug: "finish-me", from: "po", to: "coder", body: "Do it" });
+      createTask(cwd, { slug: "finish-me", from: "orchestrator", to: "po", body: "Do it" });
       updateTaskStatus(cwd, "finish-me", "finished");
       assert.equal(readTask(cwd, "finish-me")?.status, "finished");
     } finally {
@@ -160,7 +162,7 @@ describe("updateTaskStatus", () => {
   it("writes resume_message when provided", () => {
     const cwd = makeTestTempDir("task-test");
     try {
-      createTask(cwd, { slug: "msg-me", from: "po", to: "coder", body: "Do it" });
+      createTask(cwd, { slug: "msg-me", from: "orchestrator", to: "po", body: "Do it" });
       updateTaskStatus(cwd, "msg-me", "in_progress", undefined, "reopened: try again");
       assert.equal(readTask(cwd, "msg-me")?.resume_message, "reopened: try again");
     } finally {
@@ -171,7 +173,7 @@ describe("updateTaskStatus", () => {
   it("round-trips multi-line resume_message", () => {
     const cwd = makeTestTempDir("task-test");
     try {
-      createTask(cwd, { slug: "ml-msg", from: "po", to: "coder", body: "Do it" });
+      createTask(cwd, { slug: "ml-msg", from: "orchestrator", to: "po", body: "Do it" });
       updateTaskStatus(cwd, "ml-msg", "in_progress", undefined, "reopened: line one\nline two\nline three");
       assert.equal(readTask(cwd, "ml-msg")?.resume_message, "reopened: line one\nline two\nline three");
     } finally {
@@ -182,7 +184,7 @@ describe("updateTaskStatus", () => {
   it("round-trips multi-line blocked_reason", () => {
     const cwd = makeTestTempDir("task-test");
     try {
-      createTask(cwd, { slug: "ml-block", from: "po", to: "coder", body: "Do it" });
+      createTask(cwd, { slug: "ml-block", from: "orchestrator", to: "po", body: "Do it" });
       updateTaskStatus(cwd, "ml-block", "blocked", "waiting for:\n- decision A\n- decision B");
       assert.equal(readTask(cwd, "ml-block")?.blocked_reason, "waiting for:\n- decision A\n- decision B");
     } finally {
@@ -193,7 +195,7 @@ describe("updateTaskStatus", () => {
   it("clears resume_message when not provided", () => {
     const cwd = makeTestTempDir("task-test");
     try {
-      createTask(cwd, { slug: "clear-msg", from: "po", to: "coder", body: "Do it" });
+      createTask(cwd, { slug: "clear-msg", from: "orchestrator", to: "po", body: "Do it" });
       updateTaskStatus(cwd, "clear-msg", "in_progress", undefined, "old message");
       updateTaskStatus(cwd, "clear-msg", "finished");
       assert.equal(readTask(cwd, "clear-msg")?.resume_message, undefined);
@@ -205,7 +207,7 @@ describe("updateTaskStatus", () => {
   it("updates status to blocked and sets blocked_reason", () => {
     const cwd = makeTestTempDir("task-test");
     try {
-      createTask(cwd, { slug: "block-me", from: "po", to: "coder", body: "Do it" });
+      createTask(cwd, { slug: "block-me", from: "orchestrator", to: "po", body: "Do it" });
       updateTaskStatus(cwd, "block-me", "blocked", "waiting for ADR decision");
       const task = readTask(cwd, "block-me");
       assert.equal(task?.status, "blocked");
@@ -218,7 +220,7 @@ describe("updateTaskStatus", () => {
   it("updates status back to in_progress", () => {
     const cwd = makeTestTempDir("task-test");
     try {
-      createTask(cwd, { slug: "reopen-me", from: "po", to: "coder", body: "Do it" });
+      createTask(cwd, { slug: "reopen-me", from: "orchestrator", to: "po", body: "Do it" });
       updateTaskStatus(cwd, "reopen-me", "blocked", "a reason");
       updateTaskStatus(cwd, "reopen-me", "in_progress");
       const task = readTask(cwd, "reopen-me");
@@ -238,9 +240,126 @@ describe("deleteTask", () => {
   it("removes the task file", () => {
     const cwd = makeTestTempDir("task-test");
     try {
-      createTask(cwd, { slug: "delete-me", from: "po", to: "coder", body: "Gone" });
+      createTask(cwd, { slug: "delete-me", from: "orchestrator", to: "po", body: "Gone" });
       deleteTask(cwd, "delete-me");
       assert.equal(readTask(cwd, "delete-me"), null);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+});
+
+describe("task tree invariants", () => {
+  it("rejects a non-PO top-level root workflow", () => {
+    assert.throws(
+      () => assertValidRootWorkflow([
+        { slug: "arch-root", status: "in_progress", from: "orchestrator", to: "architect", body: "bad" },
+      ] as any),
+      /top-level task must be orchestrator -> po/,
+    );
+  });
+
+  it("rejects a child whose from role does not match the parent role", () => {
+    assert.throws(
+      () => assertValidTaskTree([
+        { slug: "po-root", status: "in_progress", from: "orchestrator", to: "po", body: "root" },
+        { slug: "code-1", status: "in_progress", from: "architect", to: "coder", body: "bad", parent_slug: "po-root" },
+      ] as any),
+      /delegated from "architect", but its parent role is "po"/,
+    );
+  });
+});
+
+describe("classifyDirectDelegate", () => {
+  it("returns none when no direct delegate exists", () => {
+    const cwd = makeTestTempDir("task-test");
+    try {
+      assert.deepEqual(classifyDirectDelegate(cwd, "orchestrator"), { kind: "none" });
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("returns the in_progress direct delegate", () => {
+    const cwd = makeTestTempDir("task-test");
+    try {
+      createTask(cwd, { slug: "po-root", from: "orchestrator", to: "po", body: "root" });
+      assert.deepEqual(classifyDirectDelegate(cwd, "orchestrator"), {
+        kind: "in_progress",
+        task: readTask(cwd, "po-root")!,
+      });
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("returns the blocked direct delegate", () => {
+    const cwd = makeTestTempDir("task-test");
+    try {
+      createTask(cwd, { slug: "po-root", from: "orchestrator", to: "po", body: "root" });
+      updateTaskStatus(cwd, "po-root", "blocked", "need clarification");
+      assert.deepEqual(classifyDirectDelegate(cwd, "orchestrator"), {
+        kind: "blocked",
+        task: readTask(cwd, "po-root")!,
+      });
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("returns the finished direct delegate", () => {
+    const cwd = makeTestTempDir("task-test");
+    try {
+      createTask(cwd, { slug: "po-root", from: "orchestrator", to: "po", body: "root" });
+      updateTaskStatus(cwd, "po-root", "finished");
+      assert.deepEqual(classifyDirectDelegate(cwd, "orchestrator"), {
+        kind: "finished",
+        task: readTask(cwd, "po-root")!,
+      });
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+});
+
+describe("tasks.yaml summary", () => {
+  it("writes a compact live summary for the current task chain", () => {
+    const cwd = makeTestTempDir("task-test");
+    try {
+      createTask(cwd, { slug: "po-todo-webapp", from: "orchestrator", to: "po", body: "PO" });
+      createTask(cwd, { slug: "arch-001-add-todo-v2", from: "po", to: "architect", body: "ARCH", parent_slug: "po-todo-webapp" });
+      createTask(cwd, { slug: "code-001-add-todo", from: "architect", to: "coder", body: "CODE", parent_slug: "arch-001-add-todo-v2" });
+      updateTaskStatus(cwd, "code-001-add-todo", "blocked", "waiting for persistence decision");
+
+      const summary = readFileSync(join(cwd, ".pi", "unfolding", "tasks.yaml"), "utf8");
+      assert.equal(summary, [
+        "slug: po-todo-webapp",
+        "role: po",
+        "status: in_progress",
+        "delegate:",
+        "  slug: arch-001-add-todo-v2",
+        "  role: architect",
+        "  status: in_progress",
+        "  delegate:",
+        "    slug: code-001-add-todo",
+        "    role: coder",
+        "    status: blocked",
+        "    blocked_reason: |",
+        "      waiting for persistence decision",
+        "",
+      ].join("\n"));
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("deletes tasks.yaml when the last task is deleted", () => {
+    const cwd = makeTestTempDir("task-test");
+    try {
+      createTask(cwd, { slug: "po-todo-webapp", from: "orchestrator", to: "po", body: "PO" });
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "tasks.yaml")), true);
+      deleteTask(cwd, "po-todo-webapp");
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "tasks.yaml")), false);
     } finally {
       cleanupTestTempDir(cwd);
     }

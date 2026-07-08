@@ -21,7 +21,7 @@ export interface ChildCommissionerContext {
   debugExportsEnabled?: boolean;
 }
 
-export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTool: any, commissionerCtx: ChildCommissionerContext): any[] {
+export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTool: any, nestedContinueTool: any, commissionerCtx: ChildCommissionerContext): any[] {
   return [
     {
       name: "task_finished",
@@ -50,6 +50,7 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
       },
     },
     nestedDelegateTool,
+    nestedContinueTool,
     {
       name: "ask_sensei",
       label: "Ask Sensei",

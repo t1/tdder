@@ -5,15 +5,16 @@
 | Abstract action          | Tool                                                 |
 |--------------------------|------------------------------------------------------|
 | Spawn an agent           | `task_delegate(role, slug, body)`                    |
+| Continue current agent   | `task_continue()`                                    |
 | Resume a blocked agent   | `task_unblock(slug, resume_message)`                 |
 | Block waiting for Sensei | `task_block(reason)` — on your own orchestrator task |
-| Read task state          | `task_list` / `task_read`                            |
+| Read task state          | `task_list` / `task_read` (orchestrator diagnostics) |
 
 There is no team, no shutdown, no idle notification. When a `task_delegate`
-call returns, the sub-agent has either finished (`finished`) or blocked
-(`blocked`). The Orchestrator only sees the top-level PO delegation — all
-deeper nesting (PO → UX Designer, Architect → Coder, etc.) is handled by
-the agents themselves.
+or `task_continue` call returns, the direct delegate has reached a visible
+outcome (`finished`, `blocked`, or an in-progress line that was reconnected and surfaced).
+The Orchestrator only sees the top-level PO delegation — all deeper nesting
+(PO → UX Designer, Architect → Coder, etc.) is handled by the agents themselves.
 
 ## Startup
 
@@ -25,10 +26,17 @@ If the workspace is genuinely empty, include that explicitly in the body,
 e.g. that there is no existing code or tech stack to explore and the PO should start
 with `docs/product.md`, ATs, rules, indexes, and any needed DMDs directly.
 
-If resuming, first call `task_list`. If any sub-task has status `in_progress`, call `task_delegate`
-on it immediately with the original body — it will resume the existing session where it left off.
-Otherwise, create a task for the appropriate role per the phase table in
-`SKILL.md` and call `task_delegate` with that role.
+If resuming, first prefer the live task mechanism over documentation.
+
+- If the Orchestrator already has one direct delegate line, call `task_continue`.
+- If there is no direct delegate line, create a new top-level PO task with `task_delegate`.
+- If orchestrator diagnostics reveal any invalid top-level task tree that is not Orchestrator → PO, treat that as corrupted state and stop honestly.
+
+`task_list` and `task_read` remain available to you as orchestrator diagnostics. Use them when the Sensei asks you to
+investigate workflow issues, and also when you yourself detect an obvious anomaly in the live task tree (for example an
+unclear blockage, an unresolved finished top-level PO line, or inconsistent task metadata).
+
+Do **not** spawn Architect, Coder, or any other non-PO role directly from the Orchestrator.
 
 ## Handle Blocked Tasks
 
@@ -40,7 +48,7 @@ Normal ADR/DMD questions are **not** your job anymore:
 Do **not** read ADR/DMD files just to extract question text, and do **not** relay
 normal decision questions through the PO.
 
-When a top-level task returns `blocked`, treat it as a real commissioner issue:
+When the top-level PO task returns `blocked`, treat it as a real commissioner issue:
 
 1. Read the blocked reason
 2. If the issue is environmental or operational (e.g. service not running,
@@ -51,9 +59,15 @@ When a top-level task returns `blocked`, treat it as a real commissioner issue:
 
 Only after resolving the commissioner issue should you call `task_unblock`.
 
+You may also investigate obvious workflow anomalies proactively with `task_list` / `task_read`, but only for live
+coordination diagnosis. Do not use them as a pretext to supervise lower roles or to inspect implementation artifacts.
+
 ## Sensei Guidance (unsolicited)
 
-When the Sensei provides guidance outside a DMD/ADR cycle, call
-`task_unblock` on the currently running PO task with the guidance prefixed:
+When the Sensei provides guidance outside a DMD/ADR cycle, pass it into the
+currently running PO line. If that line is blocked, use `task_unblock`; if it was merely interrupted while still active,
+resume with `task_continue` after ensuring the PO will see the guidance in the resumed context.
+
+Prefix the guidance:
 
 > **Sensei guidance:** \<the text\>

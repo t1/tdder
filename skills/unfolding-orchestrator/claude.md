@@ -14,15 +14,13 @@
 ## Startup
 
 1. `TeamCreate("unfolding")`
-2. Read or create `docs/state.yaml`
-3. Create the initial `[PO]` task with the Sensei guidance
-4.
+2. Create the initial `[PO]` task with the Sensei guidance
+3.
 `Agent(subagent_type="unfolding-po", team_name="unfolding", name="po", prompt="Pick up your [PO] task from the task list and begin.")`
 
-If resuming, first check the task list. If any sub-task has status `in_progress`, spawn that agent
-immediately with a prompt of `"continue"` — it will resume the existing session where it left off.
-Otherwise, create a task for the appropriate role per the phase table in
-`SKILL.md` and spawn the agent.
+If resuming, resume the current top-level PO line.
+If there is no active top-level PO line, create one and spawn the PO.
+Do **not** spawn Architect, Coder, or any other non-PO role directly from the Orchestrator.
 
 ## Ensure Agents Are Active
 
