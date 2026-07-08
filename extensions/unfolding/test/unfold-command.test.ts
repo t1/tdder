@@ -62,6 +62,7 @@ describe("parseFrontmatterTools", () => {
       "maven_*",
       "idea_*",
       "jdtls_*",
+      "quarkus_*",
       "task_delegate",
       "task_finished",
       "task_block",
@@ -83,6 +84,7 @@ describe("parseFrontmatterTools", () => {
       "maven_*",
       "idea_*",
       "jdtls_*",
+      "quarkus_*",
       "task_delegate",
       "task_accept",
       "task_finished",
@@ -160,15 +162,18 @@ describe("parseFrontmatterPathRestrictions (role files)", () => {
     assert.equal(isPathAllowed("write", "src/main/java/Foo.java", rules!), true, "Architect may write source files");
   });
 
-  it("coder.md allows docs/adr/ then blocks docs/ then restricts test writes to unit", () => {
+  it("coder.md allows docs/adr/ then blocks docs/ then denies acceptance and system tests", () => {
     const rules = parseFrontmatterPathRestrictions(coderMd);
     assert.ok(rules, "Coder must declare path restrictions");
     assert.equal(isPathAllowed("read", "docs/adr/INDEX.md", rules!), true, "Coder may read docs/adr/");
     assert.equal(isPathAllowed("read", "docs/product.md", rules!), false, "Coder must not read other docs/");
     assert.equal(isPathAllowed("write", "docs/adr/INDEX.md", rules!), false, "Coder must not write to docs/");
+    assert.equal(isPathAllowed("read", "src/test/java/test/unit/TodoTest.java", rules!), true, "Coder may read unit tests");
     assert.equal(isPathAllowed("write", "src/test/java/test/unit/TodoTest.java", rules!), true, "Coder may write unit tests");
     assert.equal(isPathAllowed("write", "src/test/java/test/unit/com/example/TodoTest.java", rules!), true, "Coder may write unit tests in sub-packages");
+    assert.equal(isPathAllowed("read", "src/test/java/test/system/RegisterOwnerST.java", rules!), false, "Coder must not read system tests");
     assert.equal(isPathAllowed("write", "src/test/java/test/system/RegisterOwnerST.java", rules!), false, "Coder must not write system tests");
+    assert.equal(isPathAllowed("read", "src/test/java/test/acceptance/RegisterOwnerAT.java", rules!), false, "Coder must not read acceptance tests");
     assert.equal(isPathAllowed("write", "src/test/java/test/acceptance/RegisterOwnerAT.java", rules!), false, "Coder must not write acceptance tests");
     assert.equal(isPathAllowed("read", "src/main/java/Foo.java", rules!), true, "Coder may read source files");
     assert.equal(isPathAllowed("write", "src/main/java/Foo.java", rules!), true, "Coder may write source files");

@@ -12,6 +12,7 @@ tools:
   - maven_*
   - idea_*
   - jdtls_*
+  - quarkus_*
   - task_delegate
   - task_accept
   - task_finished
@@ -19,8 +20,8 @@ tools:
 path-restrictions:
   - read allow: docs/adr/**
   - rw deny: docs/**
-  - write allow: **/src/test/java/test/unit/**
-  - write deny: **/src/test/java/**
+  - rw deny: src/test/java/test/acceptance/**
+  - rw deny: src/test/java/test/system/**
 ---
 
 # Unfolding Specs — Coder Role
@@ -129,7 +130,7 @@ or create an ADR.
 
 - Do NOT read, run, or modify files in `src/test/java/test/system/` or `src/test/java/test/acceptance/`.
   They are the Architect's verification tool — not yours. Write your own
-  TDD tests in `src/test/java/test/unit/` to drive the implementation.
+  TDD tests in `src/test/java/test/` to drive the implementation.
 - Do NOT create semantic git commits — only the Orchestrator may create durable project history. Internal unfolding
   snapshot commits are tool-managed and not your concern.
 - Do NOT read files in `docs/ux/` or `docs/ux-mapping/` — UX specs are
