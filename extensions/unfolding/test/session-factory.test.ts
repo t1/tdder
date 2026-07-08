@@ -49,7 +49,7 @@ describe("startChildSession groundwork", () => {
       const resultPromise = startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-task",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions: new Map() as any,
@@ -94,7 +94,7 @@ describe("startChildSession groundwork", () => {
       const resultPromise = startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-init-git",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions: new Map() as any,
@@ -148,7 +148,7 @@ describe("startChildSession groundwork", () => {
       const resultPromise = startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-clean",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions: new Map() as any,
@@ -196,7 +196,7 @@ describe("startChildSession groundwork", () => {
       const resultPromise = startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-snapshot",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions: new Map() as any,
@@ -257,7 +257,7 @@ describe("startChildSession groundwork", () => {
       const result = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-tooluse",
         body: "Write docs/product.md, then call task_finished.",
         activeSessions: new Map() as any,
@@ -298,7 +298,7 @@ describe("startChildSession groundwork", () => {
       const result = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-missing-checkpoint",
         body: "Do work.",
         activeSessions: new Map() as any,
@@ -336,7 +336,7 @@ describe("startChildSession groundwork", () => {
       const result = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-missing-checkpoint-block",
         body: "Do work.",
         activeSessions: new Map() as any,
@@ -376,7 +376,7 @@ describe("startChildSession groundwork", () => {
       const result = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-child-failure",
         body: "Do work.",
         activeSessions: new Map() as any,
@@ -418,7 +418,7 @@ describe("startChildSession groundwork", () => {
       const result = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-child-aborted",
         body: "Do work.",
         activeSessions: new Map() as any,
@@ -462,7 +462,7 @@ describe("startChildSession groundwork", () => {
       const result = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-local-abort",
         body: "Do work.",
         activeSessions: new Map() as any,
@@ -506,7 +506,7 @@ describe("startChildSession groundwork", () => {
       const result = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-local-abort-terminal",
         body: "Do work.",
         activeSessions: new Map() as any,
@@ -550,7 +550,7 @@ describe("startChildSession groundwork", () => {
       const result = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-parent-signal-abort",
         body: "Do work.",
         activeSessions: new Map() as any,
@@ -592,7 +592,7 @@ describe("startChildSession groundwork", () => {
       const result = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-truncation",
         body: "Do work.",
         activeSessions: new Map() as any,
@@ -626,7 +626,7 @@ describe("startChildSession groundwork", () => {
       const {session, outcome} = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-restore",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
@@ -663,7 +663,7 @@ describe("startChildSession groundwork", () => {
       const activeSessions = new Map() as any;
       const { session } = await startChildSession({
         cwd,
-        from: "orchestrator",
+        from: "po",
         role: "architect",
         slug: "architect-tools",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
@@ -717,7 +717,7 @@ describe("startChildSession groundwork", () => {
     try {
       const result = await startChildSession({
         cwd,
-        from: "orchestrator",
+        from: "po",
         role: "architect",
         slug: "architect-ask-sensei",
         body: "Immediately ask Sensei a direct question, then finish.",
@@ -836,7 +836,7 @@ describe("startChildSession groundwork", () => {
       await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-no-dup-flush",
         body: "Call task_finished.",
         activeSessions: new Map() as any,

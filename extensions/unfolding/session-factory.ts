@@ -80,50 +80,56 @@ export async function startChildSession({
     modelRegistry,
   });
 
-  if (existing) {
-    updateTaskStatus(cwd, slug, "in_progress");
-  } else {
-    const gitBootstrap = ensureGitRepoWithHead(cwd);
-    if (gitBootstrap.initializedRepo) {
-      postOutput("  ℹ unfolding initialized a local git repository for rollback support");
-    }
-    const baseSha = gitBootstrap.head;
-    const snapshotSha = isWorkspaceDirty(cwd) ? createSnapshotCommit(cwd) : undefined;
-    createTask(cwd, {
-      slug,
-      from,
-      to: role,
-      body,
-      parent_slug,
-      session_id: session.sessionId,
-      session_file: session.sessionFile,
-      base_sha: baseSha,
-      snapshot_sha: snapshotSha,
-    });
-  }
-
   let wasLocallyAborted = signal?.aborted === true || parentSignal?.aborted === true;
-  const stream = onUpdate ? streamChildSession(session, shortRole, slug, onUpdate, {
-    sessionFile: session.sessionFile,
-    getContextUsage: () => session.getContextUsage(),
-    getCost: () => session.getSessionStats().cost,
-  }) : undefined;
-  const onAbort = () => {
-    wasLocallyAborted = true;
-    session.abort().catch(() => {});
-  };
-  signal?.addEventListener("abort", onAbort);
-  parentSignal?.addEventListener("abort", onAbort);
+  let stream: ReturnType<typeof streamChildSession> | undefined;
+  let onAbort: (() => void) | undefined;
   let observedTerminalAbort = false;
-  const unsubscribeAbortObserver = session.subscribe((event: any) => {
-    if (event?.type === "message_end" && event.message?.role === "assistant" && event.message?.stopReason === "aborted") {
-      observedTerminalAbort = true;
-    }
-  });
-  const checkpointRecovery = installCheckpointRecovery(session, cwd, slug, {
-    onRecoveryNote: stream?.append,
-  });
+  let unsubscribeAbortObserver: (() => void) | undefined;
+  let checkpointRecovery: ReturnType<typeof installCheckpointRecovery> | undefined;
+  let taskPrepared = false;
   try {
+    if (existing) {
+      updateTaskStatus(cwd, slug, "in_progress");
+    } else {
+      const gitBootstrap = ensureGitRepoWithHead(cwd);
+      if (gitBootstrap.initializedRepo) {
+        postOutput("  ℹ unfolding initialized a local git repository for rollback support");
+      }
+      const baseSha = gitBootstrap.head;
+      const snapshotSha = isWorkspaceDirty(cwd) ? createSnapshotCommit(cwd) : undefined;
+      createTask(cwd, {
+        slug,
+        from,
+        to: role,
+        body,
+        parent_slug,
+        session_id: session.sessionId,
+        session_file: session.sessionFile,
+        base_sha: baseSha,
+        snapshot_sha: snapshotSha,
+      });
+    }
+    taskPrepared = true;
+
+    stream = onUpdate ? streamChildSession(session, shortRole, slug, onUpdate, {
+      sessionFile: session.sessionFile,
+      getContextUsage: () => session.getContextUsage(),
+      getCost: () => session.getSessionStats().cost,
+    }) : undefined;
+    onAbort = () => {
+      wasLocallyAborted = true;
+      session.abort().catch(() => {});
+    };
+    signal?.addEventListener("abort", onAbort);
+    parentSignal?.addEventListener("abort", onAbort);
+    unsubscribeAbortObserver = session.subscribe((event: any) => {
+      if (event?.type === "message_end" && event.message?.role === "assistant" && event.message?.stopReason === "aborted") {
+        observedTerminalAbort = true;
+      }
+    });
+    checkpointRecovery = installCheckpointRecovery(session, cwd, slug, {
+      onRecoveryNote: stream?.append,
+    });
     session.prompt(initialMessage).catch((err: unknown) => {
       const stack = err instanceof Error ? err.stack : String(err);
       console.error(`[unfolding] child session for task "${slug}" failed:`, stack);
@@ -137,7 +143,7 @@ export async function startChildSession({
         },
         undefined,
         signal,
-        checkpointRecovery.getFatalError,
+        checkpointRecovery!.getFatalError,
         async () => {
           const task = readTask(cwd, slug);
           return task?.status === "in_progress" && wasLocallyAborted && observedTerminalAbort;
@@ -163,11 +169,14 @@ export async function startChildSession({
     postOutput(`  💰 $${session.getSessionStats().cost.toFixed(4)} (↑${session.getSessionStats().tokens.input} ↓${session.getSessionStats().tokens.output})`);
     return { session, outcome };
   } finally {
-    checkpointRecovery.unsubscribe();
-    signal?.removeEventListener("abort", onAbort);
-    parentSignal?.removeEventListener("abort", onAbort);
-    unsubscribeAbortObserver();
+    checkpointRecovery?.unsubscribe();
+    if (onAbort) {
+      signal?.removeEventListener("abort", onAbort);
+      parentSignal?.removeEventListener("abort", onAbort);
+    }
+    unsubscribeAbortObserver?.();
     stream?.unsubscribe();
+    if (!taskPrepared) activeSessions.delete(slug);
     await shutdown().catch((err: unknown) => {
       console.error(`[unfolding] session_shutdown failed for task "${slug}":`, err);
     });

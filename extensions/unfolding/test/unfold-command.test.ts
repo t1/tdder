@@ -14,6 +14,7 @@ import {
   stripFrontmatter,
   buildUnfoldMessage,
   parseFrontmatterTools,
+  parseFrontmatterDelegatesTo,
   resolveToolAllowlist,
   parsePathRestrictions,
   parseFrontmatterPathRestrictions,
@@ -125,6 +126,33 @@ describe("parseFrontmatterTools", () => {
       "task_finished",
       "task_block",
     ]);
+  });
+});
+
+describe("parseFrontmatterDelegatesTo", () => {
+  const poMd = readFileSync(new URL("../roles/po.md", import.meta.url).pathname, "utf8");
+  const architectMd = readFileSync(new URL("../roles/architect.md", import.meta.url).pathname, "utf8");
+  const coderMd = readFileSync(new URL("../roles/coder.md", import.meta.url).pathname, "utf8");
+  const uxDesignerMd = readFileSync(new URL("../roles/ux-designer.md", import.meta.url).pathname, "utf8");
+  const apiDesignerMd = readFileSync(new URL("../roles/api-designer.md", import.meta.url).pathname, "utf8");
+  const uiExpertMd = readFileSync(new URL("../roles/ui-expert.md", import.meta.url).pathname, "utf8");
+
+  it("po.md declares the expected allowed delegate roles", () => {
+    assert.deepEqual(parseFrontmatterDelegatesTo(poMd), ["architect", "ux-designer", "api-designer"]);
+  });
+
+  it("architect.md declares the expected allowed delegate roles", () => {
+    assert.deepEqual(parseFrontmatterDelegatesTo(architectMd), ["coder", "ui-expert"]);
+  });
+
+  it("coder.md declares the expected allowed delegate roles", () => {
+    assert.deepEqual(parseFrontmatterDelegatesTo(coderMd), ["clean-code-reviewer"]);
+  });
+
+  it("non-commissioner roles declare an explicit empty delegate list", () => {
+    assert.deepEqual(parseFrontmatterDelegatesTo(uxDesignerMd), []);
+    assert.deepEqual(parseFrontmatterDelegatesTo(apiDesignerMd), []);
+    assert.deepEqual(parseFrontmatterDelegatesTo(uiExpertMd), []);
   });
 });
 

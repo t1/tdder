@@ -21,6 +21,9 @@ tools:
   - task_reopen
   - task_rollback
   - task_accept
+delegates-to:
+  - coder
+  - ui-expert
 path-restrictions:
   - read deny: docs/ats/*.feature
   - write allow: src/test/java/test/acceptance/**

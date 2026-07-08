@@ -149,6 +149,9 @@ tools:                 # tool allowlist (required)
   - read
   - write
   - idea_*             # wildcard: expands to all live tools matching the prefix
+delegates-to:          # required: exact roles this role may delegate to
+  - architect
+  - ux-designer
 path-restrictions:     # optional path-level restrictions for read/write/edit
   - read deny: docs/adr/**
   - read allow: docs/**
@@ -161,6 +164,10 @@ Everything not listed is excluded, including tools from future extensions.
 Wildcard entries (e.g. `idea_*`, `browser_*`) are resolved against the live tool
 registry at child session spawn time, so dynamically registered MCP tools are
 included when available and silently absent when not.
+
+**`delegates-to:`** is the runtime-enforced delegation policy for `task_delegate`.
+The tool rejects any role not listed there, and task-tree validation also fails if persisted live tasks violate the declared chain.
+Use `delegates-to: []` for roles that must never delegate.
 
 **`path-restrictions:`** applies fine-grained path-level restrictions to `read`,
 `write`, and `edit` calls. Each rule has the form:
@@ -195,8 +202,8 @@ accidentally omitted from a new role file.
 **Adding a new role:** create `extensions/unfolding/roles/<name>.md` with
 frontmatter following the schema above. Add tests in
 `extensions/unfolding/test/unfold-command.test.ts` asserting the expected
-`tools:` and `path-restrictions:` entries — the test suite enforces that every
-role file declares both explicitly.
+`tools:`, `delegates-to:`, and `path-restrictions:` entries — the test suite enforces that every
+role file declares them explicitly.
 
 **Decision escalation:** normal ADR/DMD questioning is direct.
 The Architect asks ADR questions, and the PO asks DMD questions. The Orchestrator is no longer the normal relay path

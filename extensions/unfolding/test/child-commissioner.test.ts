@@ -81,7 +81,7 @@ describe("child commissioner tools", () => {
     try {
       // Call order: child:task_delegate → grandchild:task_finished → child:task_accept → child:task_finished
       faux.setResponses([
-        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "coder", slug: "gc-accept", body: "do something" })], { stopReason: "toolUse" }),
+        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "architect", slug: "gc-accept", body: "do something" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_finished", {})], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_accept",   { slug: "gc-accept" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_finished", {})], { stopReason: "toolUse" }),
@@ -93,7 +93,7 @@ describe("child commissioner tools", () => {
         from: "orchestrator",
         role: "po",
         slug: "child-accept",
-        body: "delegate to a coder, accept the result, then finish",
+        body: "delegate to an architect, accept the result, then finish",
         activeSessions,
         pi: {} as any,
         postOutput: () => {},
@@ -117,7 +117,7 @@ describe("child commissioner tools", () => {
     const { faux: gcFaux, auth: gcAuth, modelRegistry: gcRegistry } = sharedFauxSetup("reopen-gc");
     try {
       childFaux.setResponses([
-        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "coder", slug: "gc-reopen", body: "do something" })], { stopReason: "toolUse" }),
+        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "architect", slug: "gc-reopen", body: "do something" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_reopen",   { slug: "gc-reopen", reason: "needs more work" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_accept",   { slug: "gc-reopen" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_finished", {})], { stopReason: "toolUse" }),
@@ -136,7 +136,7 @@ describe("child commissioner tools", () => {
         from: "orchestrator",
         role: "po",
         slug: "child-reopen",
-        body: "delegate, reopen, accept, finish",
+        body: "delegate to an architect, reopen, accept, finish",
         activeSessions,
         pi: {} as any,
         postOutput: () => {},
@@ -181,7 +181,7 @@ describe("child commissioner tools", () => {
     const { faux: gcFaux, auth: gcAuth, modelRegistry: gcRegistry } = sharedFauxSetup("unblock-gc");
     try {
       childFaux.setResponses([
-        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "coder", slug: "gc-unblock", body: "do something" })], { stopReason: "toolUse" }),
+        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "architect", slug: "gc-unblock", body: "do something" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_unblock",  { slug: "gc-unblock", reason: "dependency resolved" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_accept",   { slug: "gc-unblock" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_finished", {})], { stopReason: "toolUse" }),
@@ -199,7 +199,7 @@ describe("child commissioner tools", () => {
         from: "orchestrator",
         role: "po",
         slug: "child-unblock",
-        body: "delegate, unblock, accept, finish",
+        body: "delegate to an architect, unblock, accept, finish",
         activeSessions,
         pi: {} as any,
         postOutput: () => {},
@@ -243,7 +243,7 @@ describe("child commissioner tools", () => {
     const { faux: gcFaux, auth: gcAuth, modelRegistry: gcRegistry } = sharedFauxSetup("rollback-gc");
     try {
       childFaux.setResponses([
-        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "coder", slug: "gc-rollback", body: "do something" })], { stopReason: "toolUse" }),
+        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "architect", slug: "gc-rollback", body: "do something" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_rollback", { slug: "gc-rollback" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_finished", {})], { stopReason: "toolUse" }),
         fauxAssistantMessage([], { stopReason: "endTurn" }),
@@ -259,7 +259,7 @@ describe("child commissioner tools", () => {
         from: "orchestrator",
         role: "po",
         slug: "child-rollback",
-        body: "delegate, rollback, finish",
+        body: "delegate to an architect, rollback, finish",
         activeSessions,
         pi: {} as any,
         postOutput: () => {},
@@ -304,7 +304,7 @@ describe("child commissioner tools", () => {
     const { faux, auth, modelRegistry } = sharedFauxSetup("blocked-reason");
     try {
       faux.setResponses([
-        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "coder", slug: "gc-blocked", body: "do something" })], { stopReason: "toolUse" }),
+        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "architect", slug: "gc-blocked", body: "do something" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_block", { blocked_reason: "technical blocker" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_finished", {})], { stopReason: "toolUse" }),
       ]);
@@ -313,7 +313,7 @@ describe("child commissioner tools", () => {
       const tool = makeTaskDelegateDefinition("po", activeSessions, {} as any, () => {});
       const result = await tool.execute(
         "1",
-        { role: "coder", slug: "gc-blocked", body: "do something" },
+        { role: "architect", slug: "gc-blocked", body: "do something" },
         AbortSignal.timeout(3000),
         undefined,
         {
@@ -343,7 +343,7 @@ describe("child commissioner tools", () => {
     } as any;
     try {
       faux.setResponses([
-        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "coder", slug: "gc-debug", body: "do something" })], { stopReason: "toolUse" }),
+        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "architect", slug: "gc-debug", body: "do something" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_finished", {})], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_accept", { slug: "gc-debug" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_finished", {})], { stopReason: "toolUse" }),
@@ -356,7 +356,7 @@ describe("child commissioner tools", () => {
         from: "orchestrator",
         role: "po",
         slug: "child-debug-export",
-        body: "delegate to a coder, accept the result, then finish",
+        body: "delegate to an architect, accept the result, then finish",
         activeSessions,
         pi,
         postOutput: () => {},
@@ -430,7 +430,7 @@ describe("child commissioner tools", () => {
     const activeSessions = trackActiveSessions();
     try {
       childFaux.setResponses([
-        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "coder", slug: "gc-signal-aborted", body: "do something" })], { stopReason: "toolUse" }),
+        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "architect", slug: "gc-signal-aborted", body: "do something" })], { stopReason: "toolUse" }),
       ]);
       gcFaux.setResponses([
         fauxAssistantMessage([], { stopReason: "aborted", errorMessage: "Request was aborted." } as any),
@@ -442,7 +442,7 @@ describe("child commissioner tools", () => {
         from: "orchestrator",
         role: "po",
         slug: "child-signal-abort-grandchild",
-        body: "delegate to a coder",
+        body: "delegate to an architect",
         activeSessions,
         pi: {} as any,
         postOutput: () => {},
@@ -493,7 +493,7 @@ describe("child commissioner tools", () => {
     const activeSessions = trackActiveSessions();
     try {
       childFaux.setResponses([
-        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "coder", slug: "gc-aborted", body: "do something" })], { stopReason: "toolUse" }),
+        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "architect", slug: "gc-aborted", body: "do something" })], { stopReason: "toolUse" }),
         fauxAssistantMessage([fauxToolCall("task_finished", {})], { stopReason: "toolUse" }),
       ]);
       gcFaux.setResponses([
@@ -505,7 +505,7 @@ describe("child commissioner tools", () => {
         from: "orchestrator",
         role: "po",
         slug: "child-abort-grandchild",
-        body: "delegate to a coder",
+        body: "delegate to an architect",
         activeSessions,
         pi: {} as any,
         postOutput: () => {},

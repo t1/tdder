@@ -255,7 +255,7 @@ describe("task tree invariants", () => {
       () => assertValidRootWorkflow([
         { slug: "arch-root", status: "in_progress", from: "orchestrator", to: "architect", body: "bad" },
       ] as any),
-      /top-level task must be orchestrator -> po/,
+      /role "orchestrator" may not delegate to "architect"|top-level task must be orchestrator -> po/,
     );
   });
 
@@ -266,6 +266,16 @@ describe("task tree invariants", () => {
         { slug: "code-1", status: "in_progress", from: "architect", to: "coder", body: "bad", parent_slug: "po-root" },
       ] as any),
       /delegated from "architect", but its parent role is "po"/,
+    );
+  });
+
+  it("rejects a disallowed delegation edge even when the parent link matches", () => {
+    assert.throws(
+      () => assertValidTaskTree([
+        { slug: "po-root", status: "in_progress", from: "orchestrator", to: "po", body: "root" },
+        { slug: "code-1", status: "in_progress", from: "po", to: "coder", body: "bad", parent_slug: "po-root" },
+      ] as any),
+      /role "po" may not delegate to "coder"/,
     );
   });
 });

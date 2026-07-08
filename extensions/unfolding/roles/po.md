@@ -18,6 +18,10 @@ tools:
   - task_rollback
   - task_accept
   - maven_run
+delegates-to:
+  - architect
+  - ux-designer
+  - api-designer
 path-restrictions:
   - read deny: docs/adr/**
   - read allow: docs/**

@@ -17,6 +17,8 @@ tools:
   - task_accept
   - task_finished
   - task_block
+delegates-to:
+  - clean-code-reviewer
 path-restrictions:
   - read allow: docs/adr/**
   - rw deny: docs/**

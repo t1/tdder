@@ -9,6 +9,7 @@ import { FatalChildSessionError } from "./task-delegate.ts";
 import type { ChildOutputDetails } from "./child-output.ts";
 import { isUnfoldingFatalError } from "./fatal-error.ts";
 import { exportTaskCommissionerDebugHtmlIfEnabled } from "./debug-export.ts";
+import { assertDelegationAllowed, delegateRoleParameterSchema } from "./delegation-policy.ts";
 
 function childOutcomeText(action: string, slug: string, role: string, outcome: "finished" | "blocked", blockedReason?: string): string {
   return outcome === "blocked"
@@ -100,7 +101,7 @@ export function makeTaskDelegateDefinition(
     label: "Task delegate",
     description: "Delegate work to a role sub-session and wait for it to finish or block. If this tool throws an error, treat it as a critical bug — stop all work immediately and report the full error message to the user.",
     parameters: Type.Object({
-      role: Type.String({ description: "Role to delegate to (e.g. po, architect, coder)" }),
+      role: delegateRoleParameterSchema(from),
       slug: Type.String({ description: "Unique slug for this task" }),
       body: Type.String({ description: "Task description for the role" }),
       parent_slug: Type.Optional(Type.String({ description: "Slug of the parent task, if this is a sub-delegation" })),
@@ -108,6 +109,7 @@ export function makeTaskDelegateDefinition(
     async execute(_id: string, params: { role: string; slug: string; body: string; parent_slug?: string }, signal: AbortSignal | undefined, onUpdate: any, ctx: any) {
       refreshAskSenseiCallback(pi, ctx);
       try {
+        assertDelegationAllowed(from, params.role);
         const directDelegate = classifyDirectDelegate(ctx.cwd, from, currentCommissionerSlug);
         if (directDelegate.kind !== "none") {
           const existing = directDelegate.task;

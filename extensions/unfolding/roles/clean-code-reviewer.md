@@ -7,6 +7,7 @@ description: >
 model: opus
 tools:
   - read
+delegates-to: []
 path-restrictions:
   - read deny: docs/**
 ---

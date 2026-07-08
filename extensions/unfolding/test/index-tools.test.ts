@@ -89,7 +89,7 @@ describe("registered task tools", () => {
       const tool = tools.get("task_list");
       await assert.rejects(
         () => tool.execute("1", {}, undefined, undefined, { cwd, signal: undefined }),
-        /top-level task must be orchestrator -> po/,
+        /role "orchestrator" may not delegate to "architect"|top-level task must be orchestrator -> po/,
       );
     } finally {
       cleanupTestTempDir(cwd);
@@ -114,7 +114,7 @@ describe("registered task tools", () => {
       const tool = tools.get("task_read");
       await assert.rejects(
         () => tool.execute("1", { slug: "arch-root" }, undefined, undefined, { cwd, signal: undefined }),
-        /top-level task must be orchestrator -> po/,
+        /role "orchestrator" may not delegate to "architect"|top-level task must be orchestrator -> po/,
       );
     } finally {
       cleanupTestTempDir(cwd);
@@ -618,7 +618,7 @@ describe("registered task tools", () => {
       assert.ok(tool, "task_delegate tool must be registered");
 
       const result = await tool.execute("1", {
-        role: "coder",
+        role: "po",
         slug: "aborted-transcript",
         body: "Do work"
       }, controller.signal, (update: any) => {
@@ -629,11 +629,11 @@ describe("registered task tools", () => {
       assert.match(result.content[0].text, /^Task "aborted-transcript" aborted\./);
       assert.equal(result.details?.aborted, true);
       assert.equal(result.terminate, true);
-      assert.ok(updates.some(text => text.includes("[coder/aborted-transcript]")), "transient nested transcript should be streamed before abort");
-      assert.doesNotMatch(result.content[0].text, /\[coder\/aborted-transcript\]/);
+      assert.ok(updates.some(text => text.includes("[po/aborted-transcript]")), "transient nested transcript should be streamed before abort");
+      assert.doesNotMatch(result.content[0].text, /\[po\/aborted-transcript\]/);
       assert.doesNotMatch(result.content[0].text, /💰 \$/);
       assert.doesNotMatch(result.content[0].text, /⛔ unfolding aborted/);
-      assert.equal(result.details?.childOutputRole, "coder");
+      assert.equal(result.details?.childOutputRole, "po");
       assert.ok(Array.isArray(result.details?.childOutputEvents), "expected nested transcript in details");
       assert.match(JSON.stringify(result.details?.childOutputEvents), /aborted-transcript/);
     } finally {
@@ -711,7 +711,7 @@ describe("registered task tools", () => {
       assert.ok(tool, "task_delegate tool must be registered");
       const updates: any[] = [];
       const result = await tool.execute("1", {
-        role: "coder",
+        role: "po",
         slug: "blocked-child",
         body: "Do work"
       }, AbortSignal.timeout(3000), (update: any) => {
@@ -723,7 +723,7 @@ describe("registered task tools", () => {
       assert.equal(result.details?.blocked_reason, "need architecture decision");
       assert.ok(updates.length > 0, "expected streamed child output updates for blocked child");
       const finalUpdate = updates[updates.length - 1];
-      assert.equal(finalUpdate.details?.childOutputRole, "coder");
+      assert.equal(finalUpdate.details?.childOutputRole, "po");
       assert.ok(Array.isArray(finalUpdate.details?.childOutputEvents), "expected final child output events for blocked child");
       assert.match(JSON.stringify(finalUpdate.details?.childOutputEvents), /blocked: need architecture decision/);
     } finally {
@@ -764,7 +764,7 @@ describe("registered task tools", () => {
       const controller = new AbortController();
       controller.abort();
       const result = await tool.execute("1", {
-        role: "coder",
+        role: "po",
         slug: "delegate-debug",
         body: "Do work"
       }, controller.signal, undefined, {
@@ -803,7 +803,7 @@ describe("registered task tools", () => {
       const controller = new AbortController();
       controller.abort();
       const result = await tool.execute("1", {
-        role: "coder",
+        role: "po",
         slug: "delegate-debug-missing-session",
         body: "Do work"
       }, controller.signal, undefined, {
@@ -834,7 +834,7 @@ describe("registered task tools", () => {
       assert.ok(tool, "task_delegate tool must be registered");
       const updates: any[] = [];
       const result = await tool.execute("1", {
-        role: "coder",
+        role: "po",
         slug: "finished-child",
         body: "Do work"
       }, AbortSignal.timeout(3000), (update: any) => {
@@ -844,7 +844,7 @@ describe("registered task tools", () => {
       assert.match(result.content[0].text, /Outcome: finished/);
       assert.ok(updates.length > 0, "expected streamed child output updates for finished child");
       const finalUpdate = updates[updates.length - 1];
-      assert.equal(finalUpdate.details?.childOutputRole, "coder");
+      assert.equal(finalUpdate.details?.childOutputRole, "po");
       assert.ok(Array.isArray(finalUpdate.details?.childOutputEvents), "expected final child output events for finished child");
       assert.match(JSON.stringify(finalUpdate.details?.childOutputEvents), /task_finished/);
     } finally {
@@ -874,7 +874,7 @@ describe("registered task tools", () => {
       assert.ok(tool, "task_delegate tool must be registered");
       let abortCalls = 0;
       const result = await tool.execute("1", {
-        role: "coder",
+        role: "po",
         slug: "aborted-child",
         body: "Do work"
       }, controller.signal, undefined, {cwd, abort() {
@@ -923,7 +923,7 @@ describe("registered task tools", () => {
       createTask(cwd, {
         slug: "unblock-aborted",
         from: "orchestrator",
-        to: "coder",
+        to: "po",
         body: "Do work",
       });
       updateTaskStatus(cwd, "unblock-aborted", "blocked", "waiting");
@@ -971,7 +971,7 @@ describe("registered task tools", () => {
       assert.ok(tool, "task_delegate tool must be registered");
 
       const resultPromise = tool.execute("1", {
-        role: "coder",
+        role: "po",
         slug: "late-aborted-child",
         body: "Do work"
       }, controller.signal, undefined, {cwd, model: faux.getModel(), authStorage, modelRegistry, abort() {
@@ -1016,7 +1016,7 @@ describe("registered task tools", () => {
       };
 
       const resultPromise = tool.execute("1", {
-        role: "coder",
+        role: "po",
         slug: "ctx-signal-aborted-child",
         body: "Do work"
       }, undefined, undefined, ctx);
@@ -1094,7 +1094,7 @@ describe("registered task tools", () => {
       createTask(cwd, {
         slug: "reopen-aborted",
         from: "orchestrator",
-        to: "coder",
+        to: "po",
         body: "Do work",
       });
       updateTaskStatus(cwd, "reopen-aborted", "finished");
@@ -1188,7 +1188,7 @@ describe("registered task tools", () => {
       createTask(cwd, {
         slug: "unblock-nodebug",
         from: "orchestrator",
-        to: "coder",
+        to: "po",
         body: "Do work",
       });
       updateTaskStatus(cwd, "unblock-nodebug", "blocked", "waiting");

@@ -37,6 +37,19 @@ describe("task_continue", () => {
     }
   });
 
+  it("task_delegate rejects disallowed delegate roles from the caller's role frontmatter", async () => {
+    const cwd = makeTestTempDir("delegate-policy");
+    try {
+      const tool = makeTaskDelegateDefinition("coder", new Map() as any, {} as any, () => {});
+      await assert.rejects(
+        () => tool.execute("1", { role: "coder", slug: "review-2", body: "new" }, undefined, undefined, { cwd, signal: undefined }),
+        /role "coder" may not delegate to "coder"\. Allowed delegate roles: clean-code-reviewer\./,
+      );
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("task_delegate rejects creating a new delegate while a direct delegate is already in progress", async () => {
     const cwd = makeTestTempDir("delegate-continue");
     try {

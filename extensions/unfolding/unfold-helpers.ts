@@ -70,21 +70,33 @@ export function isPathAllowed(tool: string, path: string, rules: PathRestriction
 }
 
 
+function frontmatterBlock(content: string): string | undefined {
+  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  return frontmatter?.[1];
+}
+
+function parseFrontmatterStringList(content: string, key: string): string[] | undefined {
+  const block = frontmatterBlock(content);
+  if (!block) return undefined;
+
+  const inlineEmptyMatch = block.match(new RegExp(`^${key}:\\s*\\[\\s*\\]\\s*$`, "m"));
+  if (inlineEmptyMatch) return [];
+
+  const listMatch = block.match(new RegExp(`^${key}:\\s*\\n((?:[ \\t]+-[ \\t]+\\S[^\\n]*\\n?)*)`, "m"));
+  if (!listMatch) return undefined;
+  return listMatch[1]
+    .split("\n")
+    .map(line => line.replace(/^[ \t]+-[ \t]+/, "").trim())
+    .filter(Boolean);
+}
+
 /**
  * Parse the optional `path-restrictions:` list from YAML frontmatter.
  * Returns parsed rules when declared, or undefined when the key is absent.
  */
 export function parseFrontmatterPathRestrictions(content: string): PathRestrictionRule[] | undefined {
-  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!frontmatter) return undefined;
-  const block = frontmatter[1];
-  const restrictionsMatch = block.match(/^path-restrictions:\s*\n((?:[ \t]+-[ \t]+\S[^\n]*\n?)*)(?=[^\s]|$)/m);
-  if (!restrictionsMatch) return undefined;
-  const items = restrictionsMatch[1]
-    .split("\n")
-    .map(line => line.replace(/^[ \t]+-[ \t]+/, "").trim())
-    .filter(Boolean);
-  return items.length > 0 ? parsePathRestrictions(items) : undefined;
+  const items = parseFrontmatterStringList(content, "path-restrictions");
+  return items ? parsePathRestrictions(items) : undefined;
 }
 
 export const SHARED_PREAMBLE =
@@ -103,17 +115,15 @@ export function stripFrontmatter(content: string): string {
  * Returns the array of tool names when declared, or undefined when the key is absent.
  */
 export function parseFrontmatterTools(content: string): string[] | undefined {
-  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!frontmatter) return undefined;
-  const block = frontmatter[1];
-  // Match a `tools:` block followed by indented list items
-  const toolsMatch = block.match(/^tools:\s*\n((?:[ \t]+-[ \t]+\S[^\n]*\n?)*)(?=[^\s]|$)/m);
-  if (!toolsMatch) return undefined;
-  const items = toolsMatch[1]
-    .split("\n")
-    .map(line => line.replace(/^[ \t]+-[ \t]+/, "").trim())
-    .filter(Boolean);
-  return items.length > 0 ? items : undefined;
+  return parseFrontmatterStringList(content, "tools");
+}
+
+/**
+ * Parse the optional `delegates-to:` list from YAML frontmatter.
+ * Returns the array of allowed delegate role names when declared, or undefined when the key is absent.
+ */
+export function parseFrontmatterDelegatesTo(content: string): string[] | undefined {
+  return parseFrontmatterStringList(content, "delegates-to");
 }
 
 export interface UnfoldMessageOptions {

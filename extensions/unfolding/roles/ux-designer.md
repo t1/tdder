@@ -15,6 +15,7 @@ tools:
   - browser_*
   - task_finished
   - task_block
+delegates-to: []
 path-restrictions:
   - read deny: docs/rules/**
 ---

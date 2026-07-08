@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Task } from "./task-store.ts";
+import { assertTaskDelegationPolicy } from "./delegation-policy.ts";
 
 function summaryPath(cwd: string): string {
   return join(cwd, ".pi", "unfolding", "tasks.yaml");
@@ -37,6 +38,7 @@ export function assertValidTaskTree(tasks: Task[]): void {
   const childrenByParent = buildChildrenByParent(tasks);
 
   for (const task of tasks) {
+    assertTaskDelegationPolicy(task);
     if (!task.parent_slug) continue;
     const parent = bySlug.get(task.parent_slug);
     if (!parent) {
