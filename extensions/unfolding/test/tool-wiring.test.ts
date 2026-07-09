@@ -180,8 +180,9 @@ describe("task_delegate wiring", () => {
     assert.ok(factorySrc.includes("waitForChildDecision"), "must call waitForChildDecision");
   });
 
-  it("accepts optional parent_slug and passes it to createTask", () => {
-    assert.ok(src.includes("parent_slug"), "must accept and forward parent_slug");
+  it("accepts optional parent_slug only for root delegation and forwards parent links into task creation", () => {
+    assert.ok(src.includes("effectiveParentSlug"), "must compute the effective parent link in the tool");
+    assert.ok(src.includes("parent_slug: effectiveParentSlug"), "must forward the effective parent link into child-session startup");
   });
 
   it("defines task_continue alongside task_delegate", () => {

@@ -64,6 +64,16 @@ describe("task_continue", () => {
       cleanupTestTempDir(cwd);
     }
   });
+
+  it("child task_delegate schema does not expose parent_slug", () => {
+    const tool = makeTaskDelegateDefinition("po", new Map() as any, {} as any, () => {}, undefined, undefined, "po-root");
+    assert.ok(!("parent_slug" in (tool.parameters as any).properties));
+  });
+
+  it("root task_delegate schema still exposes optional parent_slug", () => {
+    const tool = makeTaskDelegateDefinition("orchestrator", new Map() as any, {} as any, () => {});
+    assert.ok("parent_slug" in (tool.parameters as any).properties);
+  });
 });
 
 describe("loadAgentRoleConfig", () => {

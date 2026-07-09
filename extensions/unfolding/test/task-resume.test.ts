@@ -13,7 +13,7 @@ import {startChildSession} from "../session-factory.ts";
 import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
 import {makeTestGitRepo} from "./test-git-repo.ts";
 
-function nestedDelegateToolFactory(_shortRole: string) {
+function nestedDelegateToolFactory(_shortRole: string, _currentCommissionerSlug: string) {
   return {
     name: "task_delegate",
     label: "Task delegate",
@@ -173,7 +173,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       const started = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-resume",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
@@ -243,7 +243,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       const activeSessions = new Map() as any;
       const started = await startChildSession({
         cwd,
-        from: "orchestrator",
+        from: "po",
         role: "architect",
         slug: "architect-resume-ask",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
@@ -323,7 +323,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       const started = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-resume-tooluse",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
@@ -388,7 +388,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       const started = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-resume-missing-checkpoint",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
@@ -450,7 +450,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       const started = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-resume-missing-checkpoint-block",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
@@ -514,7 +514,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       const started = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-resume-child-failure",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
@@ -581,7 +581,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       const started = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-resume-truncation",
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
@@ -649,7 +649,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       const started = await startChildSession({
         cwd,
         from: "orchestrator",
-        role: "coder",
+        role: "po",
         slug: "coder-reopen-truncation",
         body: "Call task_finished. Just call the tool, nothing else.",
         activeSessions,

@@ -1249,9 +1249,12 @@ describe("/connect-session command", () => {
     const {cwd} = makeTestGitRepo("connect-cmd");
     try {
       const {commands, execCalls} = setupPi();
-      const sessionFile = join(cwd, "fake-session.jsonl");
-      writeFileSync(sessionFile, "");
-      createTask(cwd, {slug: "po-1", from: "orchestrator", to: "po", body: "Code", session_file: sessionFile});
+      const poSessionFile = join(cwd, "po-session.jsonl");
+      const architectSessionFile = join(cwd, "architect-session.jsonl");
+      writeFileSync(poSessionFile, "");
+      writeFileSync(architectSessionFile, "");
+      createTask(cwd, {slug: "po-1", from: "orchestrator", to: "po", body: "Code", session_file: poSessionFile});
+      createTask(cwd, {slug: "arch-1", from: "po", to: "architect", body: "Design", parent_slug: "po-1", session_file: architectSessionFile});
 
       const selectCalls: string[][] = [];
       const notifyCalls: string[] = [];
@@ -1261,7 +1264,7 @@ describe("/connect-session command", () => {
         ui: {
           async select(_prompt: string, opts: string[]) {
             selectCalls.push(opts);
-            return opts[0]; // pick coder-1
+            return opts.find(option => /\[po\] po-1/.test(option));
           },
           notify(msg: string) { notifyCalls.push(msg); },
         },
@@ -1270,10 +1273,11 @@ describe("/connect-session command", () => {
       await commands.get("connect-session")?.handler(undefined, ctx);
 
       assert.equal(selectCalls.length, 1, "picker should appear");
-      assert.match(selectCalls[0][0], /\[po\] po-1/);
+      assert.ok(selectCalls[0].some(option => /\[po\] po-1/.test(option)), "picker should include the PO session");
+      assert.ok(selectCalls[0].some(option => /\[architect\] arch-1/.test(option)), "picker should include the Architect session");
       assert.match(selectCalls[0][selectCalls[0].length - 1], /Stay here/);
-      // No TMUX in test env → fallback notify
-      assert.ok(notifyCalls.some(m => m.includes(sessionFile)), "fallback notify should include session file");
+      assert.equal(execCalls.length, 0, "no tmux call expected outside tmux");
+      assert.ok(notifyCalls.some(m => m.includes(poSessionFile)), "fallback notify should include chosen session file");
     } finally {
       cleanupTestTempDir(cwd);
     }

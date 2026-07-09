@@ -31,6 +31,7 @@ async function runChildSession(
   onUpdate: any,
   ctx: any,
 ): Promise<any> {
+  const effectiveParentSlug = currentCommissionerSlug ?? params.parent_slug;
   await exportTaskCommissionerDebugHtmlIfEnabled(
     ctx.cwd,
     params.slug,
@@ -44,12 +45,12 @@ async function runChildSession(
     role: params.role,
     slug: params.slug,
     body: params.body,
-    parent_slug: params.parent_slug,
+    parent_slug: effectiveParentSlug,
     activeSessions,
     pi,
     postOutput,
-    nestedDelegateToolFactory: (shortRole: string) =>
-      makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput, onChildOutcome, exportDebugHtml, params.slug),
+    nestedDelegateToolFactory: (shortRole: string, commissionerSlug: string) =>
+      makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput, onChildOutcome, exportDebugHtml, commissionerSlug),
     signal,
     parentSignal: ctx.signal,
     onUpdate,
@@ -87,6 +88,20 @@ async function runChildSession(
   };
 }
 
+function delegateParametersSchema(from: string, currentCommissionerSlug?: string) {
+  const base = {
+    role: delegateRoleParameterSchema(from),
+    slug: Type.String({ description: "Unique slug for this task" }),
+    body: Type.String({ description: "Task description for the role" }),
+  };
+  return currentCommissionerSlug
+    ? Type.Object(base)
+    : Type.Object({
+      ...base,
+      parent_slug: Type.Optional(Type.String({ description: "Slug of the parent task, if this is a sub-delegation" })),
+    });
+}
+
 export function makeTaskDelegateDefinition(
   from: string,
   activeSessions: Map<string, AgentSession>,
@@ -100,12 +115,7 @@ export function makeTaskDelegateDefinition(
     name: "task_delegate",
     label: "Task delegate",
     description: "Delegate work to a role sub-session and wait for it to finish or block. If this tool throws an error, treat it as a critical bug — stop all work immediately and report the full error message to the user.",
-    parameters: Type.Object({
-      role: delegateRoleParameterSchema(from),
-      slug: Type.String({ description: "Unique slug for this task" }),
-      body: Type.String({ description: "Task description for the role" }),
-      parent_slug: Type.Optional(Type.String({ description: "Slug of the parent task, if this is a sub-delegation" })),
-    }),
+    parameters: delegateParametersSchema(from, currentCommissionerSlug),
     async execute(_id: string, params: { role: string; slug: string; body: string; parent_slug?: string }, signal: AbortSignal | undefined, onUpdate: any, ctx: any) {
       refreshAskSenseiCallback(pi, ctx);
       try {

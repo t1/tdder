@@ -11,7 +11,7 @@ import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
 import {makeTestGitRepo} from "./test-git-repo.ts";
 import {fauxAssistantMessage, fauxToolCall, registerFauxProvider} from "./faux-provider.ts";
 
-function nestedDelegateToolFactory(_shortRole: string) {
+function nestedDelegateToolFactory(_shortRole: string, _currentCommissionerSlug: string) {
   return {
     name: "task_delegate",
     label: "Task delegate",

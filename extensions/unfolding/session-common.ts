@@ -7,7 +7,7 @@ import {createChildTaskTools} from "./child-task-tools.ts";
 import { makeTaskContinueDefinition } from "./task-delegate-tool.ts";
 import {resolveToolAllowlist, isPathAllowed} from "./unfold-helpers.ts";
 
-export type NestedDelegateToolFactory = (shortRole: string) => any;
+export type NestedDelegateToolFactory = (shortRole: string, currentCommissionerSlug: string) => any;
 
 export interface ChildSessionBuildParams {
   cwd: string;
@@ -94,7 +94,7 @@ export async function createChildAgentSession({
     modelRegistry,
     tools: resolvedTools,
     excludeTools: ["task_list", "task_read"],
-    customTools: createChildTaskTools(cwd, slug, nestedDelegateToolFactory(shortRole), makeTaskContinueDefinition(shortRole, activeSessions, pi, postOutput, undefined, undefined, slug), {
+    customTools: createChildTaskTools(cwd, slug, nestedDelegateToolFactory(shortRole, slug), makeTaskContinueDefinition(shortRole, activeSessions, pi, postOutput, undefined, undefined, slug), {
       activeSessions,
       postOutput,
       pi,

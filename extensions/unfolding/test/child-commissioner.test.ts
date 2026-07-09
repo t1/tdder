@@ -11,6 +11,7 @@ import { startChildSession } from "../session-factory.ts";
 import { makeTaskDelegateDefinition } from "../task-delegate-tool.ts";
 import { makeTestGitRepo } from "./test-git-repo.ts";
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import { readTask } from "../task-store.ts";
 import { join } from "node:path";
 import { cleanupTestTempDir } from "./test-temp.ts";
 
@@ -97,14 +98,51 @@ describe("child commissioner tools", () => {
         activeSessions,
         pi: {} as any,
         postOutput: () => {},
-        nestedDelegateToolFactory: (shortRole) =>
-          makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}),
+        nestedDelegateToolFactory: (shortRole, commissionerSlug) =>
+          makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
         model: faux.getModel(),
         authStorage: auth,
         modelRegistry,
       });
 
       assert.equal(result.outcome, "finished");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("child delegation persists the commissioner slug as parent_slug", async () => {
+    const { cwd } = makeTestGitRepo("child-commissioner");
+    const { faux, auth, modelRegistry } = sharedFauxSetup("parent-slug");
+    try {
+      faux.setResponses([
+        fauxAssistantMessage([fauxToolCall("task_delegate", { role: "architect", slug: "gc-parent", body: "do something" })], { stopReason: "toolUse" }),
+      ]);
+
+      const activeSessions = trackActiveSessions();
+      const result = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "po",
+        slug: "child-parent",
+        body: "delegate to an architect then finish",
+        activeSessions,
+        pi: {} as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory: (shortRole, commissionerSlug) =>
+          makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
+        model: faux.getModel(),
+        authStorage: auth,
+        modelRegistry,
+      });
+
+      assert.equal(result.outcome, "blocked");
+      const grandchild = readTask(cwd, "gc-parent");
+      assert.ok(grandchild, "grandchild task should exist");
+      assert.equal(grandchild!.parent_slug, "child-parent");
+      assert.equal(grandchild!.from, "po");
+      assert.equal(grandchild!.to, "architect");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);
@@ -140,8 +178,8 @@ describe("child commissioner tools", () => {
         activeSessions,
         pi: {} as any,
         postOutput: () => {},
-        nestedDelegateToolFactory: (shortRole) => ({
-          ...makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}),
+        nestedDelegateToolFactory: (shortRole, commissionerSlug) => ({
+          ...makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
           execute: async (_id: string, params: any, _signal: any, _onUpdate: any, _ctx: any) => {
             const { startChildSession: startGc } = await import("../session-factory.ts");
             const { session, outcome } = await startGc({
@@ -153,7 +191,7 @@ describe("child commissioner tools", () => {
               activeSessions,
               pi: {} as any,
               postOutput: () => {},
-              nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}),
+              nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
               model: gcFaux.getModel(),
               authStorage: gcAuth,
               modelRegistry: gcRegistry,
@@ -203,8 +241,8 @@ describe("child commissioner tools", () => {
         activeSessions,
         pi: {} as any,
         postOutput: () => {},
-        nestedDelegateToolFactory: (shortRole) => ({
-          ...makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}),
+        nestedDelegateToolFactory: (shortRole, commissionerSlug) => ({
+          ...makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
           execute: async (_id: string, params: any, _signal: any, _onUpdate: any, _ctx: any) => {
             const { startChildSession: startGc } = await import("../session-factory.ts");
             const { session, outcome } = await startGc({
@@ -216,7 +254,7 @@ describe("child commissioner tools", () => {
               activeSessions,
               pi: {} as any,
               postOutput: () => {},
-              nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}),
+              nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
               model: gcFaux.getModel(),
               authStorage: gcAuth,
               modelRegistry: gcRegistry,
@@ -264,8 +302,8 @@ describe("child commissioner tools", () => {
         pi: {} as any,
         postOutput: () => {},
         signal: AbortSignal.timeout(3000),
-        nestedDelegateToolFactory: (shortRole) => ({
-          ...makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}),
+        nestedDelegateToolFactory: (shortRole, commissionerSlug) => ({
+          ...makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
           execute: async (_id: string, params: any, _signal: any, _onUpdate: any, _ctx: any) => {
             const { startChildSession: startGc } = await import("../session-factory.ts");
             const { session, outcome } = await startGc({
@@ -277,7 +315,7 @@ describe("child commissioner tools", () => {
               activeSessions,
               pi: {} as any,
               postOutput: () => {},
-              nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}),
+              nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
               model: gcFaux.getModel(),
               authStorage: gcAuth,
               modelRegistry: gcRegistry,
@@ -447,8 +485,8 @@ describe("child commissioner tools", () => {
         pi: {} as any,
         postOutput: () => {},
         signal: controller.signal,
-        nestedDelegateToolFactory: (shortRole) => ({
-          ...makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}),
+        nestedDelegateToolFactory: (shortRole, commissionerSlug) => ({
+          ...makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
           execute: async (_id: string, params: any, _signal: any, _onUpdate: any, _ctx: any) => {
             queueMicrotask(() => controller.abort());
             const { startChildSession: startGc } = await import("../session-factory.ts");
@@ -462,7 +500,7 @@ describe("child commissioner tools", () => {
               pi: {} as any,
               postOutput: () => {},
               signal: controller.signal,
-              nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}),
+              nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
               model: gcFaux.getModel(),
               authStorage: gcAuth,
               modelRegistry: gcRegistry,
@@ -510,8 +548,8 @@ describe("child commissioner tools", () => {
         pi: {} as any,
         postOutput: () => {},
         signal: AbortSignal.timeout(3000),
-        nestedDelegateToolFactory: (shortRole) => ({
-          ...makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}),
+        nestedDelegateToolFactory: (shortRole, commissionerSlug) => ({
+          ...makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
           execute: async (_id: string, params: any, _signal: any, _onUpdate: any, _ctx: any) => {
             const { startChildSession: startGc } = await import("../session-factory.ts");
             const result = await startGc({
@@ -523,7 +561,7 @@ describe("child commissioner tools", () => {
               activeSessions,
               pi: {} as any,
               postOutput: () => {},
-              nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}),
+              nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
               model: gcFaux.getModel(),
               authStorage: gcAuth,
               modelRegistry: gcRegistry,
