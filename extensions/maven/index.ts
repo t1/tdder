@@ -20,7 +20,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { renderMavenMessage, renderMavenRunResult } from "./renderer.ts";
 import { buildSummary as buildCollapsedSummary } from "./run-result-renderer.ts";
 import { buildMavenArgs, buildMavenCommand, type MavenAction, type TestScope } from "./maven-run.ts";
-import { MavenProjectInfo, MavenRun, spawnMaven, type MavenRunOptions, type RawRunOutput } from "./maven-project.ts";
+import { MavenProjectInfo, MavenRun, spawnMavenWithOfflineFallback, type MavenRunOptions, type RawRunOutput } from "./maven-project.ts";
 import { loadJarSkills } from "./jar-skills.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { buildMetadataUrl, fetchMetadata, formatVersionLookupError, selectVersion, VersionLookupError } from "./version-lookup.ts";
@@ -37,8 +37,9 @@ import { INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE } from "./guidance.ts
 
 /**
  * Spawn Maven with a live progress widget. The widget is cleared before
- * this function returns.  Delegates the actual spawn to `spawnMaven`;
- * this function only owns the widget lifecycle and phase tracking.
+ * this function returns. Delegates the actual spawn to
+ * `spawnMavenWithOfflineFallback`; this function only owns the widget lifecycle
+ * and phase tracking.
  */
 async function runMaven(
   command: string,
@@ -66,7 +67,7 @@ async function runMaven(
   refreshWidget(true);
   const widgetTimer = setInterval(() => refreshWidget(true), 200);
 
-  const result = await spawnMaven(args, projectRoot, (text) => {
+  const result = await spawnMavenWithOfflineFallback(args, projectRoot, (text) => {
     for (const line of text.split("\n")) {
       lineCount++;
       const detected = parsePhase(line.trimEnd());

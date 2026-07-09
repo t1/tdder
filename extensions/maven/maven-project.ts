@@ -82,10 +82,15 @@ export interface RawRunOutput {
   exitCode: number;
 }
 
+export type SpawnMavenFn = (
+  args: string[],
+  projectRoot: string,
+  onChunk?: (text: string) => void,
+) => Promise<RawRunOutput>;
+
 /**
  * Spawn Maven, stream stdout+stderr into a single string, and return the
- * combined output with the exit code.  No widget, no retry — callers layer
- * those on top.
+ * combined output with the exit code.
  *
  * @param onChunk  Optional callback invoked with each raw text chunk as it
  *                 arrives.  Use this to drive live progress indicators.
@@ -117,6 +122,25 @@ export async function spawnMaven(
       done({ rawOutput: rawChunks.join(""), exitCode: code ?? 1 });
     });
   });
+}
+
+export function shouldRetryMavenOffline({ rawOutput, exitCode }: RawRunOutput): boolean {
+  return exitCode !== 0 && /resolver-status\.properties.*Operation not permitted/.test(rawOutput);
+}
+
+/**
+ * Retry with Maven offline mode when the first run fails because writing
+ * resolver-status.properties is blocked by the sandbox.
+ */
+export async function spawnMavenWithOfflineFallback(
+  args: string[],
+  projectRoot: string,
+  onChunk?: (text: string) => void,
+  run: SpawnMavenFn = spawnMaven,
+): Promise<RawRunOutput> {
+  const firstRun = await run(args, projectRoot, onChunk);
+  if (!shouldRetryMavenOffline(firstRun)) return firstRun;
+  return run([...args, "-o"], projectRoot, onChunk);
 }
 
 // ---------------------------------------------------------------------------

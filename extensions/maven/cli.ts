@@ -21,7 +21,7 @@ import {buildMavenArgs, buildMavenCommand, type MavenAction, type TestScope} fro
 import {
   MavenProjectInfo,
   MavenRun,
-  spawnMaven,
+  spawnMavenWithOfflineFallback,
   type MavenRunOptions,
 } from "./maven-project.ts";
 import {buildMetadataUrl, fetchMetadata, formatVersionLookupError, selectVersion, VersionLookupError} from "./version-lookup.ts";
@@ -143,10 +143,7 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
   const mavenArgs = buildMavenArgs(opts);
 
   const runStartTime = Date.now();
-  let rawRun = await spawnMaven(mavenArgs, info.projectRoot);
-  if (rawRun.exitCode !== 0 && /resolver-status\.properties.*Operation not permitted/.test(rawRun.rawOutput)) {
-    rawRun = await spawnMaven([...mavenArgs, "-o"], info.projectRoot);
-  }
+  const rawRun = await spawnMavenWithOfflineFallback(mavenArgs, info.projectRoot);
 
   const result = toMavenRunJson(MavenRun.fromRawOutput(rawRun, info, {command, action: "test", cwd, testScope, runStartTime, includeTimings, limit}));
 
@@ -181,10 +178,7 @@ async function cmdPackage(args: Record<string, string | boolean>): Promise<void>
   const mavenArgs = buildMavenArgs(opts);
 
   const runStartTime = Date.now();
-  let rawRun = await spawnMaven(mavenArgs, info.projectRoot);
-  if (rawRun.exitCode !== 0 && /resolver-status\.properties.*Operation not permitted/.test(rawRun.rawOutput)) {
-    rawRun = await spawnMaven([...mavenArgs, "-o"], info.projectRoot);
-  }
+  const rawRun = await spawnMavenWithOfflineFallback(mavenArgs, info.projectRoot);
 
   const result = toMavenRunJson(MavenRun.fromRawOutput(rawRun, info, {command, action: "package", cwd, testScope: undefined, runStartTime}));
 
