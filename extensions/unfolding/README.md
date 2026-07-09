@@ -218,12 +218,14 @@ ADRs and must never answer technical questions. If a technical question arrives,
 Architect to ask the Sensei directly. If a question is mixed, the PO sends it back and requires the Architect to remove
 its technical aspects, ask those directly, and bring back only any remaining PO-scope business question.
 
-For PO → Architect handoff: the PO may pass product intent, scope, business rules, user-visible behavior, and delivery
-channel. Product-scope terms such as `webapp`, `mobile app`, `CLI`, or `API` describe only the delivery channel and do
-not authorize any stack inference. The PO must not add technical instructions, recommendations, or unauthorized
-technical inference of their own. If technical guidance is passed through from the Sensei, it must be clearly labeled as
-such. The Architect must refuse unlabeled or unsupported technical steering from the PO, block, require rollback of the
-malformed `[ARCH]` task, and request a fresh business-only handoff.
+For PO → Architect handoff: the PO may pass product intent, scope, business rules, user-visible behavior, delivery
+channel, and externally visible product contract. Product-scope terms such as `webapp`, `mobile app`, `CLI`, or `API`
+describe only the delivery channel or public contract and do not authorize any stack inference. A customer-facing
+REST/JSON API can therefore be valid PO input when it describes the product contract; framework, build-tool, storage,
+and other internal implementation choices remain outside PO scope. The PO must not add technical instructions,
+recommendations, or unauthorized technical inference of their own. If technical guidance is passed through from the
+Sensei, it must be clearly labeled as such. The Architect must refuse unlabeled or unsupported technical steering from
+the PO, block, require rollback of the malformed `[ARCH]` task, and request a fresh business-only handoff.
 
 Decision ownership is strict:
 
