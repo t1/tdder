@@ -55,11 +55,33 @@ export function taskAccept(cwd: string, slug: string): void {
   deleteTask(cwd, slug);
 }
 
+function descendantTasks(tasks: Task[], slug: string): Task[] {
+  const byParent = new Map<string, Task[]>();
+  for (const task of tasks) {
+    if (!task.parent_slug) continue;
+    const children = byParent.get(task.parent_slug) ?? [];
+    children.push(task);
+    byParent.set(task.parent_slug, children);
+  }
+
+  const descendants: Task[] = [];
+  const visit = (parentSlug: string): void => {
+    for (const child of byParent.get(parentSlug) ?? []) {
+      visit(child.slug);
+      descendants.push(child);
+    }
+  };
+  visit(slug);
+  return descendants;
+}
+
 export function taskRollback(cwd: string, slug: string): void {
   const task = readTask(cwd, slug);
   if (!task) throw new Error(`Task "${slug}" not found`);
   if (!task.base_sha) throw new Error(`Task "${slug}" has no base_sha for rollback`);
 
+  const descendants = descendantTasks(listTasks(cwd), slug);
+  for (const descendant of descendants) deleteTask(cwd, descendant.slug);
   deleteTask(cwd, slug);
   restoreTaskWorkspace(cwd, task.base_sha, task.snapshot_sha);
 }

@@ -234,7 +234,7 @@ describe("taskRollback", () => {
       createTask(cwd, {
         slug: "child-task",
         from: "po",
-        to: "coder",
+        to: "architect",
         body: "Child task",
         parent_slug: "parent-task",
         base_sha: baseSha,
@@ -245,6 +245,58 @@ describe("taskRollback", () => {
 
       assert.ok(taskRead(cwd, "parent-task").includes("parent-task"));
       assert.throws(() => taskRead(cwd, "child-task"), /child-task/);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("rolls back the whole descendant subtree before restoring the workspace", () => {
+    const { cwd, head: baseSha } = makeTestGitRepo("tools-test");
+    try {
+      writeFileSync(join(cwd, "docs", "README.md"), "seed\npre-task dirty\n");
+      writeFileSync(join(cwd, "notes.txt"), "untracked before delegate\n");
+      execFileSync("git", ["add", "-A"], { cwd, stdio: "ignore" });
+      execFileSync("git", ["commit", "-m", "snapshot"], { cwd, stdio: "ignore" });
+      const snapshotSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
+
+      createTask(cwd, {
+        slug: "parent-task",
+        from: "orchestrator",
+        to: "po",
+        body: "Parent task",
+        base_sha: baseSha,
+        snapshot_sha: snapshotSha,
+      });
+      createTask(cwd, {
+        slug: "child-task",
+        from: "po",
+        to: "architect",
+        body: "Child task",
+        parent_slug: "parent-task",
+        base_sha: snapshotSha,
+      });
+      createTask(cwd, {
+        slug: "grandchild-task",
+        from: "architect",
+        to: "coder",
+        body: "Grandchild task",
+        parent_slug: "child-task",
+        base_sha: snapshotSha,
+      });
+
+      writeFileSync(join(cwd, "docs", "README.md"), "seed\ntask changed\n");
+      writeFileSync(join(cwd, "task-temp.txt"), "created by task\n");
+
+      taskRollback(cwd, "parent-task");
+
+      assert.throws(() => taskRead(cwd, "parent-task"), /parent-task/);
+      assert.throws(() => taskRead(cwd, "child-task"), /child-task/);
+      assert.throws(() => taskRead(cwd, "grandchild-task"), /grandchild-task/);
+      assert.equal(existsSync(join(cwd, ".pi", "unfolding", "tasks.yaml")), false);
+      assert.equal(execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim(), baseSha);
+      assert.equal(readFileSync(join(cwd, "docs", "README.md"), "utf8"), "seed\npre-task dirty\n");
+      assert.equal(readFileSync(join(cwd, "notes.txt"), "utf8"), "untracked before delegate\n");
+      assert.equal(existsSync(join(cwd, "task-temp.txt")), false, "task-created untracked file should be removed");
     } finally {
       cleanupTestTempDir(cwd);
     }
