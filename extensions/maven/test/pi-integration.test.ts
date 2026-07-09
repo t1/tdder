@@ -224,7 +224,7 @@ describe("maven_project_info tool", () => {
 describe("maven_lookup_version tool", () => {
   before(setup);
 
-  it("renders the looked-up coordinates in the tool call", () => {
+  it("renders the tool label and looked-up coordinates in the tool call", () => {
     const tool = mavenExtension.tools.get("maven_lookup_version")!;
     const component = tool.definition.renderCall?.(
       { groupId: "org.assertj", artifactId: "assertj-core", includePrereleases: false },
@@ -241,6 +241,7 @@ describe("maven_lookup_version tool", () => {
     );
 
     assert.ok(component, "renderCall should return a component");
+    assert.match(component!.render(80).join("\n"), /maven_lookup_version/);
     assert.match(component!.render(80).join("\n"), /org\.assertj:assertj-core/);
   });
 
@@ -262,6 +263,7 @@ describe("maven_lookup_version tool", () => {
 
     assert.ok(component, "renderCall should return a component");
     assert.match(component!.render(80).join("\n"), /✗/);
+    assert.match(component!.render(80).join("\n"), /maven_lookup_version/);
     assert.match(component!.render(80).join("\n"), /org\.assertj:assertj-core/);
   });
 

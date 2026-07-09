@@ -307,7 +307,7 @@ export default function (pi: ExtensionAPI) {
         : result
           ? theme.fg("success", "✓")
           : theme.fg("muted", "○");
-      text.setText(`${icon} ${theme.fg("dim", coord)}`);
+      text.setText(`${icon} ${theme.fg("dim", "maven_lookup_version")} ${theme.fg("dim", coord)}`);
       return text;
     },
 
