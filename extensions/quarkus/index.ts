@@ -2005,7 +2005,7 @@ export default async function (pi: ExtensionAPI) {
     if (alreadyLoaded) return;
     if (!isQuarkusProject(event.systemPromptOptions.cwd ?? "")) return;
     return {
-      systemPrompt: event.systemPrompt + "\n\nA Quarkus project was detected (quarkus-maven-plugin present). Load the `quarkus` skill before proceeding.",
+      systemPrompt: event.systemPrompt + "\n\nA Quarkus project was detected (quarkus-maven-plugin present). Load the `quarkus` skill before proceeding. Quarkus-specific setup is not generic Maven work: prefer Quarkus-aware tooling first, check the `quarkus` CLI before hand-writing build-file changes, and only edit pom.xml or build.gradle manually when those higher-level mechanisms are not suitable.",
     };
   });
 
