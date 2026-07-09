@@ -364,7 +364,7 @@ Some content here.`;
 describe("buildUnfoldMessage", () => {
   it("builds a fresh-project kickoff message", () => {
     const msg = buildUnfoldMessage({
-      workflowInstruction: "No live top-level PO line found — this appears to be a fresh project. Start the unfolding process now by delegating to the PO.",
+      workflowInstruction: "No live top-level PO task found — this appears to be a fresh project. Start the unfolding process now by delegating to the PO.",
       guidance: undefined,
       freshProject: true,
     });
@@ -376,18 +376,18 @@ describe("buildUnfoldMessage", () => {
 
   it("builds a resume message without synthetic bookmark wrappers", () => {
     const msg = buildUnfoldMessage({
-      workflowInstruction: "Current top-level PO line `po-login` is in progress. Continue that line; do not start a new one.",
+      workflowInstruction: "Current top-level PO task `po-login` is in progress. Continue that task; do not start a new one.",
       guidance: undefined,
     });
-    assert.ok(msg.includes("po-login"), "should include the line slug");
-    assert.ok(msg.includes("Continue that line"), "should use direct continuation wording");
+    assert.ok(msg.includes("po-login"), "should include the task slug");
+    assert.ok(msg.includes("Continue that task"), "should use direct continuation wording");
     assert.ok(!msg.includes("workflow bookmark"), "should not mention bookmarks");
     assert.ok(!msg.includes("```text"), "should not include a synthetic code block");
   });
 
   it("includes guidance when provided", () => {
     const msg = buildUnfoldMessage({
-      workflowInstruction: "No live top-level PO line found — this appears to be a fresh project. Start the unfolding process now by delegating to the PO.",
+      workflowInstruction: "No live top-level PO task found — this appears to be a fresh project. Start the unfolding process now by delegating to the PO.",
       guidance: "focus on login",
       freshProject: true,
     });
@@ -397,7 +397,7 @@ describe("buildUnfoldMessage", () => {
 
   it("includes both workflow instruction and guidance", () => {
     const msg = buildUnfoldMessage({
-      workflowInstruction: "Current top-level PO line `po-login` is blocked: waiting for product clarification. Resolve the commissioner issue and then resume that line; do not start a new one.",
+      workflowInstruction: "Current top-level PO task `po-login` is blocked: waiting for product clarification. Resolve the commissioner issue and then resume that task; do not start a new one.",
       guidance: "use REST",
     });
     assert.ok(msg.includes("po-login"));

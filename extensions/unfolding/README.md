@@ -1,6 +1,6 @@
 # Unfolding extension
 
-Implements the **Unfolding Specs** workflow: the orchestrator owns only the top-level PO line, while
+Implements the **Unfolding Specs** workflow: the orchestrator owns only the top-level PO task, while
 specialist roles (PO, architect, coder, …) coordinate through runtime-managed delegated tasks and
 live task files.
 
@@ -47,7 +47,7 @@ Used by the orchestrator and delegate sub-sessions to coordinate work:
 | Tool            | Used by                             | Purpose                                                                         |
 |-----------------|-------------------------------------|---------------------------------------------------------------------------------|
 | `task_delegate` | orchestrator, delegate commissioner | Delegate new work to one direct role sub-session; blocks until finished/blocked |
-| `task_continue` | orchestrator, delegate commissioner | Continue the one current direct delegate line and return its current outcome    |
+| `task_continue` | orchestrator, delegate commissioner | Continue the one current direct delegate task and return its current outcome    |
 | `task_list`     | orchestrator                        | List delegated tasks for orchestrator diagnosis/investigation                   |
 | `task_read`     | orchestrator                        | Read full details of a task for orchestrator diagnosis/investigation            |
 | `task_accept`   | orchestrator                        | Accept a finished task (deletes the file; point of no return)                   |
@@ -115,11 +115,11 @@ child with `task_accept`, `task_reopen`, `task_unblock`, or `task_rollback` befo
 is resumed while waiting on that child, it should call `task_continue` rather than `task_delegate`.
 
 The Orchestrator is just another commissioner here, with one additional ownership rule: its only valid direct delegate
-is the top-level PO line. It must not directly commission Architect, Coder, UI Expert, UX Designer, or API Designer.
+is the top-level PO task. It must not directly commission Architect, Coder, UI Expert, UX Designer, or API Designer.
 
 `task_list` and `task_read` remain intentionally available to the Orchestrator as live-workflow diagnostics. The
 Orchestrator may use them both when the Sensei asks for investigation and when it detects an obvious workflow anomaly on
-its own, such as an unclear blockage, an unresolved finished top-level PO line, or inconsistent task metadata. That
+its own, such as an unclear blockage, an unresolved finished top-level PO task, or inconsistent task metadata. That
 investigation scope is still limited to coordination state; it does not authorize code-level supervision or bypassing
 normal PO-owned delegation.
 

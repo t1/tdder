@@ -102,7 +102,7 @@ For the **next unresolved issue**, classify it first:
   body.
   You block until that sub-agent calls `task_finished` or `task_block`.
 - **When you were interrupted while waiting on your current direct delegate:** call `task_continue`.
-- **When you need to unblock, reopen, or discard a sub-agent line:** use `task_unblock`, `task_reopen`, or
+- **When you need to unblock, reopen, or discard a sub-agent task:** use `task_unblock`, `task_reopen`, or
   `task_rollback`.
   Do NOT poll or inspect task files manually.
 - **When the Feature is complete:** call `task_finished`. Call `task_finished` only when your architectural work is

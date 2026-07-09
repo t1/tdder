@@ -518,7 +518,7 @@ describe("registered task tools", () => {
   });
 
 
-  it("/unfold sends a fresh-project instruction when no top-level PO line exists", async () => {
+  it("/unfold sends a fresh-project instruction when no top-level PO task exists", async () => {
     const cwd = makeTestTempDir("unfold-command");
     try {
       const {commands, sentMessages} = setupPi();
@@ -532,14 +532,14 @@ describe("registered task tools", () => {
       });
 
       assert.equal(sentMessages.length, 1);
-      assert.match(sentMessages[0], /No live top-level PO line found/);
+      assert.match(sentMessages[0], /No live top-level PO task found/);
       assert.match(sentMessages[0], /delegating to the PO/);
     } finally {
       cleanupTestTempDir(cwd);
     }
   });
 
-  it("/unfold sends an in-progress resume instruction for the top-level PO line", async () => {
+  it("/unfold sends an in-progress resume instruction for the top-level PO task", async () => {
     const cwd = makeTestTempDir("unfold-command");
     try {
       createTask(cwd, { slug: "po-login", from: "orchestrator", to: "po", body: "Define login" });
@@ -554,14 +554,14 @@ describe("registered task tools", () => {
       });
 
       assert.equal(sentMessages.length, 1);
-      assert.match(sentMessages[0], /Current top-level PO line `po-login` is in progress/);
+      assert.match(sentMessages[0], /Current top-level PO task `po-login` is in progress/);
       assert.match(sentMessages[0], /do not start a new one/);
     } finally {
       cleanupTestTempDir(cwd);
     }
   });
 
-  it("/unfold sends a blocked instruction for the top-level PO line", async () => {
+  it("/unfold sends a blocked instruction for the top-level PO task", async () => {
     const cwd = makeTestTempDir("unfold-command");
     try {
       createTask(cwd, { slug: "po-login", from: "orchestrator", to: "po", body: "Define login" });
@@ -577,14 +577,14 @@ describe("registered task tools", () => {
       });
 
       assert.equal(sentMessages.length, 1);
-      assert.match(sentMessages[0], /Current top-level PO line `po-login` is blocked: waiting for product clarification/);
-      assert.match(sentMessages[0], /Resolve the commissioner issue and then resume that line/);
+      assert.match(sentMessages[0], /Current top-level PO task `po-login` is blocked: waiting for product clarification/);
+      assert.match(sentMessages[0], /Resolve the commissioner issue and then resume that task/);
     } finally {
       cleanupTestTempDir(cwd);
     }
   });
 
-  it("/unfold sends a finished instruction for the top-level PO line", async () => {
+  it("/unfold sends a finished instruction for the top-level PO task", async () => {
     const cwd = makeTestTempDir("unfold-command");
     try {
       createTask(cwd, { slug: "po-login", from: "orchestrator", to: "po", body: "Define login" });
@@ -600,7 +600,7 @@ describe("registered task tools", () => {
       });
 
       assert.equal(sentMessages.length, 1);
-      assert.match(sentMessages[0], /Current top-level PO line `po-login` is finished but unresolved/);
+      assert.match(sentMessages[0], /Current top-level PO task `po-login` is finished but unresolved/);
       assert.match(sentMessages[0], /task_accept\(\.\.\.\), task_reopen\(\.\.\.\), or task_rollback\(\.\.\.\)/);
     } finally {
       cleanupTestTempDir(cwd);

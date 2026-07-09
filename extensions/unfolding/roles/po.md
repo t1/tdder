@@ -94,9 +94,9 @@ For the **next unresolved issue**, classify it first:
   inspect, or interpret `docs/adr/` yourself.
 - **One question at a time:** do not batch dependent DMD questions.
 - **When you need another agent** (UX Designer, API Designer, Architect): call `task_delegate` with the role, a slug,
-  and the full task body. You remain the commissioner until that sub-agent line is complete.
+  and the full task body. You remain the commissioner until that sub-agent task is complete.
 - **When you were interrupted while waiting on your current direct delegate:** call `task_continue`.
-- **When you need to unblock, reopen, or discard a sub-agent line:** use `task_unblock`, `task_reopen`, or
+- **When you need to unblock, reopen, or discard a sub-agent task:** use `task_unblock`, `task_reopen`, or
   `task_rollback`.
   Do NOT poll or inspect task files manually.
 - **When you cannot continue and need your commissioner's or Sensei's help:** call `task_block` with a clear reason.

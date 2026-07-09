@@ -169,7 +169,7 @@ export function makeTaskContinueDefinition(
   return {
     name: "task_continue",
     label: "Task continue",
-    description: "Continue the current direct delegate line and return its current outcome. If there is no direct delegate, the tool explains what to do next.",
+    description: "Continue the current direct delegate task and return its current outcome. If there is no direct delegate, the tool explains what to do next.",
     parameters: Type.Object({}),
     async execute(_id: string, _params: {}, signal: AbortSignal | undefined, onUpdate: any, ctx: any) {
       refreshAskSenseiCallback(pi, ctx);

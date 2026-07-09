@@ -16,7 +16,7 @@ I'd be happy to hear about them!
 - **Extensible**: Add language skills (Java, TypeScript, ...) and build-system skills (Maven, npm, ...)
 - **Unfolding Architecture**: Progressive architectural decisions — start simple, add complexity only when it reduces
   complexity
-- **Unfolding Specs**: Orchestrated feature development — orchestrator launches the top-level PO line, while specialist
+- **Unfolding Specs**: Orchestrated feature development — orchestrator launches the top-level PO task, while specialist
   roles coordinate through runtime-managed delegated tasks
 - **Configurable human-in-the-loop**: Control how often the AI pauses for your input
 
@@ -116,7 +116,7 @@ because their output is analytical rather than a simple pass/fail signal.
 
 ### unfolding (pi only)
 
-Implements the **Unfolding Specs** workflow: the orchestrator owns the top-level PO line, while
+Implements the **Unfolding Specs** workflow: the orchestrator owns the top-level PO task, while
 specialist roles delegate work through runtime-managed live tasks and explicit checkpoints.
 
 For command usage, task tools, coordination protocol, recovery behavior, rollback mechanics,

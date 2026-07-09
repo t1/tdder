@@ -161,12 +161,12 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           ].filter(Boolean).join("\n\n")
         : guidance;
       const workflowInstruction = directDelegate.kind === "none"
-        ? "No live top-level PO line found — this appears to be a fresh project. Start the unfolding process now by delegating to the PO."
+        ? "No live top-level PO task found — this appears to be a fresh project. Start the unfolding process now by delegating to the PO."
         : directDelegate.kind === "in_progress"
-          ? `Current top-level PO line \`${directDelegate.task.slug}\` is in progress. Continue that line; do not start a new one.`
+          ? `Current top-level PO task \`${directDelegate.task.slug}\` is in progress. Continue that task; do not start a new one.`
           : directDelegate.kind === "blocked"
-            ? `Current top-level PO line \`${directDelegate.task.slug}\` is blocked${directDelegate.task.blocked_reason ? `: ${directDelegate.task.blocked_reason}` : "."} Resolve the commissioner issue and then resume that line; do not start a new one.`
-            : `Current top-level PO line \`${directDelegate.task.slug}\` is finished but unresolved. Resolve it with task_accept(...), task_reopen(...), or task_rollback(...); do not start a new one.`;
+            ? `Current top-level PO task \`${directDelegate.task.slug}\` is blocked${directDelegate.task.blocked_reason ? `: ${directDelegate.task.blocked_reason}` : "."} Resolve the commissioner issue and then resume that task; do not start a new one.`
+            : `Current top-level PO task \`${directDelegate.task.slug}\` is finished but unresolved. Resolve it with task_accept(...), task_reopen(...), or task_rollback(...); do not start a new one.`;
       const message = buildUnfoldMessage({ workflowInstruction, guidance: freshProjectGuidance, freshProject });
 
       // Arm the system-prompt injection for the upcoming turn.
