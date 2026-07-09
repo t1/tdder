@@ -67,6 +67,16 @@ describe("buildMavenCommand", () => {
     });
     assert.equal(cmd, "./mvnw -Pat,rules verify -DskipITs=false");
   });
+
+  it("adds --update-snapshots when forceUpdate is requested", () => {
+    const cmd = buildMavenCommand({
+      action: "test",
+      runner: "./mvnw",
+      testScope: "surefire",
+      forceUpdate: true,
+    });
+    assert.equal(cmd, "./mvnw --update-snapshots test");
+  });
 });
 
 describe("buildMavenEnv", () => {
@@ -141,5 +151,10 @@ describe("buildMavenArgs", () => {
   it("adds -P when profiles are specified", () => {
     const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "all", profiles: ["at", "rules"] });
     assert.deepEqual(args, ["./mvnw", "-Pat,rules", "verify", "-DskipITs=false"]);
+  });
+
+  it("adds --update-snapshots when forceUpdate is requested", () => {
+    const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire", forceUpdate: true });
+    assert.deepEqual(args, ["./mvnw", "--update-snapshots", "test"]);
   });
 });

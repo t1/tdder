@@ -7,6 +7,7 @@ export interface MavenCommandOptions {
   selector?: string;
   project?: string;
   profiles?: string[];
+  forceUpdate?: boolean;
   /** Required when action is "test". Controls which test runner(s) are invoked. */
   testScope?: TestScope;
 }
@@ -38,11 +39,12 @@ function phaseOptions(action: MavenAction, testScope: TestScope | undefined): Ph
  * Selectors are passed as-is (no shell quoting needed).
  */
 export function buildMavenArgs(opts: MavenCommandOptions): string[] {
-  const { runner, selector, project, profiles } = opts;
+  const { runner, selector, project, profiles, forceUpdate } = opts;
   const { goals, flags, selectorFlag } = phaseOptions(opts.action, opts.testScope);
   const args = [runner];
   if (project) args.push("-pl", project, "-am");
   if (profiles && profiles.length > 0) args.push(`-P${profiles.join(",")}`);
+  if (forceUpdate) args.push("--update-snapshots");
   args.push(...goals, ...flags);
   if (selector && selectorFlag) args.push(`${selectorFlag}${selector}`);
   return args;
@@ -81,11 +83,12 @@ export function buildMavenEnv(
  * Selectors containing '#' are quoted for readability.
  */
 export function buildMavenCommand(opts: MavenCommandOptions): string {
-  const { runner, selector, project, profiles } = opts;
+  const { runner, selector, project, profiles, forceUpdate } = opts;
   const { goals, flags, selectorFlag } = phaseOptions(opts.action, opts.testScope);
   const parts = [runner];
   if (project) parts.push(`-pl ${project}`, "-am");
   if (profiles && profiles.length > 0) parts.push(`-P${profiles.join(",")}`);
+  if (forceUpdate) parts.push("--update-snapshots");
   parts.push(...goals, ...flags);
   if (selector && selectorFlag) parts.push(`${selectorFlag}${quoteSelector(selector)}`);
   return parts.join(" ");

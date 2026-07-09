@@ -31,6 +31,11 @@ describe("parseArgs", () => {
     const { args } = parseArgs(["test", "--include-timings"]);
     assert.equal(args["include-timings"], true);
   });
+
+  it("parses --update-snapshots as boolean true", () => {
+    const { args } = parseArgs(["test", "--update-snapshots"]);
+    assert.equal(args["update-snapshots"], true);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -39,8 +44,8 @@ describe("parseArgs", () => {
 
 describe("checkUnknownFlags", () => {
   it("returns null when all flags are known", () => {
-    const args = { scope: "surefire", project: "module-a", profiles: "at", _positional: "" };
-    assert.equal(checkUnknownFlags(args, ["scope", "project", "profiles"]), null);
+    const args = { scope: "surefire", project: "module-a", profiles: "at", "update-snapshots": true, _positional: "" };
+    assert.equal(checkUnknownFlags(args, ["scope", "project", "profiles", "update-snapshots"]), null);
   });
 
   it("returns an error message listing the unknown flag", () => {

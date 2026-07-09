@@ -119,6 +119,14 @@ describe("extension loading", () => {
     assert.ok(mavenExtension.tools.has("maven_run"), "maven_run not registered");
   });
 
+  it("documents forceUpdate on the maven_run tool", () => {
+    const tool = mavenExtension.tools.get("maven_run")!;
+    const properties = (tool.definition.parameters as { properties?: Record<string, unknown> }).properties;
+    assert.ok(properties && "forceUpdate" in properties, "forceUpdate parameter not registered");
+    assert.ok(tool.definition.promptGuidelines?.some(line => line.includes("forceUpdate=true")),
+      "maven_run prompt guidelines should mention forceUpdate=true");
+  });
+
   it("registers the maven_lookup_version tool", () => {
     assert.ok(mavenExtension.tools.has("maven_lookup_version"), "maven_lookup_version not registered");
   });

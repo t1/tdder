@@ -92,7 +92,7 @@ async function cmdInfo(args: Record<string, string | boolean>): Promise<void> {
 }
 
 async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
-  const unknownError = checkUnknownFlags(args, ["scope", "profiles", "selector", "project", "include-timings", "limit"]);
+  const unknownError = checkUnknownFlags(args, ["scope", "profiles", "selector", "project", "include-timings", "limit", "update-snapshots"]);
   if (unknownError) {
     console.error(unknownError);
     process.exitCode = 1;
@@ -119,6 +119,7 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
     ? args.profiles.split(",").map(profile => profile.trim()).filter(Boolean)
     : undefined;
   const includeTimings = args["include-timings"] === true;
+  const forceUpdate = args["update-snapshots"] === true;
   const rawLimit = args["limit"] as string | boolean | undefined;
   const limit: number | null =
     rawLimit === "none" ? null
@@ -137,7 +138,7 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
     }
   }
 
-  const opts = {action: "test" as MavenAction, runner: info.runner, selector, project, profiles, testScope};
+  const opts = {action: "test" as MavenAction, runner: info.runner, selector, project, profiles, forceUpdate, testScope};
   const command = buildMavenCommand(opts);
   const mavenArgs = buildMavenArgs(opts);
 
@@ -154,7 +155,7 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
 }
 
 async function cmdPackage(args: Record<string, string | boolean>): Promise<void> {
-  const unknownError = checkUnknownFlags(args, ["project", "profiles"]);
+  const unknownError = checkUnknownFlags(args, ["project", "profiles", "update-snapshots"]);
   if (unknownError) {
     console.error(unknownError);
     process.exitCode = 1;
@@ -170,11 +171,12 @@ async function cmdPackage(args: Record<string, string | boolean>): Promise<void>
   }
 
   const project = (args.project as string | undefined) ?? info.defaultProject();
+  const forceUpdate = args["update-snapshots"] === true;
   const profiles = typeof args.profiles === "string"
     ? args.profiles.split(",").map(profile => profile.trim()).filter(Boolean)
     : undefined;
 
-  const opts = {action: "package" as MavenAction, runner: info.runner, project, profiles};
+  const opts = {action: "package" as MavenAction, runner: info.runner, project, profiles, forceUpdate};
   const command = buildMavenCommand(opts);
   const mavenArgs = buildMavenArgs(opts);
 
@@ -285,6 +287,9 @@ Examples:
   # Acceptance-test profile
   tdder-maven test --scope all --profiles at
 
+  # Force remote update checks for snapshots and metadata
+  tdder-maven test --scope surefire --update-snapshots
+
   # Unit tests with selector
   tdder-maven test --scope surefire --selector 'MyTest#myMethod'
 
@@ -312,6 +317,9 @@ Examples:
 
   # Package with Maven profiles
   tdder-maven package --profiles native
+
+  # Package with forced snapshot/metadata refresh
+  tdder-maven package --update-snapshots
 
   # Look up latest stable dependency or plugin version on Maven Central
   tdder-maven lookup-version org.assertj assertj-core
