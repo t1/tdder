@@ -296,6 +296,29 @@ export default function (pi: ExtensionAPI) {
       includePrereleases: Type.Optional(Type.Boolean({ description: "Include RC, milestone, alpha, beta versions (default: false)" })),
     }),
 
+    renderCall(args, theme, context) {
+      const text = (context.lastComponent as Text | undefined)
+        ?? new Text("", 0, 0);
+      const { groupId, artifactId } = args as { groupId: string; artifactId: string };
+      const coord = `${groupId}:${artifactId}`;
+      const result = (context.state as { result?: VersionLookupJson }).result;
+      const icon = context.isError
+        ? theme.fg("error", "✗")
+        : result
+          ? theme.fg("success", "✓")
+          : theme.fg("muted", "○");
+      text.setText(`${icon} ${theme.fg("dim", coord)}`);
+      return text;
+    },
+
+    renderResult(toolResult, _options, _theme, context) {
+      const details = toolResult.details as VersionLookupJson | undefined;
+      if (details) {
+        (context.state as { result?: VersionLookupJson }).result = details;
+      }
+      return new Container();
+    },
+
     async execute(_toolCallId, params, signal, onUpdate) {
       const { groupId, artifactId, includePrereleases = false } = params;
       const metadataUrl = buildMetadataUrl(groupId, artifactId);

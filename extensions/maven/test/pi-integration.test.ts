@@ -224,6 +224,47 @@ describe("maven_project_info tool", () => {
 describe("maven_lookup_version tool", () => {
   before(setup);
 
+  it("renders the looked-up coordinates in the tool call", () => {
+    const tool = mavenExtension.tools.get("maven_lookup_version")!;
+    const component = tool.definition.renderCall?.(
+      { groupId: "org.assertj", artifactId: "assertj-core", includePrereleases: false },
+      {
+        fg: (_color: string, text: string) => text,
+        bg: (_color: string, text: string) => text,
+        bold: (text: string) => text,
+      } as any,
+      {
+        cwd: process.cwd(),
+        state: {},
+        isError: false,
+      } as any,
+    );
+
+    assert.ok(component, "renderCall should return a component");
+    assert.match(component!.render(80).join("\n"), /org\.assertj:assertj-core/);
+  });
+
+  it("renders a failure icon in the tool call when the lookup errors", () => {
+    const tool = mavenExtension.tools.get("maven_lookup_version")!;
+    const component = tool.definition.renderCall?.(
+      { groupId: "org.assertj", artifactId: "assertj-core", includePrereleases: false },
+      {
+        fg: (_color: string, text: string) => text,
+        bg: (_color: string, text: string) => text,
+        bold: (text: string) => text,
+      } as any,
+      {
+        cwd: process.cwd(),
+        state: {},
+        isError: true,
+      } as any,
+    );
+
+    assert.ok(component, "renderCall should return a component");
+    assert.match(component!.render(80).join("\n"), /✗/);
+    assert.match(component!.render(80).join("\n"), /org\.assertj:assertj-core/);
+  });
+
   it("returns a structured result with groupId and artifactId echoed back", async () => {
     const tool = mavenExtension.tools.get("maven_lookup_version")!;
     const ctx = makeCtx(process.cwd());
