@@ -21,6 +21,17 @@ describe("quarkus bootstrap pom", () => {
     assert.match(src, /fetchMetadata\("io\.quarkus\.platform", "quarkus-bom"/);
     assert.match(src, /selectVersion\(/);
   });
+
+  it("bootstrap tool marks successful results as requiring session recreation", () => {
+    const src = readFileSync(resolve(import.meta.dirname, "../index.ts"), "utf8");
+    assert.match(src, /requiresSessionRecreation: true/);
+  });
+
+  it("bootstrap guidelines tell the LLM to recreate the session before further tool calls", () => {
+    const src = readFileSync(resolve(import.meta.dirname, "../index.ts"), "utf8");
+    assert.match(src, /request your session to be recreated before making further tool calls/);
+  });
+
   it("renders a minimal pom with quarkus-maven-plugin", () => {
     const pom = renderBootstrapPom({ groupId: "com.acme", artifactId: "demo" });
     assert.match(pom, /<groupId>com\.acme<\/groupId>/);

@@ -23,10 +23,12 @@ describe("test subcommand split", () => {
       src.includes('"test-affected"'),
       'source must include "test-affected" (in TEST_SUBCOMMANDS spread into ALL_SUBCOMMANDS)',
     );
-    // Confirm TEST_SUBCOMMANDS is spread into ALL_SUBCOMMANDS
-    const allIdx = src.indexOf("ALL_SUBCOMMANDS    =");
-    const allLine = src.slice(allIdx, allIdx + 150);
-    assert.ok(allLine.includes("TEST_SUBCOMMANDS"), `ALL_SUBCOMMANDS must spread TEST_SUBCOMMANDS, got: ${allLine}`);
+    const match = src.match(/const ALL_SUBCOMMANDS\s*=\s*\[[\s\S]*?\]\s*as const;/);
+    assert.ok(match, "ALL_SUBCOMMANDS definition not found");
+    assert.ok(
+      match[0].includes("TEST_SUBCOMMANDS"),
+      `ALL_SUBCOMMANDS must spread TEST_SUBCOMMANDS, got: ${match[0]}`,
+    );
   });
 
   it("ALL_SUBCOMMANDS contains test-all", () => {

@@ -200,11 +200,10 @@ describe("mavenProfiles parameter for /quarkus start", () => {
 
 describe("/quarkus skills subcommand", () => {
   it("'skills' is in ALL_SUBCOMMANDS", () => {
-    const allIdx = src.indexOf("ALL_SUBCOMMANDS    =");
-    assert.ok(allIdx >= 0, "ALL_SUBCOMMANDS not found");
-    const block = src.slice(allIdx, allIdx + 300);
+    const match = src.match(/const ALL_SUBCOMMANDS\s*=\s*\[[\s\S]*?\]\s*as const;/);
+    assert.ok(match, "ALL_SUBCOMMANDS definition not found");
     assert.ok(
-      block.includes('"skills"'),
+      match[0].includes('"skills"'),
       `ALL_SUBCOMMANDS must include "skills"`,
     );
   });

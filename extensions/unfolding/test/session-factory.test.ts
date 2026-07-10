@@ -53,7 +53,6 @@ describe("startChildSession groundwork", () => {
       fauxAssistantMessage([
         fauxToolCall("task_block", { recreate: { resume_message: "bootstrap done; continue with Quarkus tools" } }),
       ], {stopReason: "toolUse"}),
-      fauxAssistantMessage("ok"),
       fauxAssistantMessage([
         fauxToolCall("task_finished", {}),
       ], {stopReason: "toolUse"}),
@@ -79,7 +78,7 @@ describe("startChildSession groundwork", () => {
       assert.equal(result.outcome, "finished");
       assert.equal(readTaskSnapshot(cwd, "recreate-child")?.status, "finished");
       assert.equal(readTaskSnapshot(cwd, "recreate-child")?.recreate_message, undefined);
-      assert.equal(faux.state.callCount, 4);
+      assert.equal(faux.state.callCount, 2);
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);
@@ -314,7 +313,7 @@ describe("startChildSession groundwork", () => {
       });
 
       assert.equal(result.outcome, "finished");
-      assert.equal(faux.state.callCount, 3, "current faux-provider flow still consumes one extra follow-up turn before reaching the next toolUse response");
+      assert.equal(faux.state.callCount, 2, "task_finished now terminates immediately, so the follow-up toolUse response is reached without an extra filler turn");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

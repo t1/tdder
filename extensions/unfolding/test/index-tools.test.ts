@@ -305,13 +305,14 @@ describe("registered task tools", () => {
       }).filter(tool => tool.name === "task_finished");
 
       let aborted = false;
-      await tool.execute("1", {}, undefined, undefined, {
+      const result = await tool.execute("1", {}, undefined, undefined, {
         abort() {
           aborted = true;
         },
       });
 
       assert.equal(aborted, true);
+      assert.equal(result.terminate, true);
       assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-child-finished\.html$/.test(name)).length, 1);
     } finally {
       cleanupTestTempDir(cwd);
@@ -342,13 +343,14 @@ describe("registered task tools", () => {
       }).filter(tool => tool.name === "task_block");
 
       let aborted = false;
-      await tool.execute("1", {blocked_reason: "need help"}, undefined, undefined, {
+      const result = await tool.execute("1", {blocked_reason: "need help"}, undefined, undefined, {
         abort() {
           aborted = true;
         },
       });
 
       assert.equal(aborted, true);
+      assert.equal(result.terminate, true);
       assert.deepEqual(listExportFiles(cwd).filter(name => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-child-blocked\.html$/.test(name)).length, 1);
     } finally {
       cleanupTestTempDir(cwd);
@@ -707,11 +709,12 @@ describe("registered task tools", () => {
         pi: {} as any,
       }).filter(tool => tool.name === "task_block");
       let aborted = false;
-      await tool.execute("1", { recreate: { resume_message: "bootstrap done; continue with Quarkus tools" } }, undefined, undefined, {
+      const result = await tool.execute("1", { recreate: { resume_message: "bootstrap done; continue with Quarkus tools" } }, undefined, undefined, {
         abort() { aborted = true; },
       });
       const task = readTask(cwd, "child");
       assert.equal(aborted, true);
+      assert.equal(result.terminate, true);
       assert.equal(task?.status, "blocked");
       assert.equal(task?.blocked_reason, undefined);
       assert.equal(task?.recreate_message, "bootstrap done; continue with Quarkus tools");

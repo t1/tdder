@@ -161,11 +161,9 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       fauxAssistantMessage([
         fauxToolCall("task_block", {blocked_reason: "need input"}),
       ], {stopReason: "toolUse"}),
-      fauxAssistantMessage("ok"),
       fauxAssistantMessage([
         fauxToolCall("task_finished", {}),
       ], {stopReason: "toolUse"}),
-      fauxAssistantMessage("done"),
     ]);
     const authStorage = AuthStorage.inMemory();
     authStorage.setRuntimeApiKey(provider, "test-key");
@@ -210,7 +208,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       assert.equal(outcome, "finished");
       const task = readTask(cwd, "coder-resume");
       assert.ok(task?.status === "finished", `unexpected status: ${task?.status}`);
-      assert.equal(faux.state.callCount, 4);
+      assert.equal(faux.state.callCount, 2);
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);
@@ -228,11 +226,9 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       fauxAssistantMessage([
         fauxToolCall("task_block", {blocked_reason: "need input"}),
       ], {stopReason: "toolUse"}),
-      fauxAssistantMessage("ok"),
       fauxAssistantMessage([
         fauxToolCall("ask_sensei", {question: "Resumed question?"}),
       ], {stopReason: "toolUse"}),
-      fauxAssistantMessage("thanks"),
       fauxAssistantMessage([
         fauxToolCall("task_finished", {}),
       ], {stopReason: "toolUse"}),
@@ -309,7 +305,6 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       fauxAssistantMessage([
         fauxToolCall("task_block", {blocked_reason: "need input"}),
       ], {stopReason: "toolUse"}),
-      fauxAssistantMessage("ok"),
       fauxAssistantMessage([
         fauxToolCall("write", {path: "docs/product.md", content: "brief"}),
       ], {stopReason: "toolUse"}),
@@ -358,7 +353,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       });
 
       assert.equal(outcome, "finished");
-      assert.equal(faux.state.callCount, 5, "current faux-provider flow still consumes one extra follow-up turn before reaching the next toolUse response");
+      assert.equal(faux.state.callCount, 3, "task_finished now terminates immediately, so resumed toolUse flow needs no extra filler turn");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);
@@ -376,7 +371,6 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       fauxAssistantMessage([
         fauxToolCall("task_block", {blocked_reason: "need input"}),
       ], {stopReason: "toolUse"}),
-      fauxAssistantMessage("ok"),
       fauxAssistantMessage("I finished but forgot the checkpoint"),
       fauxAssistantMessage([
         fauxToolCall("task_finished", {}),
@@ -440,7 +434,6 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       fauxAssistantMessage([
         fauxToolCall("task_block", {blocked_reason: "need input"}),
       ], {stopReason: "toolUse"}),
-      fauxAssistantMessage("ok"),
       fauxAssistantMessage("forgot checkpoint once"),
       fauxAssistantMessage("forgot checkpoint twice"),
     ]);
@@ -487,7 +480,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       assert.equal(outcome, "blocked");
       const task = readTask(cwd, "coder-resume-missing-checkpoint-block");
       assert.equal(task?.blocked_reason, MISSING_CHECKPOINT_BLOCKED_REASON);
-      assert.equal(faux.state.callCount, 4, "should retry exactly once during resumed run after the first missing checkpoint");
+      assert.equal(faux.state.callCount, 3, "should retry exactly once during resumed run after the first missing checkpoint");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

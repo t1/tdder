@@ -32,7 +32,7 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
         taskFinished(cwd, slug);
         await exportTaskDebugHtmlIfEnabled(cwd, slug, commissionerCtx.debugExportsEnabled ?? false);
         ctx.abort();
-        return { content: [{ type: "text", text: "task finished" }], details: {} };
+        return { content: [{ type: "text", text: "task finished" }], details: {}, terminate: true };
       },
     },
     {
@@ -64,7 +64,7 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
         }
         await exportTaskDebugHtmlIfEnabled(cwd, slug, commissionerCtx.debugExportsEnabled ?? false);
         ctx.abort();
-        return { content: [{ type: "text", text: "task blocked" }], details: {} };
+        return { content: [{ type: "text", text: "task blocked" }], details: {}, terminate: true };
       },
     },
     nestedDelegateTool,

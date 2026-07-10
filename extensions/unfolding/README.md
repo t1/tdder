@@ -65,6 +65,23 @@ Parent and child sessions are separate pi processes; they rendezvous by polling 
 at 500 ms intervals. No shared memory or locking is used. Task files are live coordination state, not
 long-term workflow history: `task_accept` and `task_rollback` both delete the task file.
 
+## Cross-cutting session recreation policy
+
+Some tools can report that their successful result makes the current session stale by returning:
+
+- `details.requiresSessionRecreation = true`
+
+The generic enforcement lives in the `hygiene` extension, which blocks later tool calls in that session once such a result has been observed.
+
+Unfolding participates only by marking its true session-ending child tools as allowed after that point:
+
+- `task_block`
+- `task_finished`
+
+Both return `terminate: true`, and unfolding registers them in the shared tool-policy registry as valid post-recreation session enders.
+
+This keeps unfolding generic: it does not know which technology triggered the recreation requirement; it only exposes its own session-ending tools as valid ways to stop cleanly.
+
 `task_block` supports two mutually exclusive outcomes:
 
 - normal block: `blocked_reason`

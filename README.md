@@ -50,7 +50,7 @@ here is a compact overview of what each extension contributes:
 
 | Extension             | Commands                      | Tools                                                                                                                                                                                             | Other behaviour                                                                                                            |
 |-----------------------|-------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| `hygiene`             | —                             | —                                                                                                                                                                                                 | Injects prompt reminders to load `project-hygiene`, `java`, and `github-safety` when detected                              |
+| `hygiene`             | —                             | —                                                                                                                                                                                                 | Injects prompt reminders to load `project-hygiene`, `java`, and `github-safety` when detected; enforces cross-cutting session-recreation tool policy |
 | `idea` (pi only)      | —                             | JetBrains MCP-backed `idea_*` tools for code exploration, refactoring, build/run, and debugging                                                                                                   | Lazy-connects to IntelliJ IDEA and shows footer status                                                                     |
 | `jdtls` (pi only)     | —                             | `jdtls_get_file_problems`, `jdtls_search_symbol`, `jdtls_get_symbol_info`, `jdtls_rename_refactoring`, `jdtls_reformat_file`, `jdtls_get_project_modules`, `jdtls_code_action`, `jdtls_read_file` | Starts Eclipse JDT Language Server lazily for Java projects                                                                |
 | `maven`               | `/maven`                      | `maven_project_info`, `maven_run`, `maven_lookup_version`, `maven_available_java_versions`                                                                                                        | Also ships the standalone `tdder-maven` CLI                                                                                |
@@ -58,6 +58,25 @@ here is a compact overview of what each extension contributes:
 | `quarkus` (pi only)   | `/quarkus`                    | Dynamic `quarkus_*` tools mirrored from `quarkus-agent-mcp`                                                                                                                                       | Detects Quarkus projects, starts MCP lazily, and shows footer status                                                       |
 | `shared`              | —                             | —                                                                                                                                                                                                 | Shared code used by other extensions; no end-user tools                                                                    |
 | `unfolding` (pi only) | `/unfold`, `/connect-session` | `ask_sensei`, `task_delegate`, `task_continue`, `task_accept`, `task_reopen`, `task_unblock`, `task_rollback`                                                                                     | Child sessions additionally use `task_finished` and `task_block`; root sessions can diagnose with `task_list`, `task_read` |
+
+### Cross-cutting session recreation policy
+
+Some tools may return `details.requiresSessionRecreation = true` to declare that their successful result leaves the current session stale for further tool-driven work.
+
+The `hygiene` extension enforces this generically:
+
+- it watches `tool_result` for `requiresSessionRecreation`
+- then blocks later `tool_call` events in that same session
+- except for tools explicitly registered in the shared tool-policy registry as valid post-recreation session enders
+
+This is intentionally cross-cutting and technology-agnostic. Producer extensions declare the lifecycle fact in their tool result metadata; consumer/enforcer logic lives in `hygiene`; session-ending tools opt in through shared tool policy.
+
+Current use:
+
+- `quarkus_bootstrap` returns `details.requiresSessionRecreation = true`
+- `task_block` and `task_finished` are registered as allowed post-recreation session-ending tools
+
+Limitation: this is best-effort within a single assistant message. Once the triggering tool result is observed, later tool calls are blocked reliably, but sibling tool calls already emitted in the same message cannot be retroactively prevented by extension code alone.
 
 ### quarkus (pi only)
 

@@ -74,10 +74,10 @@ describe("parseFrontmatterTools", () => {
     ]);
   });
 
-  it("architect role tells empty Quarkus projects to bootstrap then recreate", () => {
+  it("architect role tells empty Quarkus projects to bootstrap without embedding recreate mechanics", () => {
     assert.match(architectMd, /Quarkus empty-project bootstrap rule:/);
     assert.match(architectMd, /Call `quarkus_bootstrap` immediately/);
-    assert.match(architectMd, /task_block` with `recreate\.resume_message`/);
+    assert.doesNotMatch(architectMd, /task_block` with `recreate\.resume_message`/);
   });
   it("coder.md declares the expected tool allowlist", () => {
     const tools = parseFrontmatterTools(coderMd);

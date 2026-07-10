@@ -32,11 +32,21 @@ describe("structural wiring", () => {
     assert.ok(src.includes("ctx.abort()"), "must abort the current child run after checkpointing");
   });
 
+  it("task_finished returns terminate: true so the turn ends cleanly", () => {
+    const src = readFileSync(new URL("../child-task-tools.ts", import.meta.url).pathname, "utf8");
+    assert.ok(src.includes("task finished\" }], details: {}, terminate: true"), "task_finished must return terminate: true");
+  });
+
   it("task_block tool wiring is extracted to createChildTaskTools", () => {
     const src = readFileSync(new URL("../child-task-tools.ts", import.meta.url).pathname, "utf8");
     assert.ok(src.includes("task_block"), "child-task-tools must inject task_block");
     assert.ok(src.includes("taskBlock"), "must call taskBlock");
     assert.ok(!src.includes("waitForResume"), "must not wait for resume anymore");
+  });
+
+  it("task_block returns terminate: true so the turn ends cleanly", () => {
+    const src = readFileSync(new URL("../child-task-tools.ts", import.meta.url).pathname, "utf8");
+    assert.ok(src.includes("task blocked\" }], details: {}, terminate: true"), "task_block must return terminate: true");
   });
 
   it("task_accept tool deletes the task file", () => {
