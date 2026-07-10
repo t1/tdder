@@ -30,6 +30,7 @@ export interface TaskInput {
 export interface Task extends TaskInput {
   status: TaskStatus;
   blocked_reason?: string;
+  recreate_message?: string;
   resume_message?: string;
 }
 
@@ -81,8 +82,9 @@ function serialize(task: Task): string {
   if (task.session_file)  lines.push(`session_file: ${task.session_file}`);
   if (task.base_sha)      lines.push(`base_sha: ${task.base_sha}`);
   if (task.snapshot_sha)  lines.push(`snapshot_sha: ${task.snapshot_sha}`);
-  if (task.blocked_reason) lines.push(...blockScalar("blocked_reason", task.blocked_reason));
-  if (task.resume_message)  lines.push(...blockScalar("resume_message",  task.resume_message));
+  if (task.blocked_reason)  lines.push(...blockScalar("blocked_reason", task.blocked_reason));
+  if (task.recreate_message) lines.push(...blockScalar("recreate_message", task.recreate_message));
+  if (task.resume_message)   lines.push(...blockScalar("resume_message",  task.resume_message));
   lines.push(...blockScalar("body", task.body));
   return lines.join("\n") + "\n";
 }
@@ -213,6 +215,7 @@ export function updateTaskStatus(
   status: TaskStatus,
   blocked_reason?: string,
   resume_message?: string,
+  recreate_message?: string,
 ): void {
   const found = taskFiles(cwd).find(({ task }) => task.slug === slug);
   if (!found) throw new Error(`Task "${slug}" not found`);
@@ -222,11 +225,38 @@ export function updateTaskStatus(
   } else {
     delete updated.blocked_reason;
   }
+  if (status === "blocked" && recreate_message) {
+    updated.recreate_message = recreate_message;
+  } else {
+    delete updated.recreate_message;
+  }
   if (resume_message) {
     updated.resume_message = resume_message;
   } else {
     delete updated.resume_message;
   }
+  writeFileSync(found.file, serialize(updated));
+  rewriteSummary(cwd);
+}
+
+export function recreateTaskSession(
+  cwd: string,
+  slug: string,
+  session_id: string,
+  session_file: string,
+  resume_message: string,
+): void {
+  const found = taskFiles(cwd).find(({ task }) => task.slug === slug);
+  if (!found) throw new Error(`Task "${slug}" not found`);
+  const updated: Task = {
+    ...found.task,
+    status: "in_progress",
+    session_id,
+    session_file,
+    resume_message,
+  };
+  delete updated.blocked_reason;
+  delete updated.recreate_message;
   writeFileSync(found.file, serialize(updated));
   rewriteSummary(cwd);
 }

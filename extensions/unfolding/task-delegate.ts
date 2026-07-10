@@ -685,13 +685,13 @@ export function installCheckpointRecovery(
 const POLL_INTERVAL_MS = 500;
 
 export async function waitForChildDecision(
-  readStatus: () => Promise<{ status: string; blocked_reason?: string } | null>,
-  onPoll?: (status: string, blocked_reason?: string) => void,
+  readStatus: () => Promise<{ status: string; blocked_reason?: string; recreate_message?: string } | null>,
+  onPoll?: (status: string, blocked_reason?: string, recreate_message?: string) => void,
   pollIntervalMs = POLL_INTERVAL_MS,
   signal?: AbortSignal,
   getFatalError?: () => FatalChildSessionError | undefined,
   isChildAborted?: () => boolean | Promise<boolean>,
-): Promise<"finished" | "blocked" | "aborted"> {
+): Promise<"finished" | "blocked" | "aborted" | "recreate"> {
   while (true) {
     if (signal?.aborted) return "aborted";
     if (await isChildAborted?.()) return "aborted";
@@ -701,8 +701,8 @@ export async function waitForChildDecision(
     const status = task?.status ?? null;
     if (status === "finished") return "finished";
     if (status === "blocked") {
-      onPoll?.(status, task?.blocked_reason);
-      return "blocked";
+      onPoll?.(status, task?.blocked_reason, task?.recreate_message);
+      return task?.recreate_message ? "recreate" : "blocked";
     }
     await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
   }

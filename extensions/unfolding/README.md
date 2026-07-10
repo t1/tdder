@@ -56,7 +56,7 @@ Used by the orchestrator and delegate sub-sessions to coordinate work:
 | `task_rollback` | orchestrator                        | Restore the workspace to its pre-delegation state and delete task               |
 | `ask_sensei`    | orchestrator, delegate              | Ask the human a single question via pi UI and return the answer                 |
 | `task_finished` | delegate                            | Mark own task finished; blocks until orchestrator accepts/reopens               |
-| `task_block`    | delegate                            | Mark own task blocked with reason; blocks until orchestrator acts               |
+| `task_block`    | delegate                            | Mark own task blocked with reason, or request automatic child-session recreation | 
 
 ## Coordination protocol
 
@@ -64,6 +64,14 @@ Tasks are stored as YAML files in `.pi/unfolding/tasks/` (gitignored).
 Parent and child sessions are separate pi processes; they rendezvous by polling the task file
 at 500 ms intervals. No shared memory or locking is used. Task files are live coordination state, not
 long-term workflow history: `task_accept` and `task_rollback` both delete the task file.
+
+`task_block` supports two mutually exclusive outcomes:
+
+- normal block: `blocked_reason`
+- automatic recreation request: `recreate.resume_message`
+
+When a child requests recreation, the commissioner runtime recreates that same child session automatically
+for the same task and resumes it with the supplied message, without surfacing the intermediate block to the commissioner LLM.
 
 The extension also writes `.pi/unfolding/tasks.yaml` as a compact live summary for humans. It contains only the
 currently existing task chain, ordered by creation order, and is deleted when no tasks remain. It is never read for

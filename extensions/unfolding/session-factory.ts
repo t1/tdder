@@ -3,7 +3,7 @@ import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@ea
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
 import { createSnapshotCommit, ensureGitRepoWithHead, isWorkspaceDirty } from "./git-task-state.ts";
-import { createTask, readTask, updateTaskStatus, type Task } from "./task-store.ts";
+import { createTask, readTask, recreateTaskSession, updateTaskStatus, type Task } from "./task-store.ts";
 import {
   childSessionFailureBlockedReason,
   installCheckpointRecovery,
@@ -15,7 +15,8 @@ import type { ChildOutputDetails } from "./child-output.ts";
 
 export interface ChildSessionRunResult {
   session: AgentSession;
-  outcome: "finished" | "blocked" | "aborted";
+  outcome: "finished" | "blocked" | "aborted" | "recreate";
+  recreateMessage?: string;
   finalSnapshot?: string;
   finalOutputDetails?: ChildOutputDetails;
 }
@@ -58,9 +59,50 @@ export async function startChildSession({
   modelRegistry,
 }: StartChildSessionParams): Promise<ChildSessionRunResult> {
   const existing = readTask(cwd, slug);
-  const resuming = !!(existing?.session_file && existsSync(existing.session_file));
-  const initialMessage = resuming
-    ? buildChildInitialMessage(body, existing?.resume_message ?? "continue")
+  return startChildSessionAttempt({
+    cwd,
+    from,
+    role,
+    slug,
+    body,
+    parent_slug,
+    activeSessions,
+    pi,
+    postOutput,
+    nestedDelegateToolFactory,
+    signal,
+    parentSignal,
+    onUpdate,
+    model,
+    authStorage,
+    modelRegistry,
+    existing,
+  });
+}
+
+async function startChildSessionAttempt({
+  cwd,
+  from,
+  role,
+  slug,
+  body,
+  parent_slug,
+  activeSessions,
+  pi,
+  postOutput,
+  nestedDelegateToolFactory,
+  signal,
+  parentSignal,
+  onUpdate,
+  model,
+  authStorage,
+  modelRegistry,
+  existing,
+}: StartChildSessionParams & { existing: Task | null }): Promise<ChildSessionRunResult> {
+  const recreating = !!existing?.recreate_message;
+  const resuming = !recreating && !!(existing?.session_file && existsSync(existing.session_file));
+  const initialMessage = resuming || recreating
+    ? buildChildInitialMessage(body, existing?.resume_message ?? existing?.recreate_message ?? "continue")
     : buildChildInitialMessage(body);
   const sessionManager = resuming
     ? SessionManager.open(existing!.session_file!)
@@ -88,7 +130,9 @@ export async function startChildSession({
   let checkpointRecovery: ReturnType<typeof installCheckpointRecovery> | undefined;
   let taskPrepared = false;
   try {
-    if (existing) {
+    if (existing && recreating) {
+      recreateTaskSession(cwd, slug, session.sessionId, session.sessionFile, existing.recreate_message!);
+    } else if (existing) {
       updateTaskStatus(cwd, slug, "in_progress");
     } else {
       const gitBootstrap = ensureGitRepoWithHead(cwd);
@@ -134,12 +178,16 @@ export async function startChildSession({
       const stack = err instanceof Error ? err.stack : String(err);
       console.error(`[unfolding] child session for task "${slug}" failed:`, stack);
     });
-    let outcome: "finished" | "blocked" | "aborted";
+    let outcome: "finished" | "blocked" | "aborted" | "recreate";
     try {
       outcome = await waitForChildDecision(
         async () => readTask(cwd, slug),
-        (_status: string, blocked_reason?: string) => {
-          stream?.append(`  ⏸ blocked: ${blocked_reason ?? "(no reason given)"}`);
+        (_status: string, blocked_reason?: string, recreate_message?: string) => {
+          if (recreate_message) {
+            stream?.append("  🔄 recreating child session with refreshed tools");
+          } else {
+            stream?.append(`  ⏸ blocked: ${blocked_reason ?? "(no reason given)"}`);
+          }
         },
         undefined,
         signal,
@@ -161,13 +209,54 @@ export async function startChildSession({
         throw error;
       }
     }
+    const recreateMessage = outcome === "recreate" ? readTask(cwd, slug)?.recreate_message : undefined;
     if (stream) {
       const finalOutputDetails = { childOutputRole: shortRole, childOutputEvents: stream.getOutputEvents() };
-      return { session, outcome, finalSnapshot: stream.getLines(), finalOutputDetails };
+      if (outcome === "recreate" && recreateMessage) {
+        const resumed = await recreateChildSession({
+          cwd,
+          slug,
+          body,
+          activeSessions,
+          pi,
+          postOutput,
+          nestedDelegateToolFactory,
+          signal,
+          parentSignal,
+          onUpdate,
+          model,
+          authStorage,
+          modelRegistry,
+          previousSession: session,
+        });
+        resumed.finalOutputDetails = mergeOutputDetails(finalOutputDetails, resumed.finalOutputDetails);
+        resumed.finalSnapshot = [stream.getLines(), resumed.finalSnapshot].filter(Boolean).join("\n");
+        return resumed;
+      }
+      return { session, outcome, recreateMessage, finalSnapshot: stream.getLines(), finalOutputDetails };
+    }
+
+    if (outcome === "recreate" && recreateMessage) {
+      return recreateChildSession({
+        cwd,
+        slug,
+        body,
+        activeSessions,
+        pi,
+        postOutput,
+        nestedDelegateToolFactory,
+        signal,
+        parentSignal,
+        onUpdate,
+        model,
+        authStorage,
+        modelRegistry,
+        previousSession: session,
+      });
     }
 
     postOutput(`  💰 $${session.getSessionStats().cost.toFixed(4)} (↑${session.getSessionStats().tokens.input} ↓${session.getSessionStats().tokens.output})`);
-    return { session, outcome };
+    return { session, outcome, recreateMessage };
   } finally {
     checkpointRecovery?.unsubscribe();
     if (onAbort) {
@@ -181,6 +270,67 @@ export async function startChildSession({
       console.error(`[unfolding] session_shutdown failed for task "${slug}":`, err);
     });
   }
+}
+
+async function recreateChildSession({
+  cwd,
+  slug,
+  body,
+  activeSessions,
+  pi,
+  postOutput,
+  nestedDelegateToolFactory,
+  signal,
+  parentSignal,
+  onUpdate,
+  model,
+  authStorage,
+  modelRegistry,
+  previousSession,
+}: Pick<StartChildSessionParams, "cwd" | "activeSessions" | "pi" | "postOutput" | "nestedDelegateToolFactory" | "signal" | "parentSignal" | "onUpdate" | "model" | "authStorage" | "modelRegistry"> & {
+  slug: string;
+  body: string;
+  previousSession: AgentSession;
+}): Promise<ChildSessionRunResult> {
+  const existing = readTask(cwd, slug);
+  const recreateMessage = existing?.recreate_message;
+  if (!existing || !recreateMessage) {
+    throw new Error(`Task "${slug}" requested recreation without recreate_message`);
+  }
+  await previousSession.abort().catch(() => {});
+  activeSessions.delete(slug);
+
+  return startChildSessionAttempt({
+    cwd,
+    from: existing.from,
+    role: existing.to,
+    slug,
+    body,
+    parent_slug: existing.parent_slug,
+    activeSessions,
+    pi,
+    postOutput,
+    nestedDelegateToolFactory,
+    signal,
+    parentSignal,
+    onUpdate,
+    model,
+    authStorage,
+    modelRegistry,
+    existing: readTask(cwd, slug),
+  });
+}
+
+function mergeOutputDetails(
+  first: ChildOutputDetails | undefined,
+  second: ChildOutputDetails | undefined,
+): ChildOutputDetails | undefined {
+  if (!first) return second;
+  if (!second) return first;
+  return {
+    childOutputRole: second.childOutputRole,
+    childOutputEvents: [...first.childOutputEvents, ...second.childOutputEvents],
+  };
 }
 
 export function readTaskSnapshot(cwd: string, slug: string): Task | null {

@@ -24,7 +24,7 @@ async function runChildSession(
   activeSessions: Map<string, AgentSession>,
   pi: ExtensionAPI,
   postOutput: (lines: string) => void,
-  onChildOutcome: ((cwd: string, slug: string, outcome: "finished" | "blocked" | "aborted") => Promise<void> | void) | undefined,
+  onChildOutcome: ((cwd: string, slug: string, outcome: "finished" | "blocked" | "aborted" | "recreate") => Promise<void> | void) | undefined,
   exportDebugHtml: ((cwd: string, slug: string) => Promise<void> | void) | undefined,
   currentCommissionerSlug: string | undefined,
   signal: AbortSignal | undefined,
@@ -79,6 +79,9 @@ async function runChildSession(
   }
 
   const blockedReason = outcome === "blocked" ? readTask(ctx.cwd, params.slug)?.blocked_reason : undefined;
+  if (outcome === "recreate") {
+    throw new Error(`task_delegate failed: child task "${params.slug}" leaked internal recreate outcome`);
+  }
   return {
     content: [{ type: "text", text: childOutcomeText(action, params.slug, params.role, outcome, blockedReason) }],
     details: {
@@ -107,7 +110,7 @@ export function makeTaskDelegateDefinition(
   activeSessions: Map<string, AgentSession>,
   pi: ExtensionAPI,
   postOutput: (lines: string) => void,
-  onChildOutcome?: (cwd: string, slug: string, outcome: "finished" | "blocked" | "aborted") => Promise<void> | void,
+  onChildOutcome?: (cwd: string, slug: string, outcome: "finished" | "blocked" | "aborted" | "recreate") => Promise<void> | void,
   exportDebugHtml?: (cwd: string, slug: string) => Promise<void> | void,
   currentCommissionerSlug?: string,
 ): any {
@@ -162,7 +165,7 @@ export function makeTaskContinueDefinition(
   activeSessions: Map<string, AgentSession>,
   pi: ExtensionAPI,
   postOutput: (lines: string) => void,
-  onChildOutcome?: (cwd: string, slug: string, outcome: "finished" | "blocked" | "aborted") => Promise<void> | void,
+  onChildOutcome?: (cwd: string, slug: string, outcome: "finished" | "blocked" | "aborted" | "recreate") => Promise<void> | void,
   exportDebugHtml?: (cwd: string, slug: string) => Promise<void> | void,
   currentCommissionerSlug?: string,
 ): any {

@@ -141,7 +141,7 @@ export function buildUnfoldMessage({ workflowInstruction, guidance, freshProject
   }
 
   if (freshProject) {
-    parts.push("Fresh-project note: there is no existing code or tech stack to explore yet. Start by creating the product brief, then the first planning artifacts (ATs, rules, indexes, and any genuinely needed DMDs) directly.");
+    parts.push("Fresh project: no code or tech stack exists yet. Don’t explore implementation artifacts. Start with `docs/product.md` and the first planning artifacts.");
   }
 
   return parts.join("\n\n");

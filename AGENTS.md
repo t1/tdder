@@ -46,6 +46,11 @@ immediately before continuing.
 If you change any extension's `scripts.sync`, re-run and verify `npm run sync-extensions`
 from the repo root, not just the extension-local sync command.
 
+When a test restores a child session via `restoreChildSession(...)`, always call the returned
+`shutdown()` in test cleanup. Restored child sessions bind sibling extensions (including `idea`),
+and skipping `shutdown()` leaks extension resources such as IDEA MCP sockets/timers and makes
+Node tests hang after all assertions already passed.
+
 To test changes, load the plugin locally:
 
 ```bash

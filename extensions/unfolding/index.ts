@@ -152,14 +152,6 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       assertValidRootWorkflow(allTasks);
       const directDelegate = classifyDirectDelegate(ctx.cwd, "orchestrator");
       const freshProject = directDelegate.kind === "none";
-      const freshProjectGuidance = freshProject
-        ? [
-            guidance,
-            "This is a genuinely empty project: no existing code, no pom.xml, no tech stack to discover yet.",
-            "Do not explore the workspace for implementation artifacts.",
-            "Start directly with docs/product.md, then the first planning artifacts (ATs, rules, indexes, step catalogs, and only genuinely needed DMDs).",
-          ].filter(Boolean).join("\n\n")
-        : guidance;
       const workflowInstruction = directDelegate.kind === "none"
         ? "No live top-level PO task found — this appears to be a fresh project. Start the unfolding process now by delegating to the PO."
         : directDelegate.kind === "in_progress"
@@ -167,7 +159,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           : directDelegate.kind === "blocked"
             ? `Current top-level PO task \`${directDelegate.task.slug}\` is blocked${directDelegate.task.blocked_reason ? `: ${directDelegate.task.blocked_reason}` : "."} Resolve the commissioner issue and then resume that task; do not start a new one.`
             : `Current top-level PO task \`${directDelegate.task.slug}\` is finished but unresolved. Resolve it with task_accept(...), task_reopen(...), or task_rollback(...); do not start a new one.`;
-      const message = buildUnfoldMessage({ workflowInstruction, guidance: freshProjectGuidance, freshProject });
+      const message = buildUnfoldMessage({ workflowInstruction, guidance, freshProject });
 
       // Arm the system-prompt injection for the upcoming turn.
       pendingSkillInjection = skill;

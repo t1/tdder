@@ -111,8 +111,12 @@ export async function resumeDelegatedTask({
     try {
       outcome = await waitForChildDecision(
         async () => readTask(cwd, slug),
-        (_status: string, blocked_reason?: string) => {
-          stream?.append(`  ⏸ blocked: ${blocked_reason ?? "(no reason given)"}`);
+        (_status: string, blocked_reason?: string, recreate_message?: string) => {
+          if (recreate_message) {
+            stream?.append("  🔄 recreating child session with refreshed tools");
+          } else {
+            stream?.append(`  ⏸ blocked: ${blocked_reason ?? "(no reason given)"}`);
+          }
         },
         undefined,
         signal,
@@ -138,7 +142,7 @@ export async function resumeDelegatedTask({
       // after filterDisplayOnlyMessages the context may end with an assistant message →
       // 400 "does not support assistant message prefill" on Anthropic/Bedrock.
       const finalOutputDetails = { childOutputRole: shortRole, childOutputEvents: stream.getOutputEvents() } satisfies ChildOutputDetails;
-      if (outcome === "aborted") {
+      if (outcome === "aborted" || outcome === "recreate") {
         await exportDebugHtml?.(cwd, slug);
         (resumeDelegatedTask as any).lastFinalSnapshot = stream.getLines();
         (resumeDelegatedTask as any).lastFinalOutputDetails = finalOutputDetails;

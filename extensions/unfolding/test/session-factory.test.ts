@@ -42,6 +42,49 @@ function fauxSessionSetup(name: string) {
 }
 
 describe("startChildSession groundwork", () => {
+  it("automatically recreates a child session when task_block requests recreation", async () => {
+    const {cwd} = makeTestGitRepo("session-factory");
+    const provider = `session-recreate-${Date.now()}`;
+    const faux = registerFauxProvider({
+      provider,
+      models: [{id: "test-model"}],
+    });
+    faux.setResponses([
+      fauxAssistantMessage([
+        fauxToolCall("task_block", { recreate: { resume_message: "bootstrap done; continue with Quarkus tools" } }),
+      ], {stopReason: "toolUse"}),
+      fauxAssistantMessage("ok"),
+      fauxAssistantMessage([
+        fauxToolCall("task_finished", {}),
+      ], {stopReason: "toolUse"}),
+    ]);
+    const authStorage = AuthStorage.inMemory();
+    authStorage.setRuntimeApiKey(provider, "test-key");
+    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    try {
+      const result = await startChildSession({
+        cwd,
+        from: "orchestrator",
+        role: "po",
+        slug: "recreate-child",
+        body: "First bootstrap, then continue.",
+        activeSessions: new Map() as any,
+        pi: {} as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+      assert.equal(result.outcome, "finished");
+      assert.equal(readTaskSnapshot(cwd, "recreate-child")?.status, "finished");
+      assert.equal(readTaskSnapshot(cwd, "recreate-child")?.recreate_message, undefined);
+      assert.equal(faux.state.callCount, 4);
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
   it("creates a task with session_file and base_sha persisted", async () => {
     const {cwd, head} = makeTestGitRepo("session-factory");
     const {faux, authStorage, modelRegistry} = fauxSessionSetup("session-factory");
@@ -621,6 +664,7 @@ describe("startChildSession groundwork", () => {
   it("restores from the real persisted session_file created by startChildSession", async () => {
     const {cwd} = makeTestGitRepo("session-factory");
     const {faux, authStorage, modelRegistry} = fauxSessionSetup("session-restore");
+    let restoredShutdown: (() => Promise<void>) | undefined;
     try {
       const activeSessions = new Map() as any;
       const {session, outcome} = await startChildSession({
@@ -647,10 +691,12 @@ describe("startChildSession groundwork", () => {
       const restored = await restoreChildSession(cwd, "coder-restore", activeSessions, {} as any, () => {
       }, nestedDelegateToolFactory);
       assert.ok(restored, "restoreChildSession should restore a real persisted child session");
+      restoredShutdown = restored?.shutdown;
       assert.equal(restored?.session.sessionFile, snapshot?.session_file);
       assert.equal(restored?.session.sessionManager.getSessionFile(), snapshot?.session_file);
       assert.equal(session.sessionFile, snapshot?.session_file);
     } finally {
+      await restoredShutdown?.();
       faux.unregister();
       cleanupTestTempDir(cwd);
     }
@@ -690,6 +736,37 @@ describe("startChildSession groundwork", () => {
       assert.equal(tools.includes("maven_run"), true, "architect allowlist includes maven_run from sibling extension");
       assert.equal(tools.includes("maven_project_info"), true, "architect allowlist maven_* includes maven_project_info");
       assert.equal(tools.includes("maven_lookup_version"), true, "architect allowlist maven_* includes maven_lookup_version");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("child sessions also load bundled sibling extensions even when inherited extension paths were not captured", async () => {
+    const { cwd } = makeTestGitRepo("session-factory");
+    const { faux, authStorage, modelRegistry } = fauxSessionSetup("session-tools-fallback");
+    try {
+      const activeSessions = new Map() as any;
+      const { session } = await startChildSession({
+        cwd,
+        from: "po",
+        role: "architect",
+        slug: "architect-tools-fallback",
+        body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
+        activeSessions,
+        pi: {
+          __unfoldingAskSensei: async () => "5",
+        } as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      const tools = session.getAllTools().map(t => t.name);
+      assert.equal(tools.includes("quarkus_bootstrap"), true, "architect should still get quarkus_bootstrap from bundled sibling extension fallback");
+      assert.equal(tools.includes("maven_run"), true, "architect should still get maven tools from bundled sibling extension fallback");
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);

@@ -73,6 +73,12 @@ describe("parseFrontmatterTools", () => {
       "task_accept",
     ]);
   });
+
+  it("architect role tells empty Quarkus projects to bootstrap then recreate", () => {
+    assert.match(architectMd, /Quarkus empty-project bootstrap rule:/);
+    assert.match(architectMd, /Call `quarkus_bootstrap` immediately/);
+    assert.match(architectMd, /task_block` with `recreate\.resume_message`/);
+  });
   it("coder.md declares the expected tool allowlist", () => {
     const tools = parseFrontmatterTools(coderMd);
     assert.deepEqual(tools, [
@@ -370,7 +376,9 @@ describe("buildUnfoldMessage", () => {
     });
     assert.ok(msg.includes("fresh project"), "should mention fresh project");
     assert.ok(msg.includes("delegating to the PO"), "should tell a fresh project how to start");
-    assert.ok(msg.includes("no existing code or tech stack to explore yet"), "should include fresh-project anti-exploration note");
+    assert.ok(msg.includes("Fresh project: no code or tech stack exists yet."), "should include fresh-project anti-exploration note");
+    assert.ok(msg.includes("Don’t explore implementation artifacts."), "should tell the agent not to explore implementation artifacts");
+    assert.ok(msg.includes("Start with `docs/product.md` and the first planning artifacts."), "should give the first concrete step");
     assert.ok(!msg.includes("Sensei guidance"), "should not mention sensei guidance");
   });
 
@@ -392,7 +400,7 @@ describe("buildUnfoldMessage", () => {
       freshProject: true,
     });
     assert.ok(msg.includes("Sensei guidance: focus on login"), "should include guidance");
-    assert.ok(msg.includes("no existing code or tech stack to explore yet"), "should keep fresh-project anti-exploration note with guidance");
+    assert.ok(msg.includes("Fresh project: no code or tech stack exists yet."), "should keep fresh-project anti-exploration note with guidance");
   });
 
   it("includes both workflow instruction and guidance", () => {
@@ -427,14 +435,18 @@ describe("structural invariants", () => {
     );
   });
 
-  it("adds explicit fresh-project anti-exploration guidance before building the unfold message", () => {
+  it("passes fresh-project state into buildUnfoldMessage instead of inlining duplicate guidance", () => {
     assert.ok(
-      src.includes("This is a genuinely empty project: no existing code, no pom.xml, no tech stack to discover yet."),
-      "index.ts must add explicit fresh-project anti-exploration guidance",
+      src.includes("const freshProject = directDelegate.kind === \"none\";"),
+      "index.ts must detect the fresh-project case",
     );
     assert.ok(
-      src.includes("Do not explore the workspace for implementation artifacts."),
-      "index.ts must explicitly tell the PO not to explore implementation artifacts on a fresh project",
+      src.includes("buildUnfoldMessage({ workflowInstruction, guidance, freshProject })"),
+      "index.ts must let buildUnfoldMessage render the fresh-project guidance",
+    );
+    assert.ok(
+      !src.includes("This is a genuinely empty project: no existing code, no pom.xml, no tech stack to discover yet."),
+      "index.ts must not inline the old verbose fresh-project guidance",
     );
   });
 

@@ -62,6 +62,7 @@ describe("restoreChildSession", () => {
 
   it("restores a session when session_file exists", async () => {
     const cwd = makeTestTempDir("resume-task");
+    let shutdown: (() => Promise<void>) | undefined;
     try {
       const sessionFile = join(cwd, "session.jsonl");
       writeFileSync(sessionFile, JSON.stringify({version: 1, cwd}) + "\n");
@@ -75,7 +76,9 @@ describe("restoreChildSession", () => {
       const result = await restoreChildSession(cwd, "arch-add-todo", new Map() as any, {} as any, () => {
       }, nestedDelegateToolFactory);
       assert.ok(result !== null);
+      shutdown = result?.shutdown;
     } finally {
+      await shutdown?.();
       cleanupTestTempDir(cwd);
     }
   });

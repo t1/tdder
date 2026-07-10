@@ -170,6 +170,20 @@ describe("updateTaskStatus", () => {
     }
   });
 
+  it("writes recreate_message when provided on a blocked task", () => {
+    const cwd = makeTestTempDir("task-test");
+    try {
+      createTask(cwd, { slug: "recreate-me", from: "orchestrator", to: "po", body: "Do it" });
+      updateTaskStatus(cwd, "recreate-me", "blocked", undefined, undefined, "continue with refreshed tools");
+      const task = readTask(cwd, "recreate-me");
+      assert.equal(task?.status, "blocked");
+      assert.equal(task?.blocked_reason, undefined);
+      assert.equal(task?.recreate_message, "continue with refreshed tools");
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("round-trips multi-line resume_message", () => {
     const cwd = makeTestTempDir("task-test");
     try {
@@ -199,6 +213,18 @@ describe("updateTaskStatus", () => {
       updateTaskStatus(cwd, "clear-msg", "in_progress", undefined, "old message");
       updateTaskStatus(cwd, "clear-msg", "finished");
       assert.equal(readTask(cwd, "clear-msg")?.resume_message, undefined);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("clears recreate_message when status changes away from blocked recreation", () => {
+    const cwd = makeTestTempDir("task-test");
+    try {
+      createTask(cwd, { slug: "clear-recreate", from: "orchestrator", to: "po", body: "Do it" });
+      updateTaskStatus(cwd, "clear-recreate", "blocked", undefined, undefined, "refresh tools");
+      updateTaskStatus(cwd, "clear-recreate", "in_progress", undefined, "continue");
+      assert.equal(readTask(cwd, "clear-recreate")?.recreate_message, undefined);
     } finally {
       cleanupTestTempDir(cwd);
     }

@@ -4,7 +4,7 @@ import { Type } from "typebox";
 import { taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock, taskRollback } from "./task-tools.ts";
 import { CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
 import { exportTaskCommissionerDebugHtmlIfEnabled, exportTaskDebugHtmlIfEnabled } from "./debug-export.ts";
-import { readTask } from "./task-store.ts";
+import { readTask, updateTaskStatus } from "./task-store.ts";
 import type { AskSenseiFn, AskSenseiParams } from "./ask-sensei.ts";
 import { UnfoldingFatalError } from "./fatal-error.ts";
 import { resumeDelegatedTask } from "./task-resume.ts";
@@ -38,12 +38,30 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
     {
       name: "task_block",
       label: "Task block",
-      description: "Mark the current delegated task as blocked and stop the current run.",
+      description: "Mark the current delegated task as blocked and stop the current run. Provide exactly one of blocked_reason or recreate.resume_message.",
       parameters: Type.Object({
-        blocked_reason: Type.String({ description: "Why the task is blocked" }),
+        blocked_reason: Type.Optional(Type.String({ description: "Why the task is blocked" })),
+        recreate: Type.Optional(Type.Object({
+          resume_message: Type.String({ description: "First message for the recreated session to continue with" }),
+        })),
       }),
-      async execute(_id: string, blockParams: { blocked_reason: string }, _signal: any, _onUpdate: any, ctx: any) {
-        taskBlock(cwd, slug, blockParams.blocked_reason);
+      async execute(
+        _id: string,
+        blockParams: { blocked_reason?: string; recreate?: { resume_message: string } },
+        _signal: any,
+        _onUpdate: any,
+        ctx: any,
+      ) {
+        const hasBlockedReason = typeof blockParams.blocked_reason === "string";
+        const hasRecreate = typeof blockParams.recreate?.resume_message === "string";
+        if (hasBlockedReason === hasRecreate) {
+          throw new Error("task_block requires exactly one of blocked_reason or recreate.resume_message");
+        }
+        if (hasRecreate) {
+          updateTaskStatus(cwd, slug, "blocked", undefined, undefined, blockParams.recreate!.resume_message);
+        } else {
+          taskBlock(cwd, slug, blockParams.blocked_reason);
+        }
         await exportTaskDebugHtmlIfEnabled(cwd, slug, commissionerCtx.debugExportsEnabled ?? false);
         ctx.abort();
         return { content: [{ type: "text", text: "task blocked" }], details: {} };

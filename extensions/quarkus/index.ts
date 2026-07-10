@@ -12,11 +12,11 @@
  * Placement: extensions/quarkus/index.ts  (part of the t1/tdder pi package)
  */
 
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { homedir } from "node:os";
 import { spawnSafe } from "./vendor/spawn-safe.ts";
-import { join, relative, resolve } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -31,6 +31,8 @@ import { McpClient, McpStartupError, type McpTool } from "./mcp-client.js";
 import { extractText } from "./utils.js";
 import { filterDisplayOnlyMessages } from "./vendor/context-filter.ts";
 import { buildProjectTree, findProjectRoot, pomHasPlugin, type ProjectNode } from "./vendor/maven-project-tree.ts";
+import { fetchMetadata, selectVersion } from "./vendor/maven-version-lookup.ts";
+import { renderBootstrapPom } from "./bootstrap.ts";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -177,6 +179,11 @@ interface QuarkusState {
  * Use these to reinforce the guardrails from the MCP tool descriptions.
  */
 const TOOL_GUIDELINES: Record<string, string[]> = {
+  quarkus_bootstrap: [
+    "Use quarkus_bootstrap only in an empty or non-Quarkus Maven project to create the minimal pom.xml needed to activate Quarkus tooling.",
+    "quarkus_bootstrap is bootstrap-only — after it writes pom.xml, request child-session recreation so the refreshed Quarkus tool set becomes available.",
+    "Do not add feature extensions in this step. After recreation, continue with quarkus_searchDocs and quarkus_skills.",
+  ],
   quarkus_start: [
     "NEVER run `mvn quarkus:dev`, `./mvnw quarkus:dev`, or any equivalent shell command — quarkus_start is the only correct way to start dev mode.",
     "After any structural change (adding extensions, new endpoints), update README.md.",
@@ -682,6 +689,43 @@ export default async function (pi: ExtensionAPI) {
       setTimeout(() => { child.kill(); resolve(chunks.join("").trim()); }, 30_000);
     });
   }
+
+  function registerBootstrapTool(): void {
+    if (state.registeredToolNames.has("quarkus_bootstrap")) return;
+    state.registeredToolNames.add("quarkus_bootstrap");
+    pi.registerTool({
+      name: "quarkus_bootstrap",
+      label: "quarkus bootstrap",
+      description: "Create a minimal Quarkus pom.xml bootstrap in the current directory so Quarkus tooling can activate.",
+      promptSnippet: "Create minimal Quarkus pom.xml bootstrap",
+      promptGuidelines: TOOL_GUIDELINES.quarkus_bootstrap,
+      parameters: Type.Object({
+        groupId: Type.Optional(Type.String({ description: "Maven groupId for the new project. Defaults to 'org.example'." })),
+        artifactId: Type.Optional(Type.String({ description: "Maven artifactId for the new project. Defaults to the current directory name." })),
+        version: Type.Optional(Type.String({ description: "Project version. Defaults to 1.0.0-SNAPSHOT." })),
+      }),
+      async execute(_toolCallId, params, signal, onUpdate, ctx) {
+        const projectRoot = resolve(ctx.cwd);
+        const pomPath = resolve(projectRoot, "pom.xml");
+        if (existsSync(pomPath)) {
+          throw new Error("pom.xml already exists — quarkus_bootstrap is only for initial bootstrap");
+        }
+        const groupId = typeof params.groupId === "string" && params.groupId.trim().length > 0 ? params.groupId.trim() : "org.example";
+        const artifactId = typeof params.artifactId === "string" && params.artifactId.trim().length > 0 ? params.artifactId.trim() : (basename(projectRoot) || "demo");
+        const version = typeof params.version === "string" && params.version.trim().length > 0 ? params.version.trim() : "1.0.0-SNAPSHOT";
+        onUpdate?.({ content: [{ type: "text", text: "Looking up latest Quarkus BOM version…" }] });
+        const { latestVersion, versions } = await fetchMetadata("io.quarkus.platform", "quarkus-bom", signal);
+        const { selectedVersion } = selectVersion(latestVersion, versions, false);
+        writeFileSync(pomPath, renderBootstrapPom({ groupId, artifactId, version }).replaceAll("999-SNAPSHOT", selectedVersion));
+        return {
+          content: [{ type: "text", text: `Created ${pomPath}` }],
+          details: { pomPath, groupId, artifactId, version, quarkusPlatformVersion: selectedVersion },
+        };
+      },
+    });
+  }
+
+  registerBootstrapTool();
 
   async function ensureClient(cwd: string): Promise<McpClient> {
     if (!state.client) {

@@ -697,6 +697,29 @@ describe("registered task tools", () => {
   });
 
 
+  it("child task_block accepts recreate.resume_message and persists recreate_message", async () => {
+    const cwd = makeTestTempDir("child-recreate");
+    try {
+      createTask(cwd, { slug: "child", from: "orchestrator", to: "po", body: "Do it" });
+      const [tool] = createChildTaskTools(cwd, "child", { name: "task_delegate" } as any, { name: "task_continue" } as any, {
+        activeSessions: new Map() as any,
+        postOutput: () => {},
+        pi: {} as any,
+      }).filter(tool => tool.name === "task_block");
+      let aborted = false;
+      await tool.execute("1", { recreate: { resume_message: "bootstrap done; continue with Quarkus tools" } }, undefined, undefined, {
+        abort() { aborted = true; },
+      });
+      const task = readTask(cwd, "child");
+      assert.equal(aborted, true);
+      assert.equal(task?.status, "blocked");
+      assert.equal(task?.blocked_reason, undefined);
+      assert.equal(task?.recreate_message, "bootstrap done; continue with Quarkus tools");
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
   it("task_delegate includes blocked_reason for blocked children", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
     const {faux, authStorage, modelRegistry} = fauxSetup("index-tools-blocked-child");

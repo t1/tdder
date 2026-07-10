@@ -1,4 +1,5 @@
-import {resolve} from "node:path";
+import {existsSync, readdirSync} from "node:fs";
+import {basename, dirname, join, resolve} from "node:path";
 import type {Model} from "@earendil-works/pi-ai";
 import type {AgentSession, AuthStorage, ExtensionAPI, ModelRegistry} from "@earendil-works/pi-coding-agent";
 import {createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager} from "@earendil-works/pi-coding-agent";
@@ -27,9 +28,26 @@ export function resolveCurrentModel(_pi: ExtensionAPI): Model<any> | undefined {
   return undefined;
 }
 
+function bundledSiblingExtensionPaths(): string[] {
+  const currentExtensionDir = dirname(new URL(import.meta.url).pathname);
+  const currentExtensionName = basename(currentExtensionDir);
+  const extensionsDir = resolve(currentExtensionDir, "..");
+  if (!existsSync(extensionsDir)) return [];
+
+  return readdirSync(extensionsDir, {withFileTypes: true})
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((name) => name !== currentExtensionName && name !== "shared")
+    .map((name) => resolve(extensionsDir, name))
+    .filter((dir) => existsSync(join(dir, "index.ts")) && existsSync(join(dir, "package.json")));
+}
+
 function inheritedExtensionPaths(pi: ExtensionAPI): string[] {
-  const paths = (pi as any).__unfoldingExtensionPaths;
-  return Array.isArray(paths) ? paths.filter((path): path is string => typeof path === "string" && path.length > 0) : [];
+  const inherited = (pi as any).__unfoldingExtensionPaths;
+  const captured = Array.isArray(inherited)
+    ? inherited.filter((path): path is string => typeof path === "string" && path.length > 0)
+    : [];
+  return [...new Set([...captured, ...bundledSiblingExtensionPaths()])];
 }
 
 async function emitSessionShutdown(session: AgentSession): Promise<void> {

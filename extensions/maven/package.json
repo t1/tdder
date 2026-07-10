@@ -9,7 +9,7 @@
     "tdder-maven": "./cli"
   },
   "scripts": {
-    "sync": "mkdir -p vendor && cp ../shared/context-filter.ts ../shared/spawn-safe.ts ../shared/maven-project-tree.ts ../shared/duration-format.ts vendor/",
+    "sync": "mkdir -p vendor && cp ../shared/context-filter.ts ../shared/spawn-safe.ts ../shared/maven-project-tree.ts ../shared/duration-format.ts ../shared/maven-version-lookup.ts vendor/",
     "pretest": "npm run sync && tsc",
     "test": "vitest run",
     "test:watch": "vitest",

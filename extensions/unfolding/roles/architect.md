@@ -100,6 +100,10 @@ For the **next unresolved issue**, classify it first:
 - **Load matching skills once the stack is fixed:** as soon as an ADR / explicit Sensei guidance establishes a language,
   build tool, framework, or integration approach, load the matching skills before creating build files,
   infrastructure, or source files.
+- **Quarkus empty-project bootstrap rule:** if Quarkus is the chosen framework and no `pom.xml` exists yet, do **not**
+  hand-write a Quarkus POM and do **not** probe for CLI availability. Call `quarkus_bootstrap` immediately, then call
+  `task_block` with `recreate.resume_message` telling the recreated session to continue with refreshed Quarkus tools.
+  After recreation, continue with normal Quarkus-aware tooling.
 - **Skills are not decision authority:** available or loaded skills never replace ADR + `ask_sensei` for unresolved
   architectural decisions.
 - **When you need another agent** (Coder, UI Expert): call `task_delegate` with the role, a slug, and the full task

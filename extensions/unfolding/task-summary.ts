@@ -73,6 +73,7 @@ function renderNode(task: Task, childrenByParent: Map<string, Task[]>, indent = 
   if (task.session_id) lines.push(`${indent}session_id: ${task.session_id}`);
   lines.push(`${indent}status: ${task.status}`);
   if (task.blocked_reason) lines.push(...blockScalar(indent, "blocked_reason", task.blocked_reason));
+  if (task.recreate_message) lines.push(...blockScalar(indent, "recreate_message", task.recreate_message));
 
   const delegates = childrenByParent.get(task.slug) ?? [];
   if (delegates.length > 1) {
