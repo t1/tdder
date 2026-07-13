@@ -27,7 +27,6 @@ import { isUnfoldingFatalError } from "./fatal-error.ts";
 import { exportTaskCommissionerDebugHtmlIfEnabled, exportTaskDebugHtmlIfEnabled } from "./debug-export.ts";
 import { childOutputCommissionerNote, renderChildOutputBox, renderChildOutputResult, type ChildOutputDetails } from "./child-output.ts";
 import { buildConnectOptions, launchInTmux } from "./connect-session.ts";
-import { registerToolPolicy } from "../shared/tool-policy.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -86,9 +85,6 @@ function makePostOutput(pi: ExtensionAPI) {
 }
 
 export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<string, AgentSession> }) {
-  registerToolPolicy(pi, "task_finished", { allowsAfterRequiresSessionRecreation: true });
-  registerToolPolicy(pi, "task_block", { allowsAfterRequiresSessionRecreation: true });
-
   (pi as any).__unfoldingAskSensei = undefined;
   (pi as any).__unfoldingDebugExportsEnabled = false;
   (pi as any).__unfoldingExtensionPaths = undefined;

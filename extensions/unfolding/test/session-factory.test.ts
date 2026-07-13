@@ -9,7 +9,7 @@ import { CHILD_SESSION_FAILURE_BLOCKED_REASON, MISSING_CHECKPOINT_BLOCKED_REASON
 import {restoreChildSession} from "../session-restore.ts";
 import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
 import {makeTestGitRepo} from "./test-git-repo.ts";
-import {fauxAssistantMessage, fauxToolCall, registerFauxProvider} from "./faux-provider.ts";
+import {expectLastToolResult, fauxAssistantMessage, fauxToolCall, registerFauxProvider} from "./faux-provider.ts";
 
 function nestedDelegateToolFactory(_shortRole: string, _currentCommissionerSlug: string) {
   return {
@@ -23,22 +23,60 @@ function nestedDelegateToolFactory(_shortRole: string, _currentCommissionerSlug:
   };
 }
 
-function fauxSessionSetup(name: string) {
+function fauxSetup(name: string, responses: any[]) {
   const provider = `${name}-${Date.now()}`;
   const faux = registerFauxProvider({
     provider,
     models: [{id: "test-model"}],
   });
-  faux.setResponses([
-    fauxAssistantMessage([
-      fauxToolCall("task_block", {blocked_reason: "need input"}),
-    ], {stopReason: "toolUse"}),
-    fauxAssistantMessage("blocked"),
-  ]);
+  faux.setResponses(responses);
   const authStorage = AuthStorage.inMemory();
   authStorage.setRuntimeApiKey(provider, "test-key");
   const modelRegistry = ModelRegistry.inMemory(authStorage);
   return {faux, authStorage, modelRegistry};
+}
+
+function blockedTaskFauxResponses() {
+  return [
+    fauxAssistantMessage([
+      fauxToolCall("task_block", {blocked_reason: "need input"}),
+    ], {stopReason: "toolUse"}),
+    fauxAssistantMessage("blocked"),
+  ];
+}
+
+function fauxSessionSetup(name: string) {
+  return fauxSetup(name, blockedTaskFauxResponses());
+}
+
+function createDelayedQuarkusProbeExtension(cwd: string, name: string): string {
+  const fakeExtensionDir = join(cwd, ".test-ext", name);
+  mkdirSync(fakeExtensionDir, {recursive: true});
+  writeFileSync(join(fakeExtensionDir, "package.json"), JSON.stringify({
+    name: `pi-${name}`,
+    type: "module",
+    pi: {extensions: ["."]},
+  }, null, 2));
+  writeFileSync(join(fakeExtensionDir, "index.ts"), `
+export default function (pi) {
+  pi.on("session_start", async () => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    pi.registerTool({
+      name: "quarkus_delayed_probe",
+      label: "delayed probe",
+      description: "Test-only tool registered asynchronously during session_start.",
+      parameters: { type: "object", properties: {} },
+      async execute() {
+        return {
+          content: [{ type: "text", text: "delayed probe ready" }],
+          details: {},
+        };
+      },
+    });
+  });
+}
+`);
+  return fakeExtensionDir;
 }
 
 describe("startChildSession groundwork", () => {
@@ -84,9 +122,10 @@ describe("startChildSession groundwork", () => {
       cleanupTestTempDir(cwd);
     }
   });
+
   it("creates a task with session_file and base_sha persisted", async () => {
     const {cwd, head} = makeTestGitRepo("session-factory");
-    const {faux, authStorage, modelRegistry} = fauxSessionSetup("session-factory");
+    const {faux, authStorage, modelRegistry} = fauxSetup("session-factory", blockedTaskFauxResponses());
     try {
       const resultPromise = startChildSession({
         cwd,
@@ -727,7 +766,7 @@ describe("startChildSession groundwork", () => {
         modelRegistry,
       });
 
-      const tools = session.getAllTools().map(t => t.name);
+      const tools = (session.agent.state.tools ?? []).map((t: any) => t.name);
       assert.equal(tools.includes("task_list"), false, "child session must not expose task_list");
       assert.equal(tools.includes("task_read"), false, "child session must not expose task_read");
       assert.equal(tools.includes("task_continue"), true, "child session should expose task_continue");
@@ -763,9 +802,93 @@ describe("startChildSession groundwork", () => {
         modelRegistry,
       });
 
-      const tools = session.getAllTools().map(t => t.name);
+      const tools = (session.agent.state.tools ?? []).map((t: any) => t.name);
       assert.equal(tools.includes("quarkus_bootstrap"), true, "architect should still get quarkus_bootstrap from bundled sibling extension fallback");
       assert.equal(tools.includes("maven_run"), true, "architect should still get maven tools from bundled sibling extension fallback");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("child sessions hide quarkus_bootstrap once the workspace is already a Quarkus project", async () => {
+    const { cwd } = makeTestGitRepo("session-factory");
+    writeFileSync(join(cwd, "pom.xml"), `<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>io.quarkus</groupId>
+        <artifactId>quarkus-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+`);
+    const { faux, authStorage, modelRegistry } = fauxSessionSetup("session-tools-hide-bootstrap");
+    try {
+      const activeSessions = new Map() as any;
+      const { session } = await startChildSession({
+        cwd,
+        from: "po",
+        role: "architect",
+        slug: "architect-tools-hide-bootstrap",
+        body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
+        activeSessions,
+        pi: {
+          __unfoldingAskSensei: async () => "5",
+        } as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      const tools = (session.agent.state.tools ?? []).map((t: any) => t.name);
+      assert.equal(tools.includes("quarkus_bootstrap"), false, "quarkus_bootstrap should disappear once pom.xml already activates Quarkus tooling");
+      assert.equal(tools.includes("maven_run"), true, "other architect tools should stay available");
+    } finally {
+      faux.unregister();
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("fresh architect child sessions can call quarkus tools registered asynchronously during session_start", async () => {
+    const {cwd} = makeTestGitRepo("session-factory");
+    const delayedExtension = createDelayedQuarkusProbeExtension(cwd, "fake-delayed-quarkus-probe");
+    const {faux, authStorage, modelRegistry} = fauxSetup("session-fresh-delayed-quarkus-probe", [
+      fauxAssistantMessage([
+        fauxToolCall("quarkus_delayed_probe", {}),
+      ], {stopReason: "toolUse"}),
+      expectLastToolResult({
+        toolName: "quarkus_delayed_probe",
+        isError: false,
+        textIncludes: ["delayed probe ready"],
+      }, fauxAssistantMessage([
+        fauxToolCall("task_finished", {}),
+      ], {stopReason: "toolUse"})),
+    ]);
+    try {
+      const result = await startChildSession({
+        cwd,
+        from: "po",
+        role: "architect",
+        slug: "architect-fresh-delayed-quarkus-probe",
+        body: "Call quarkus_delayed_probe, then finish.",
+        activeSessions: new Map() as any,
+        pi: {
+          __unfoldingExtensionPaths: [delayedExtension],
+        } as any,
+        postOutput: () => {},
+        nestedDelegateToolFactory,
+        model: faux.getModel(),
+        authStorage,
+        modelRegistry,
+      });
+
+      assert.equal(result.outcome, "finished");
+      assert.equal(faux.state.callCount, 2);
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);
@@ -882,7 +1005,7 @@ describe("startChildSession groundwork", () => {
         modelRegistry,
       });
 
-      const tools = session.getAllTools().map((t: any) => t.name);
+      const tools = (session.agent.state.tools ?? []).map((t: any) => t.name);
       assert.equal(tools.includes("bash"), false, "PO session must not expose bash");
       assert.equal(tools.includes("read"), true, "PO session must expose read");
       assert.equal(tools.includes("write"), true, "PO session must expose write");

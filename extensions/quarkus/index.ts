@@ -30,10 +30,10 @@ import {Type} from "typebox";
 import {McpClient, McpStartupError, type McpTool} from "./mcp-client.js";
 import {extractText} from "./utils.js";
 import {filterDisplayOnlyMessages} from "./vendor/context-filter.ts";
-import {buildProjectTree, findProjectRoot, pomHasPlugin, type ProjectNode} from "./vendor/maven-project-tree.ts";
+import {buildProjectTree, findProjectRoot, type ProjectNode} from "./vendor/maven-project-tree.ts";
 import {fetchMetadata, selectVersion} from "./vendor/maven-version-lookup.ts";
 import {renderBootstrapPom} from "./bootstrap.ts";
-import { registerToolPolicy } from "../shared/tool-policy.ts";
+import { isQuarkusProject } from "../shared/quarkus-project.ts";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -50,26 +50,6 @@ const PREVIEW_LINES = 10;
 
 /** Ignore agent-initiated lifecycle transitions for this long before treating changes as external. */
 const LIFECYCLE_SUPPRESSION_MS = 30_000;
-
-// ---------------------------------------------------------------------------
-// Quarkus project detection
-// ---------------------------------------------------------------------------
-
-/** Returns true if the given directory contains a pom.xml with the quarkus-maven-plugin. */
-function isQuarkusProject(dir: string): boolean {
-  const pomPath = resolve(dir, "pom.xml");
-  if (existsSync(pomPath) && pomHasPlugin(pomPath, "quarkus-maven-plugin")) return true;
-  for (const gradle of ["build.gradle", "build.gradle.kts"]) {
-    const p = resolve(dir, gradle);
-    if (existsSync(p)) {
-      try {
-        if (readFileSync(p, "utf8").includes("quarkus")) return true;
-      } catch { /* ignore */
-      }
-    }
-  }
-  return false;
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -168,6 +148,8 @@ interface QuarkusState {
   pendingStart: Promise<McpClient> | null;
   /** Tool names registered in this process (idempotent across session restarts). */
   registeredToolNames: Set<string>;
+  /** Number of currently available Quarkus MCP tools. */
+  availableToolCount: number;
   /** Interval handle for the app-status polling loop. */
   statusPoller: ReturnType<typeof setInterval> | null;
   /** Last observed app states for all discovered services. */
@@ -189,8 +171,8 @@ interface QuarkusState {
 const TOOL_GUIDELINES: Record<string, string[]> = {
   quarkus_bootstrap: [
     "Use quarkus_bootstrap only in an empty or non-Quarkus Maven project to create the minimal pom.xml needed to activate Quarkus tooling.",
-    "quarkus_bootstrap is bootstrap-only — after it writes pom.xml, request your session to be recreated before making further tool calls.",
-    "Do not continue tool-driven work until a fresh session exposes the normal Quarkus tool set.",
+    "quarkus_bootstrap is bootstrap-only — it starts quarkus-agent-mcp and activates the normal Quarkus tool set in the current session before returning.",
+    "After a successful quarkus_bootstrap, use the now-available quarkus_* tools directly; do not call quarkus_bootstrap again.",
   ],
   quarkus_start: [
     "NEVER run `mvn quarkus:dev`, `./mvnw quarkus:dev`, or any equivalent shell command — quarkus_start is the only correct way to start dev mode.",
@@ -643,6 +625,7 @@ export default async function (pi: ExtensionAPI) {
     client: null,
     pendingStart: null,
     registeredToolNames: new Set(),
+    availableToolCount: 0,
     statusPoller: null,
     instanceStates: new Map(),
     appLogEnabled: false,
@@ -710,7 +693,11 @@ export default async function (pi: ExtensionAPI) {
     });
   }
 
-  registerToolPolicy(pi, "quarkus_bootstrap", {});
+  function hideBootstrapToolWhenQuarkusIsActive(): void {
+    const activeTools = pi.getActiveTools();
+    if (!activeTools.includes("quarkus_bootstrap")) return;
+    pi.setActiveTools(activeTools.filter((toolName) => toolName !== "quarkus_bootstrap"));
+  }
 
   function registerBootstrapTool(): void {
     if (state.registeredToolNames.has("quarkus_bootstrap")) return;
@@ -743,15 +730,59 @@ export default async function (pi: ExtensionAPI) {
           artifactId,
           version
         }).replaceAll("999-SNAPSHOT", selectedVersion));
+
+        // Activate the Quarkus tool set in this session so the LLM can continue
+        // immediately. We start quarkus-agent-mcp (which registers the quarkus_*
+        // tools via registerMcpTools), then toggle the active set: drop this
+        // bootstrap tool and add the freshly registered Quarkus tools. No session
+        // recreation needed — newly registered tools are callable next turn.
+        onUpdate?.({content: [{type: "text", text: "Starting quarkus-agent-mcp and activating Quarkus tools…"}]});
+        try {
+          await ensureClient(projectRoot);
+        } catch (err) {
+          if (err instanceof JbangMissingError) {
+            await handleJbangMissing(projectRoot, ctx as unknown as {ui: CommandUi});
+          } else {
+            throw err;
+          }
+        }
+        const client = state.client;
+        if (!client) {
+          throw new Error("quarkus-agent-mcp did not start; cannot activate Quarkus tools. Resolve the startup error and retry.");
+        }
+
+        state.availableToolCount = client.tools.length;
+        const availableNames = new Set(client.tools.map((t) => t.name));
+        const missingTools = REQUIRED_TOOLS.filter((t) => !availableNames.has(t));
+        if (missingTools.length > 0) {
+          ctx.ui.notify(
+            `quarkus: MCP server is missing expected tools: ${missingTools.join(", ")}. The jbang cache may be stale — run /quarkus mcp-restart to evict it and reload the latest version.`,
+            "warning",
+          );
+        }
+        if (state.statusPoller) clearInterval(state.statusPoller);
+        state.statusPoller = setInterval(() => {
+          refreshAppStatus(projectRoot, ctx as unknown as {ui: PollingUi}).catch(() => {
+          });
+        }, 5_000);
+        refreshAppStatus(projectRoot, ctx as unknown as {ui: PollingUi}).catch(() => {
+        });
+
+        const quarkusToolNames = [...state.registeredToolNames].filter((n) => n !== "quarkus_bootstrap");
+        const active = new Set(pi.getActiveTools());
+        active.delete("quarkus_bootstrap");
+        for (const n of quarkusToolNames) active.add(n);
+        pi.setActiveTools([...active]);
+
         return {
-          content: [{type: "text", text: `Created ${pomPath}`}],
+          content: [{type: "text", text: `Created ${pomPath} and activated ${quarkusToolNames.length} Quarkus tools.`}],
           details: {
             pomPath,
             groupId,
             artifactId,
             version,
             quarkusPlatformVersion: selectedVersion,
-            requiresSessionRecreation: true,
+            activatedToolCount: quarkusToolNames.length,
           },
         };
       },
@@ -956,15 +987,15 @@ export default async function (pi: ExtensionAPI) {
    * Returns undefined when there is nothing to show.
    * Format: quarkus[●blog ◌people ⚠api]
    */
-  function formatFooterStatus(instances: Map<string, AppState>): string | undefined {
-    // footer format: quarkus[●blog ◌people ⚠api]
+  function formatFooterStatus(instances: Map<string, AppState>, availableToolCount: number): string | undefined {
+    // footer format: quarkus[17 tools ●blog ◌people ⚠api]
     const ICON: Record<AppState, string> = {
       running: "●",
       starting: "◌",
       crashed: "⚠",
       stopped: "",
     };
-    const parts: string[] = [];
+    const parts: string[] = availableToolCount > 0 ? [`${availableToolCount} tools`] : [];
     for (const [dir, appState] of instances) {
       if (appState === "stopped") continue;
       const label = dir.split("/").at(-1) ?? dir;
@@ -1573,7 +1604,7 @@ export default async function (pi: ExtensionAPI) {
         mergeServiceStates(cwd, instances).map((service) => [service.projectDir, service.appState] as const),
       );
 
-      ctx.ui.setStatus("quarkus", formatFooterStatus(instances));
+      ctx.ui.setStatus("quarkus", formatFooterStatus(instances, state.availableToolCount));
 
       // Enable app-file logging for newly-running instances
       for (const [dir, instanceState] of instances) {
@@ -2087,7 +2118,8 @@ export default async function (pi: ExtensionAPI) {
     ctx.ui.setStatus("quarkus", "[quarkus starting…]");
     try {
       const c = await ensureClient(cwd);
-      ctx.ui.setStatus("quarkus", undefined);
+      state.availableToolCount = c.tools.length;
+      ctx.ui.setStatus("quarkus", formatFooterStatus(new Map(), state.availableToolCount));
       ctx.ui.notify(`quarkus: ${c.tools.length} tools loaded`, "info");
       if (state.statusPoller) clearInterval(state.statusPoller);
       state.statusPoller = setInterval(() => {
@@ -2156,11 +2188,13 @@ export default async function (pi: ExtensionAPI) {
 
     if (!isQuarkusProject(cwd)) return;
 
+    hideBootstrapToolWhenQuarkusIsActive();
     ctx.ui.setStatus("quarkus", "[quarkus starting…]");
     // Start the MCP server in the background so it doesn't block session startup.
     ensureClient(cwd)
       .then((c) => {
         ctx.ui.setStatus("quarkus", undefined);
+        state.availableToolCount = c.tools.length;
         const availableNames = new Set(c.tools.map((t) => t.name));
         const missingTools = REQUIRED_TOOLS.filter((t) => !availableNames.has(t));
         if (missingTools.length > 0) {

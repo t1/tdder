@@ -18,7 +18,7 @@ export type ToolRowStatus = "pending" | "success" | "error";
 export interface ToolChildOutputEvent {
   type: "tool";
   summary: string;
-  elapsedSeconds: number;
+  elapsedSeconds?: number;
   status: ToolRowStatus;
   errorSummary?: string;
   outputTail?: string[];
@@ -66,7 +66,7 @@ export function childOutputHeader(slug: string): HeaderChildOutputEvent {
 
 export function childOutputTool(
   summary: string,
-  elapsedSeconds: number,
+  elapsedSeconds: number | undefined,
   status: ToolRowStatus,
   errorSummary?: string,
   outputTail?: string[],
@@ -94,7 +94,8 @@ function renderAssistantLine(role: string, icon: "💬" | "⋯", text: string): 
 }
 
 function renderToolLines(role: string, event: ToolChildOutputEvent): string[] {
-  let line = `  [${role}] ⚙ ${event.summary} — ${formatElapsedDuration(event.elapsedSeconds)}`;
+  let line = `  [${role}] ⚙ ${event.summary}`;
+  if (event.elapsedSeconds !== undefined) line += ` — ${formatElapsedDuration(event.elapsedSeconds)}`;
   if (event.status === "success") line += " ✓";
   if (event.status === "error") line += " ✗";
   if (event.errorSummary) line += ` — ${event.errorSummary}`;

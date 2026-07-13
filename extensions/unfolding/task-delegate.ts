@@ -1,21 +1,28 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import type { AgentSession, AgentSessionEvent, AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
+import {existsSync, readFileSync} from "node:fs";
+import {join} from "node:path";
+import type {AgentSession, AgentSessionEvent, AgentToolUpdateCallback} from "@earendil-works/pi-coding-agent";
 import {
+  ANSI_ITALIC_OFF,
+  ANSI_ITALIC_ON,
+  type ChildOutputDetails,
+  type ChildOutputEvent,
   childOutputHeader,
   childOutputNote,
   childOutputTool,
   childOutputTotal,
+  type ContextUsageSnapshot,
   formatElapsedDuration,
   renderTotalLine,
-  type ChildOutputDetails,
-  type ChildOutputEvent,
-  type ContextUsageSnapshot,
-  ANSI_ITALIC_OFF,
-  ANSI_ITALIC_ON,
 } from "./child-output.ts";
-import { readTask, updateTaskStatus } from "./task-store.ts";
-import { parseFrontmatterTools, parseFrontmatterPathRestrictions, parseFrontmatterDelegatesTo, parsePathRestrictions, stripFrontmatter, SHARED_PREAMBLE, type PathRestrictionRule } from "./unfold-helpers.ts";
+import {readTask, updateTaskStatus} from "./task-store.ts";
+import {
+  parseFrontmatterDelegatesTo,
+  parseFrontmatterPathRestrictions,
+  parseFrontmatterTools,
+  type PathRestrictionRule,
+  SHARED_PREAMBLE,
+  stripFrontmatter
+} from "./unfold-helpers.ts";
 
 export const CHILD_FIXED_INSTRUCTION =
   "Call `task_finished` only when your responsibility for this task is fully complete. " +
@@ -90,14 +97,22 @@ function toolSummary(toolName: string, args: Record<string, unknown>, prefixLen:
     return text ? `${toolName} ${text}` : toolName;
   };
   switch (toolName) {
-    case "write": return withArg(args.path);
-    case "edit": return withArg(args.path);
-    case "read": return withArg(args.path);
-    case "bash": return withArg(String(args.command ?? "").slice(0, maxCmd));
-    case "task_delegate": return `${toolName} ${args.role ?? ""} / ${args.slug ?? ""}`;
-    case "task_block": return toolName;
-    case "task_finished": return toolName;
-    default: return toolName;
+    case "write":
+      return withArg(args.path);
+    case "edit":
+      return withArg(args.path);
+    case "read":
+      return withArg(args.path);
+    case "bash":
+      return withArg(String(args.command ?? "").slice(0, maxCmd));
+    case "task_delegate":
+      return `${toolName} ${args.role ?? ""} / ${args.slug ?? ""}`;
+    case "task_block":
+      return toolName;
+    case "task_finished":
+      return toolName;
+    default:
+      return toolName;
   }
 }
 
@@ -139,7 +154,17 @@ const INTENTIONALLY_SKIPPED_ASSISTANT_MESSAGE_EVENT_TYPES = new Set([
 ]);
 
 type StreamRow =
-  | { kind: "tool"; toolCallId: string; summary: string; startedAt: number; finishedAt?: number; status: ToolRowStatus; errorSummary?: string; outputTail?: string[] }
+  | {
+  kind: "tool";
+  toolCallId: string;
+  toolName: string;
+  summary: string;
+  startedAt: number;
+  finishedAt?: number;
+  status: ToolRowStatus;
+  errorSummary?: string;
+  outputTail?: string[]
+}
   | { kind: "assistant"; rowKey: string; icon: "💬" | "⋯"; text: string }
   | { kind: "note"; text: string };
 
@@ -199,8 +224,6 @@ const DELEGATION_TOOLS = new Set([
   "task_delegate",
   "task_unblock",
   "task_reopen",
-  "task_rollback",
-  "task_accept",
 ]);
 
 function tailLines(text: string, maxLines = MAX_TOOL_OUTPUT_LINES): string[] {
@@ -271,7 +294,12 @@ export function streamChildSession(
   slug: string,
   onUpdate: AgentToolUpdateCallback<ChildOutputDetails>,
   options: StreamChildSessionOptions = {},
-): { unsubscribe: () => void; append: (line: string) => void; getLines: () => string; getOutputEvents: () => ChildOutputEvent[] } {
+): {
+  unsubscribe: () => void;
+  append: (line: string) => void;
+  getLines: () => string;
+  getOutputEvents: () => ChildOutputEvent[]
+} {
   const prefixLen = `  [${role}] ⚙ `.length;
   const rows: StreamRow[] = [];
   const toolRows = new Map<string, Extract<StreamRow, { kind: "tool" }>>();
@@ -287,9 +315,12 @@ export function streamChildSession(
   let timer: ReturnType<typeof setInterval> | undefined;
 
   const renderToolRow = (row: Extract<StreamRow, { kind: "tool" }>): string[] => {
-    const endedAt = row.finishedAt ?? now();
-    const elapsedSeconds = Math.max(0, Math.floor((endedAt - row.startedAt) / 1000));
-    let line = `  [${role}] ⚙ ${row.summary} — ${formatElapsedDuration(elapsedSeconds)}`;
+    const freezeElapsed = row.finishedAt === undefined && DELEGATION_TOOLS.has(row.toolName);
+    const elapsedSeconds = freezeElapsed
+      ? undefined
+      : Math.max(0, Math.floor(((row.finishedAt ?? now()) - row.startedAt) / 1000));
+    let line = `  [${role}] ⚙ ${row.summary}`;
+    if (elapsedSeconds !== undefined) line += ` — ${formatElapsedDuration(elapsedSeconds)}`;
     if (row.status === "success") line += " ✓";
     if (row.status === "error") line += " ✗";
     if (row.errorSummary) line += ` — ${row.errorSummary}`;
@@ -311,21 +342,24 @@ export function streamChildSession(
     ...rows.flatMap((row, index) => {
       switch (row.kind) {
         case "tool": {
-          const endedAt = row.finishedAt ?? now();
-          const elapsedSeconds = Math.max(0, Math.floor((endedAt - row.startedAt) / 1000));
+          const freezeElapsed = row.finishedAt === undefined && DELEGATION_TOOLS.has(row.toolName);
+          const elapsedSeconds = freezeElapsed
+            ? undefined
+            : Math.max(0, Math.floor(((row.finishedAt ?? now()) - row.startedAt) / 1000));
           return [childOutputTool(row.summary, elapsedSeconds, row.status, row.errorSummary, row.outputTail)];
         }
         case "assistant":
           return [{
             type: "message_update",
-            message: { role: "assistant" },
+            message: {role: "assistant"},
             assistantMessageEvent: {
               type: row.icon === "⋯" ? "thinking_delta" : "text_delta",
               contentIndex: index,
               delta: row.text,
             },
           } as AgentSessionEvent];
-        case "note": return [childOutputNote(row.text)];
+        case "note":
+          return [childOutputNote(row.text)];
       }
     }),
     childOutputTotal(
@@ -339,9 +373,12 @@ export function streamChildSession(
     `[${role}/${slug}]`,
     ...rows.flatMap(row => {
       switch (row.kind) {
-        case "tool": return renderToolRow(row);
-        case "assistant": return [renderAssistantRow(role, row)];
-        case "note": return [row.text];
+        case "tool":
+          return renderToolRow(row);
+        case "assistant":
+          return [renderAssistantRow(role, row)];
+        case "note":
+          return [row.text];
       }
     }),
     renderElapsedLine(),
@@ -349,8 +386,8 @@ export function streamChildSession(
 
   const flush = () =>
     onUpdate({
-      content: [{ type: "text", text: getLines() }],
-      details: { childOutputRole: role, childOutputEvents: getOutputEvents() },
+      content: [{type: "text", text: getLines()}],
+      details: {childOutputRole: role, childOutputEvents: getOutputEvents()},
     });
 
   const ensureTimer = () => {
@@ -360,7 +397,7 @@ export function streamChildSession(
   };
 
   const append = (line: string) => {
-    rows.push({ kind: "note", text: line });
+    rows.push({kind: "note", text: line});
     flush();
   };
 
@@ -415,6 +452,7 @@ export function streamChildSession(
       const row: Extract<StreamRow, { kind: "tool" }> = {
         kind: "tool",
         toolCallId: event.toolCallId,
+        toolName: event.toolName,
         summary: toolSummary(event.toolName, event.args ?? {}, prefixLen),
         startedAt: now(),
         status: "pending",
@@ -428,7 +466,7 @@ export function streamChildSession(
     if (event.type === "tool_execution_update") {
       const row = toolRows.get(event.toolCallId);
       if (!row) {
-        rows.push({ kind: "note", text: summarizeUnexpectedChildEvent(role, slug, sessionFile, event) });
+        rows.push({kind: "note", text: summarizeUnexpectedChildEvent(role, slug, sessionFile, event)});
         flush();
         return;
       }
@@ -442,7 +480,7 @@ export function streamChildSession(
     if (event.type === "tool_execution_end") {
       const row = toolRows.get(event.toolCallId);
       if (!row) {
-        rows.push({ kind: "note", text: summarizeUnexpectedChildEvent(role, slug, sessionFile, event) });
+        rows.push({kind: "note", text: summarizeUnexpectedChildEvent(role, slug, sessionFile, event)});
         flush();
         return;
       }
@@ -473,7 +511,7 @@ export function streamChildSession(
       event.type === "message_update" &&
       event.assistantMessageEvent.type === "error"
     ) {
-      rows.push({ kind: "note", text: `  [${role}] ❌ ${summarizeAssistantError(event)}` });
+      rows.push({kind: "note", text: `  [${role}] ❌ ${summarizeAssistantError(event)}`});
       flush();
       return;
     }
@@ -496,28 +534,28 @@ export function streamChildSession(
     if (event.type === "auto_retry_end") {
       if (!event.success) {
         const detail = truncateSummary(summarizeRetryError(event.finalError));
-        rows.push({ kind: "note", text: `  [${role}] ❌ auto-retry failed after attempt ${event.attempt} — ${detail}` });
+        rows.push({kind: "note", text: `  [${role}] ❌ auto-retry failed after attempt ${event.attempt} — ${detail}`});
         flush();
       }
       return;
     }
 
     if (isThinkingLengthTruncation(event)) {
-      rows.push({ kind: "note", text: `  [${role}] ⚠ thinking truncated by length limit` });
+      rows.push({kind: "note", text: `  [${role}] ⚠ thinking truncated by length limit`});
       flush();
       return;
     }
 
     if (isTerminalAssistantFailure(event)) {
       if (isCheckpointAbortTail(event)) return;
-      rows.push({ kind: "note", text: `  [${role}] ❌ ${summarizeTerminalAssistantFailure(event.message)}` });
+      rows.push({kind: "note", text: `  [${role}] ❌ ${summarizeTerminalAssistantFailure(event.message)}`});
       flush();
       return;
     }
 
     if (event.type === "message_update") {
       if (INTENTIONALLY_SKIPPED_ASSISTANT_MESSAGE_EVENT_TYPES.has(event.assistantMessageEvent.type)) return;
-      rows.push({ kind: "note", text: summarizeUnexpectedChildEvent(role, slug, sessionFile, event) });
+      rows.push({kind: "note", text: summarizeUnexpectedChildEvent(role, slug, sessionFile, event)});
       flush();
       return;
     }
@@ -526,7 +564,7 @@ export function streamChildSession(
       return;
     }
 
-    rows.push({ kind: "note", text: summarizeUnexpectedChildEvent(role, slug, sessionFile, event) });
+    rows.push({kind: "note", text: summarizeUnexpectedChildEvent(role, slug, sessionFile, event)});
     flush();
   };
 
@@ -639,7 +677,7 @@ export function installCheckpointRecovery(
       if (!truncationRecoveryAttempted) {
         truncationRecoveryAttempted = true;
         onRecoveryNote?.("  ⚠ child response was truncated before a checkpoint; prompting it to continue or block");
-        session.prompt(TRUNCATION_RECOVERY_PROMPT, { streamingBehavior: "followUp" }).catch((err: unknown) => {
+        session.prompt(TRUNCATION_RECOVERY_PROMPT, {streamingBehavior: "followUp"}).catch((err: unknown) => {
           const stack = err instanceof Error ? err.stack : String(err);
           console.error(`[unfolding] truncation recovery prompt for task "${slug}" failed:`, stack);
         });
@@ -665,7 +703,7 @@ export function installCheckpointRecovery(
     if (!missingCheckpointRecoveryAttempted) {
       missingCheckpointRecoveryAttempted = true;
       onRecoveryNote?.("  ⚠ child ended a turn without a checkpoint; prompting it to call task_finished or task_block");
-      session.prompt(MISSING_CHECKPOINT_RECOVERY_PROMPT, { streamingBehavior: "followUp" }).catch((err: unknown) => {
+      session.prompt(MISSING_CHECKPOINT_RECOVERY_PROMPT, {streamingBehavior: "followUp"}).catch((err: unknown) => {
         const stack = err instanceof Error ? err.stack : String(err);
         console.error(`[unfolding] missing-checkpoint recovery prompt for task "${slug}" failed:`, stack);
       });
@@ -720,9 +758,9 @@ export async function waitForResume(
 ): Promise<{ outcome: "accepted" | "in_progress"; message: string }> {
   while (true) {
     const task = await readStatus();
-    if (task === null) return { outcome: "accepted", message: ACCEPTED_MESSAGE };
+    if (task === null) return {outcome: "accepted", message: ACCEPTED_MESSAGE};
     if (task.status === "in_progress") {
-      return { outcome: "in_progress", message: task.resume_message ?? "in_progress" };
+      return {outcome: "in_progress", message: task.resume_message ?? "in_progress"};
     }
     await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
   }

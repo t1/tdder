@@ -1,8 +1,8 @@
-import { describe, it } from "node:test";
+import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import { renderBootstrapPom } from "../bootstrap.ts";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import {renderBootstrapPom} from "../bootstrap.ts";
+import {readFileSync} from "node:fs";
+import {resolve} from "node:path";
 
 describe("quarkus bootstrap pom", () => {
   it("bootstrap tool resolves cwd from execute context", () => {
@@ -22,18 +22,36 @@ describe("quarkus bootstrap pom", () => {
     assert.match(src, /selectVersion\(/);
   });
 
-  it("bootstrap tool marks successful results as requiring session recreation", () => {
+  it("bootstrap tool activates the Quarkus tool set on success instead of requiring session recreation", () => {
     const src = readFileSync(resolve(import.meta.dirname, "../index.ts"), "utf8");
-    assert.match(src, /requiresSessionRecreation: true/);
+    assert.match(src, /await ensureClient\(projectRoot\);/);
+    assert.match(src, /const quarkusToolNames = \[\.\.\.state\.registeredToolNames]\.filter\(\(n\) => n !== "quarkus_bootstrap"\);/);
+    assert.match(src, /pi\.setActiveTools\(\[\.\.\.active]\);/);
+    assert.doesNotMatch(src, /requiresSessionRecreation/);
+    assert.doesNotMatch(src, /autoCheckpointSessionRecreation/);
   });
 
-  it("bootstrap guidelines tell the LLM to recreate the session before further tool calls", () => {
+  it("bootstrap tool stays generic and only declares the recreation requirement", () => {
     const src = readFileSync(resolve(import.meta.dirname, "../index.ts"), "utf8");
-    assert.match(src, /request your session to be recreated before making further tool calls/);
+    assert.doesNotMatch(src, /task_block/);
+    assert.doesNotMatch(src, /registerRequiresSessionRecreationHandler/);
+  });
+
+  it("session_start hides quarkus_bootstrap once a Quarkus pom already exists", () => {
+    const src = readFileSync(resolve(import.meta.dirname, "../index.ts"), "utf8");
+    assert.match(src, /function hideBootstrapToolWhenQuarkusIsActive/);
+    assert.match(src, /pi\.getActiveTools\(\)/);
+    assert.match(src, /pi\.setActiveTools\(activeTools\.filter\(\(toolName\) => toolName !== "quarkus_bootstrap"\)\)/);
+    assert.match(src, /if \(!isQuarkusProject\(cwd\)\) return;\s*\n\s*hideBootstrapToolWhenQuarkusIsActive\(\);/);
+  });
+
+  it("bootstrap guidelines tell the LLM the Quarkus tools become available in the current session", () => {
+    const src = readFileSync(resolve(import.meta.dirname, "../index.ts"), "utf8");
+    assert.match(src, /activates the normal Quarkus tool set in the current session before returning/);
   });
 
   it("renders a minimal pom with quarkus-maven-plugin", () => {
-    const pom = renderBootstrapPom({ groupId: "com.acme", artifactId: "demo" });
+    const pom = renderBootstrapPom({groupId: "com.acme", artifactId: "demo"});
     assert.match(pom, /<groupId>com\.acme<\/groupId>/);
     assert.match(pom, /<artifactId>demo<\/artifactId>/);
     assert.match(pom, /<artifactId>quarkus-maven-plugin<\/artifactId>/);

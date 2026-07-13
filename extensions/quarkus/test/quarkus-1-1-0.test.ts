@@ -27,8 +27,8 @@ const src = readFileSync(resolve(import.meta.dirname, "../index.ts"), "utf8");
 describe("new 1.1.0 tools in REQUIRED_TOOLS", () => {
   for (const tool of ["quarkus_list", "quarkus_agent_log", "quarkus_updateSkill", "quarkus_saveSkill"]) {
     it(`REQUIRED_TOOLS contains ${tool}`, () => {
-      const idx = src.indexOf("REQUIRED_TOOLS");
-      assert.ok(idx >= 0, "REQUIRED_TOOLS not found");
+      const idx = src.indexOf("const REQUIRED_TOOLS");
+      assert.ok(idx >= 0, "REQUIRED_TOOLS declaration not found");
       const block = src.slice(idx, idx + 800);
       assert.ok(block.includes(`"${tool}"`), `REQUIRED_TOOLS must contain "${tool}"`);
     });

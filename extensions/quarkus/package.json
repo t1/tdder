@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "sync": "mkdir -p vendor && cp ../shared/jsonrpc-session.ts ../shared/mcp-client.ts ../shared/context-filter.ts ../shared/spawn-safe.ts ../shared/maven-project-tree.ts ../shared/maven-version-lookup.ts ../shared/tool-policy.ts vendor/",
+    "sync": "mkdir -p vendor && cp ../shared/jsonrpc-session.ts ../shared/mcp-client.ts ../shared/context-filter.ts ../shared/spawn-safe.ts ../shared/maven-project-tree.ts ../shared/maven-version-lookup.ts vendor/",
     "test": "tsx --test test/*.test.ts"
   },
   "peerDependencies": {

@@ -9,13 +9,22 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
-import {createTask, readTask} from "../task-store.ts";
-import { makeTaskContinueDefinition, makeTaskDelegateDefinition } from "../task-delegate-tool.ts";
+import {createTask} from "../task-store.ts";
+import {makeTaskContinueDefinition, makeTaskDelegateDefinition} from "../task-delegate-tool.ts";
 import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
-import {installCheckpointRecovery, loadAgentSystemPrompt, loadAgentRoleConfig, streamChildSession, waitForChildDecision, waitForResume, MISSING_CHECKPOINT_BLOCKED_REASON, CHILD_SESSION_FAILURE_BLOCKED_REASON, FatalChildSessionError} from "../task-delegate.ts";
+import {
+  CHILD_SESSION_FAILURE_BLOCKED_REASON,
+  FatalChildSessionError,
+  loadAgentRoleConfig,
+  loadAgentSystemPrompt,
+  MISSING_CHECKPOINT_BLOCKED_REASON,
+  streamChildSession,
+  waitForChildDecision,
+  waitForResume
+} from "../task-delegate.ts";
 import {SHARED_PREAMBLE} from "../unfold-helpers.ts";
 
-import { ANSI_ITALIC_ON, ANSI_ITALIC_OFF, childOutputHeader, formatElapsedDuration } from "../child-output.ts";
+import {ANSI_ITALIC_OFF, ANSI_ITALIC_ON, childOutputHeader, formatElapsedDuration} from "../child-output.ts";
 
 const rolesDir = resolve(new URL("../roles", import.meta.url).pathname);
 
@@ -27,9 +36,10 @@ describe("task_continue", () => {
   it("returns an instruction when no direct delegate exists", async () => {
     const cwd = makeTestTempDir("delegate-continue");
     try {
-      const tool = makeTaskContinueDefinition("po", new Map() as any, {} as any, () => {});
+      const tool = makeTaskContinueDefinition("po", new Map() as any, {} as any, () => {
+      });
       await assert.rejects(
-        () => tool.execute("1", {}, undefined, undefined, { cwd, signal: undefined }),
+        () => tool.execute("1", {}, undefined, undefined, {cwd, signal: undefined}),
         /There is no direct delegate to continue\. If you need new delegated work, call task_delegate\(role, slug, body\)\./,
       );
     } finally {
@@ -40,9 +50,13 @@ describe("task_continue", () => {
   it("task_delegate rejects disallowed delegate roles from the caller's role frontmatter", async () => {
     const cwd = makeTestTempDir("delegate-policy");
     try {
-      const tool = makeTaskDelegateDefinition("coder", new Map() as any, {} as any, () => {});
+      const tool = makeTaskDelegateDefinition("coder", new Map() as any, {} as any, () => {
+      });
       await assert.rejects(
-        () => tool.execute("1", { role: "coder", slug: "review-2", body: "new" }, undefined, undefined, { cwd, signal: undefined }),
+        () => tool.execute("1", {role: "coder", slug: "review-2", body: "new"}, undefined, undefined, {
+          cwd,
+          signal: undefined
+        }),
         /role "coder" may not delegate to "coder"\. Allowed delegate roles: clean-code-reviewer\./,
       );
     } finally {
@@ -53,11 +67,15 @@ describe("task_continue", () => {
   it("task_delegate rejects creating a new delegate while a direct delegate is already in progress", async () => {
     const cwd = makeTestTempDir("delegate-continue");
     try {
-      createTask(cwd, { slug: "po-root", from: "orchestrator", to: "po", body: "root" });
-      createTask(cwd, { slug: "arch-001", from: "po", to: "architect", body: "existing", parent_slug: "po-root" });
-      const tool = makeTaskDelegateDefinition("po", new Map() as any, {} as any, () => {}, undefined, undefined, "po-root");
+      createTask(cwd, {slug: "po-root", from: "orchestrator", to: "po", body: "root"});
+      createTask(cwd, {slug: "arch-001", from: "po", to: "architect", body: "existing", parent_slug: "po-root"});
+      const tool = makeTaskDelegateDefinition("po", new Map() as any, {} as any, () => {
+      }, undefined, undefined, "po-root");
       await assert.rejects(
-        () => tool.execute("1", { role: "architect", slug: "arch-002", body: "new" }, undefined, undefined, { cwd, signal: undefined }),
+        () => tool.execute("1", {role: "architect", slug: "arch-002", body: "new"}, undefined, undefined, {
+          cwd,
+          signal: undefined
+        }),
         /direct delegate "arch-001" is already in progress\. Call task_continue instead\./,
       );
     } finally {
@@ -66,12 +84,14 @@ describe("task_continue", () => {
   });
 
   it("child task_delegate schema does not expose parent_slug", () => {
-    const tool = makeTaskDelegateDefinition("po", new Map() as any, {} as any, () => {}, undefined, undefined, "po-root");
+    const tool = makeTaskDelegateDefinition("po", new Map() as any, {} as any, () => {
+    }, undefined, undefined, "po-root");
     assert.ok(!("parent_slug" in (tool.parameters as any).properties));
   });
 
   it("root task_delegate schema still exposes optional parent_slug", () => {
-    const tool = makeTaskDelegateDefinition("orchestrator", new Map() as any, {} as any, () => {});
+    const tool = makeTaskDelegateDefinition("orchestrator", new Map() as any, {} as any, () => {
+    });
     assert.ok("parent_slug" in (tool.parameters as any).properties);
   });
 });
@@ -160,7 +180,10 @@ describe("streamChildSession", () => {
         };
       }
     } as any;
-    streamChildSession(fakeSession, "coder", "slug", (u: any) => updates.push({ text: u.content[0].text, details: u.details }));
+    streamChildSession(fakeSession, "coder", "slug", (u: any) => updates.push({
+      text: u.content[0].text,
+      details: u.details
+    }));
     captured!({type: "message_update", assistantMessageEvent: {type: "text_delta", delta: "Hello"}});
     captured!({type: "message_update", assistantMessageEvent: {type: "text_delta", delta: " world"}});
     const last = updates[updates.length - 1];
@@ -219,10 +242,21 @@ describe("streamChildSession", () => {
         };
       }
     } as any;
-    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push({ text: u.content[0].text, details: u.details }));
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push({
+      text: u.content[0].text,
+      details: u.details
+    }));
 
-    captured!({type: "message_update", message: { role: "assistant" }, assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "plan"}});
-    captured!({type: "message_update", message: { role: "assistant" }, assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: " first"}});
+    captured!({
+      type: "message_update",
+      message: {role: "assistant"},
+      assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "plan"}
+    });
+    captured!({
+      type: "message_update",
+      message: {role: "assistant"},
+      assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: " first"}
+    });
 
     const last = updates[updates.length - 1];
     assert.ok(last.text.includes(`[po] ⋯ ${ANSI_ITALIC_ON}plan first${ANSI_ITALIC_OFF}`), `expected italic accumulated thinking text, got: ${last.text}`);
@@ -246,9 +280,15 @@ describe("streamChildSession", () => {
     } as any;
     streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text));
 
-    captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "think"}});
+    captured!({
+      type: "message_update",
+      assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "think"}
+    });
     captured!({type: "message_update", assistantMessageEvent: {type: "text_delta", contentIndex: 1, delta: "say"}});
-    captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: " more"}});
+    captured!({
+      type: "message_update",
+      assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: " more"}
+    });
     captured!({type: "message_update", assistantMessageEvent: {type: "text_delta", contentIndex: 1, delta: " more"}});
 
     const last = updates[updates.length - 1];
@@ -268,7 +308,10 @@ describe("streamChildSession", () => {
     } as any;
     streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push(u.content[0].text));
 
-    captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "\n\n"}});
+    captured!({
+      type: "message_update",
+      assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "\n\n"}
+    });
     captured!({type: "message_update", assistantMessageEvent: {type: "thinking_delta", contentIndex: 0, delta: "  "}});
 
     assert.equal(updates.length, 1, `expected no extra flush for whitespace-only thinking deltas, got: ${updates.length}`);
@@ -314,7 +357,7 @@ describe("streamChildSession", () => {
       type: "tool_execution_start",
       toolCallId: "r1",
       toolName: "read",
-      args: { path: "foo.txt" },
+      args: {path: "foo.txt"},
     });
     nowMs = 3000;
     captured!({
@@ -322,7 +365,7 @@ describe("streamChildSession", () => {
       toolCallId: "r1",
       toolName: "read",
       isError: true,
-      result: { content: [{ type: "text", text: "file not found\nmore detail" }] },
+      result: {content: [{type: "text", text: "file not found\nmore detail"}]},
     });
 
     const last = updates[updates.length - 1];
@@ -344,7 +387,7 @@ describe("streamChildSession", () => {
 
     captured!({
       type: "message_update",
-      assistantMessageEvent: { type: "error", errorMessage: "provider exploded" },
+      assistantMessageEvent: {type: "error", errorMessage: "provider exploded"},
     });
 
     const last = updates[updates.length - 1];
@@ -425,7 +468,7 @@ describe("streamChildSession", () => {
       toolCallId: "checkpoint-1",
       toolName: "task_finished",
       isError: false,
-      result: { content: [{ type: "text", text: "task finished" }] },
+      result: {content: [{type: "text", text: "task finished"}]},
     });
 
     const beforeAbortTail = updates[updates.length - 1];
@@ -468,7 +511,7 @@ describe("streamChildSession", () => {
       toolCallId: "checkpoint-1",
       toolName: "task_finished",
       isError: false,
-      result: { content: [{ type: "text", text: "task finished" }] },
+      result: {content: [{type: "text", text: "task finished"}]},
     });
 
     const beforeAbortTail = updates[updates.length - 1];
@@ -502,7 +545,7 @@ describe("streamChildSession", () => {
 
     captured!({
       type: "message_update",
-      assistantMessageEvent: { type: "error", errorMessage: "provider exploded" },
+      assistantMessageEvent: {type: "error", errorMessage: "provider exploded"},
     });
 
     const last = updates[updates.length - 1];
@@ -525,7 +568,7 @@ describe("streamChildSession", () => {
     });
     const before = updates[updates.length - 1];
 
-    captured!({ type: "queue_update", steer: [], followUp: [], nextTurn: [] });
+    captured!({type: "queue_update", steer: [], followUp: [], nextTurn: []});
 
     const after = updates[updates.length - 1];
     assert.equal(after, before, "did not expect queue_update to change the transcript");
@@ -542,7 +585,10 @@ describe("streamChildSession", () => {
         };
       }
     } as any;
-    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push({ text: u.content[0].text, details: u.details }), {
+    streamChildSession(fakeSession, "po", "slug", (u: any) => updates.push({
+      text: u.content[0].text,
+      details: u.details
+    }), {
       now: () => nowMs,
     });
 
@@ -550,7 +596,7 @@ describe("streamChildSession", () => {
       type: "tool_execution_start",
       toolCallId: "r1",
       toolName: "read",
-      args: { path: "foo.txt" },
+      args: {path: "foo.txt"},
     });
     nowMs = 2000;
     captured!({
@@ -558,7 +604,7 @@ describe("streamChildSession", () => {
       toolCallId: "r1",
       toolName: "read",
       isError: false,
-      result: { content: [{ type: "text", text: "ok" }] },
+      result: {content: [{type: "text", text: "ok"}]},
     });
 
     const last = updates[updates.length - 1];
@@ -587,7 +633,7 @@ describe("streamChildSession", () => {
       message: {
         role: "assistant",
         stopReason: "length",
-        content: [{ type: "thinking", thinking: "cut off" }],
+        content: [{type: "thinking", thinking: "cut off"}],
       },
     });
 
@@ -605,7 +651,10 @@ describe("streamChildSession", () => {
         };
       }
     } as any;
-    streamChildSession(fakeSession, "architect", "slug", (u: any) => updates.push({ text: u.content[0].text, details: u.details }));
+    streamChildSession(fakeSession, "architect", "slug", (u: any) => updates.push({
+      text: u.content[0].text,
+      details: u.details
+    }));
 
     captured!({
       type: "auto_retry_start",
@@ -672,7 +721,7 @@ describe("streamChildSession", () => {
     nowMs = 0;
     const sessionWithTool = {
       subscribe: (h: any) => {
-        h({ type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: { path: "foo.txt" } });
+        h({type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: {path: "foo.txt"}});
         return () => {
           unsubscribeCalled = true;
         };
@@ -781,7 +830,8 @@ describe("streamChildSession", () => {
     const last = updates[updates.length - 1];
     assert.ok(last.includes("    [ux-designer/ux-slug]"), `expected indented grandchild header, got: ${last}`);
     assert.ok(last.includes("    [ux-designer] ⚙ write"), `expected indented grandchild tool line, got: ${last}`);
-    assert.ok(last.includes("[po] ⚙ task_delegate ux-designer / ux-slug — 0s"), `expected parent delegate tool row, got: ${last}`);
+    assert.ok(last.includes("[po] ⚙ task_delegate ux-designer / ux-slug"), `expected parent delegate tool row, got: ${last}`);
+    assert.ok(!last.includes("task_delegate ux-designer / ux-slug —"), `expected no elapsed on in-progress delegation row, got: ${last}`);
     assert.ok(!last.includes("unexpected child event"), `did not expect unexpected-event warning, got: ${last}`);
     // the grandchild block should not appear twice
     assert.equal((last.match(/\[ux-designer\/ux-slug]/g) ?? []).length, 1, "grandchild header should appear only once");
@@ -843,7 +893,7 @@ describe("streamChildSession", () => {
       },
     });
 
-    captured!({ type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: { path: "foo.txt" } });
+    captured!({type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: {path: "foo.txt"}});
     nowMs = 4000;
     intervalCallback?.();
 
@@ -875,7 +925,7 @@ describe("streamChildSession", () => {
       },
     });
 
-    captured!({ type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: { path: "foo.txt" } });
+    captured!({type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: {path: "foo.txt"}});
     nowMs = 3_661_000;
     intervalCallback?.();
 
@@ -907,15 +957,15 @@ describe("streamChildSession", () => {
       },
     });
 
-    captured!({ type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: { path: "done.txt" } });
-    captured!({ type: "tool_execution_start", toolCallId: "r2", toolName: "read", args: { path: "pending.txt" } });
+    captured!({type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: {path: "done.txt"}});
+    captured!({type: "tool_execution_start", toolCallId: "r2", toolName: "read", args: {path: "pending.txt"}});
     nowMs = 2000;
     captured!({
       type: "tool_execution_end",
       toolCallId: "r1",
       toolName: "read",
       isError: false,
-      result: { content: [{ type: "text", text: "ok" }] },
+      result: {content: [{type: "text", text: "ok"}]},
     });
 
     nowMs = 5000;

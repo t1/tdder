@@ -7,6 +7,7 @@ import {CHILD_FIXED_INSTRUCTION, loadAgentRoleConfig} from "./task-delegate.ts";
 import {createChildTaskTools} from "./child-task-tools.ts";
 import { makeTaskContinueDefinition } from "./task-delegate-tool.ts";
 import {resolveToolAllowlist, isPathAllowed} from "./unfold-helpers.ts";
+import { isQuarkusProject } from "../shared/quarkus-project.ts";
 
 export type NestedDelegateToolFactory = (shortRole: string, currentCommissionerSlug: string) => any;
 
@@ -26,6 +27,11 @@ export interface ChildSessionBuildParams {
 
 export function resolveCurrentModel(_pi: ExtensionAPI): Model<any> | undefined {
   return undefined;
+}
+
+function filterActiveToolsForWorkspace(cwd: string, toolNames: string[]): string[] {
+  if (!isQuarkusProject(cwd)) return toolNames;
+  return toolNames.filter((toolName) => toolName !== "quarkus_bootstrap");
 }
 
 function bundledSiblingExtensionPaths(): string[] {
@@ -99,7 +105,7 @@ export async function createChildAgentSession({
   // and apply the full resolved allowlist via setActiveToolsByName afterwards.
   const hasWildcards = roleConfig.tools?.some(t => t.endsWith("*")) ?? false;
   const resolvedTools = roleConfig.tools && !hasWildcards
-    ? resolveToolAllowlist(roleConfig.tools, liveToolNames)
+    ? filterActiveToolsForWorkspace(cwd, resolveToolAllowlist(roleConfig.tools, liveToolNames))
     : undefined;
 
   const {session} = await createAgentSession({
@@ -128,7 +134,7 @@ export async function createChildAgentSession({
 
   if (hasWildcards && roleConfig.tools) {
     const allToolNames = session.getAllTools().map((t: any) => t.name);
-    const reResolved = resolveToolAllowlist(roleConfig.tools, allToolNames);
+    const reResolved = filterActiveToolsForWorkspace(cwd, resolveToolAllowlist(roleConfig.tools, allToolNames));
     session.setActiveToolsByName(reResolved);
   }
 

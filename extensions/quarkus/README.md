@@ -2,27 +2,14 @@
 
 Integrates [quarkus-agent-mcp](https://github.com/quarkusio/quarkus-agent-mcp) into pi so the LLM can manage Quarkus projects and dev-mode workflows through native `quarkus_*` tools.
 
-## Bootstrap and session recreation
+## Bootstrap and tool activation
 
 `quarkus_bootstrap` is a bootstrap-only tool for empty or non-Quarkus Maven projects.
 It creates the minimal `pom.xml` needed for Quarkus tooling to activate.
 
-On success, `quarkus_bootstrap` returns tool-result metadata:
+On success it does not stop at writing `pom.xml`. Within the same tool call it also:
 
-- `details.requiresSessionRecreation = true`
+- starts `quarkus-agent-mcp`, which registers the normal `quarkus_*` tool set via `pi.registerTool`, and
+- toggles the active tool set via `pi.setActiveTools`: removes `quarkus_bootstrap` and adds the freshly registered `quarkus_*` tools.
 
-That metadata means the current session should not continue ordinary tool-driven work.
-A fresh session is needed so the normal Quarkus tool set is available in the updated workspace.
-
-The `quarkus` extension does **not** know about `unfolding` or any specific session-ending tool.
-It only declares the lifecycle fact that successful bootstrap requires session recreation.
-
-## Cross-cutting enforcement
-
-The generic enforcement lives in the `hygiene` extension:
-
-- it watches `tool_result` for `details.requiresSessionRecreation = true`
-- then blocks later `tool_call` events in that session
-- except for tools explicitly registered as allowed session-enders by policy
-
-This is a best-effort same-turn guard. It reliably blocks later tool calls after the triggering result is observed, but it cannot prevent sibling tool calls that were already emitted in the same assistant message before that result existed.
+Newly registered tools are callable on the next turn in the same session — there is no need to recreate or reload the session. The `quarkus` extension does not know about `unfolding` or any session-ending tool; it only activates its own tool set.

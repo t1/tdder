@@ -102,6 +102,16 @@ describe("formatFooterStatus helper", () => {
     );
   });
 
+  it("formatFooterStatus includes the available Quarkus tool count", () => {
+    const idx = src.indexOf("function formatFooterStatus");
+    assert.ok(idx >= 0, "formatFooterStatus not found");
+    const block = src.slice(idx, idx + 700);
+    assert.ok(
+      block.includes("tools") && block.includes("availableToolCount"),
+      `formatFooterStatus must include the available Quarkus tool count, got:\n${block}`,
+    );
+  });
+
   it("formatFooterStatus uses ● for running, ◌ for starting, ⚠ for crashed", () => {
     const idx = src.indexOf("function formatFooterStatus");
     assert.ok(idx >= 0, "formatFooterStatus not found");
@@ -111,13 +121,13 @@ describe("formatFooterStatus helper", () => {
     assert.ok(block.includes("⚠"), `formatFooterStatus must use ⚠ for crashed, got:\n${block}`);
   });
 
-  it("formatFooterStatus returns undefined when no non-stopped instances", () => {
+  it("formatFooterStatus returns undefined when there are neither tools nor non-stopped instances", () => {
     const idx = src.indexOf("function formatFooterStatus");
     assert.ok(idx >= 0, "formatFooterStatus not found");
-    const block = src.slice(idx, idx + 600);
+    const block = src.slice(idx, idx + 700);
     assert.ok(
       block.includes("undefined") || block.includes("return;") || block.includes("length === 0"),
-      `formatFooterStatus must return undefined when all instances are stopped, got:\n${block}`,
+      `formatFooterStatus must return undefined when there is nothing to show, got:\n${block}`,
     );
   });
 
