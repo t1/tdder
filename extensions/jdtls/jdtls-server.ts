@@ -19,6 +19,11 @@ import { LspTransport } from "./lsp-transport.ts";
 const READY_TIMEOUT_MS = 60_000; // cold start observed ~14 s; 60 s is generous
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 
+/** Concatenate captured stderr chunks into a `"\nstderr: <text>"` tail, or `""`. */
+function stderrTail(chunks: readonly Buffer[]): string {
+  return chunks.length ? `\nstderr: ${Buffer.concat(chunks).toString()}` : "";
+}
+
 // ---------------------------------------------------------------------------
 // Project & executable detection (pure — easy to test)
 // ---------------------------------------------------------------------------
@@ -137,18 +142,15 @@ export class JdtlsServer {
     const stderrChunks: Buffer[] = [];
     proc.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
 
-    proc.on("error", (err) => {
-      const stderr = stderrChunks.length
-        ? `stderr: ${Buffer.concat(stderrChunks).toString()}`
-        : undefined;
-      this.handleCrash(stderr);
+    proc.on("error", () => {
+      this.handleCrash(stderrTail(stderrChunks) || undefined);
     });
-    proc.on("exit", (code) => {
+    proc.on("exit", (code, signal) => {
       if (this._status !== "stopped") {
-        const stderr = stderrChunks.length
-          ? `exit code ${code}`
-          : undefined;
-        this.handleCrash(stderr);
+        const reason =
+          (signal ? `killed by signal ${signal}` : `exit code ${code}`) +
+          stderrTail(stderrChunks);
+        this.handleCrash(reason);
       }
     });
 
