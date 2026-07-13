@@ -583,6 +583,126 @@ export default function (pi: ExtensionAPI): void {
     setToolsActive(pi, JDTLS_TOOL_NAMES, status === "ready");
   }
 
+  /** Create a fresh JdtlsServer wired to the footer + tool activation, assigned to `server`. */
+  function createServer(ctx: ExtensionContext): JdtlsServer {
+    return new JdtlsServer((status: ServerStatus) => {
+      ctx.ui.setStatus(FOOTER_KEY, footerLabel(status));
+      applyToolActivation(status);
+    });
+  }
+
+  /** Start the jdtls server (if not already running), surfacing errors via notify.
+   *  Returns the resulting server status, or "stopped" on failure. */
+  async function startServer(ctx: ExtensionContext): Promise<ServerStatus> {
+    if (server) return server.status; // already running or starting
+    server = createServer(ctx);
+    try {
+      await server.start(ctx.cwd);
+      return server.status;
+    } catch (err) {
+      ctx.ui.notify(
+        `jdtls failed to start: ${(err as Error).message}`,
+        "error",
+      );
+      await server.shutdown().catch(() => {});
+      server = null;
+      return "error";
+    }
+  }
+
+  /** Stop the jdtls server if running. No-op when nothing is running. */
+  async function stopServer(ctx: ExtensionContext): Promise<boolean> {
+    if (!server) return false;
+    await server.shutdown().catch(() => {});
+    server = null;
+    ctx.ui.setStatus(FOOTER_KEY, undefined);
+    applyToolActivation("stopped");
+    return true;
+  }
+
+  /** Force the enable prompt regardless of persisted state — the escape hatch. */
+  async function askToEnable(ctx: ExtensionContext): Promise<void> {
+    const ok = await ctx.ui.confirm(
+      "Enable jdtls tools?",
+      `Enable Java language server tools (diagnostics, symbol search, rename, format) for this project?`,
+    );
+    writeSettings(ctx.cwd, { enabled: ok });
+    if (ok) {
+      await startServer(ctx);
+    } else {
+      await stopServer(ctx);
+      ctx.ui.notify("jdtls disabled — use '/jdtls ask' to re-enable", "info");
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // /jdtls command
+  // -----------------------------------------------------------------------
+
+  const JDTLS_SUBCOMMANDS = ["start", "stop", "status", "ask"] as const;
+  type JdtlsSubcommand = (typeof JDTLS_SUBCOMMANDS)[number];
+
+  pi.registerCommand("jdtls", {
+    description: "Manage the jdtls bridge: start | stop | status | ask",
+    getArgumentCompletions: (prefix: string) => {
+      const items = JDTLS_SUBCOMMANDS.filter((s) => s.startsWith(prefix)).map(
+        (s) => ({
+          value: s,
+          label: s,
+          description: {
+            start:  "Start the language server",
+            stop:   "Stop the language server",
+            status: "Show connection state",
+            ask:    "Re-prompt enable/disable (escape hatch)",
+          }[s],
+        }));
+      return items.length > 0 ? items : null;
+    },
+    handler: async (args, ctx) => {
+      const sub = (args?.trim() ?? "").split(/\s+/)[0] as JdtlsSubcommand | "";
+
+      if (sub === "status") {
+        if (server && server.status === "ready") {
+          ctx.ui.notify("jdtls: running and ready (●)", "info");
+        } else if (server && server.status === "starting") {
+          ctx.ui.notify("jdtls: starting… (◌)", "info");
+        } else {
+          ctx.ui.notify("jdtls: not running (use '/jdtls start')", "warning");
+        }
+        return;
+      }
+
+      if (sub === "start") {
+        if (server) {
+          ctx.ui.notify("jdtls: already running (●)", "info");
+          return;
+        }
+        const status = await startServer(ctx);
+        if (status === "ready") ctx.ui.notify("jdtls: started (●)", "info");
+        return;
+      }
+
+      if (sub === "stop") {
+        const stopped = await stopServer(ctx);
+        ctx.ui.notify(
+          stopped ? "jdtls: stopped" : "jdtls: not running",
+          stopped ? "info" : "warning",
+        );
+        return;
+      }
+
+      if (sub === "ask") {
+        await askToEnable(ctx);
+        return;
+      }
+
+      ctx.ui.notify(
+        `Usage: /jdtls ${JDTLS_SUBCOMMANDS.join(" | ")}`,
+        "warning",
+      );
+    },
+  });
+
   pi.on("session_start", async (_event, ctx) => {
     cwd = ctx.cwd;
 
@@ -591,23 +711,26 @@ export default function (pi: ExtensionAPI): void {
     const exe = findJdtls();
     if (!exe) return;
 
-    // Check persisted preference first.
+    // Check persisted preference: tri-state.
+    //   absent  -> ask and persist the answer
+    //   true    -> start immediately without re-asking
+    //   false   -> stay silent
+    // To flip a persisted choice, use '/jdtls ask' or edit/delete
+    // `.pi/settings/jdtls.json`.
     const settings = readSettings(ctx.cwd);
-    if (settings?.enabled === false) return; // previously declined — stay silent
+    const enabled = settings?.enabled;
+    if (enabled === undefined) {
+      const ok = await ctx.ui.confirm(
+        "Enable jdtls tools?",
+        `This project looks like a Java project and jdtls is installed. Enable Java language server tools (diagnostics, symbol search, rename, format)?`,
+      );
+      writeSettings(ctx.cwd, { enabled: ok });
+      if (!ok) return;
+    } else if (!enabled) {
+      return;
+    }
 
-    // Ask the user whether to enable jdtls tools for this session.
-    const ok = await ctx.ui.confirm(
-      "Enable jdtls tools?",
-      `This project looks like a Java project and jdtls is installed. Enable Java language server tools (diagnostics, symbol search, rename, format)?`,
-    );
-    writeSettings(ctx.cwd, { enabled: ok });
-    if (!ok) return;
-
-    server = new JdtlsServer((status: ServerStatus) => {
-      ctx.ui.setStatus(FOOTER_KEY, footerLabel(status));
-      applyToolActivation(status);
-    });
-
+    server = createServer(ctx);
     // Start in the background; errors surface via the ⚠ footer indicator.
     server.start(ctx.cwd).catch((err: unknown) => {
       console.error("[jdtls] failed to start:", (err as Error).message);

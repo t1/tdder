@@ -20,6 +20,27 @@ This is the alternative to `pi-idea` for when IntelliJ IDEA is not available or 
 The extension detects whether the current directory is a Java project (contains a `pom.xml`,
 `build.gradle`, or `build.gradle.kts`) and starts jdtls lazily in the background.
 
+The enable choice is persisted to `.pi/settings/jdtls.json` and is **sticky in both directions**:
+
+| `enabled` | behaviour on session start |
+|-----------|----------------------------|
+| absent    | ask once, persist the answer, start on yes |
+| `true`    | start immediately, no prompt |
+| `false`   | stay silent, do not start |
+
+To flip a persisted choice, run `/jdtls ask` or delete `.pi/settings/jdtls.json`.
+
+## `/jdtls` command
+
+Manages the jdtls bridge manually. Subcommands:
+
+| Subcommand | Action |
+|------------|--------|
+| `start`    | Start the language server (no-op if already running) |
+| `stop`     | Stop the language server (no-op if not running) |
+| `status`   | Report running / starting / stopped state |
+| `ask`      | Re-prompt enable/disable and persist the answer — the escape hatch for a stuck preference |
+
 ## Tools
 
 | Tool                    | Backed by                         |
