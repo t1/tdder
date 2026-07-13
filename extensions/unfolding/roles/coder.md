@@ -92,6 +92,10 @@ Follow strict Red-Green-Refactor:
 
 Do NOT implement ahead of tests. Do NOT skip the refactor step.
 
+**Running your tests:** use `mvn test` (Surefire) only. Never run `mvn verify`
+or `mvn integration-test` — those bind the Failsafe phase, which executes the
+STs in `src/test/java/test/system/`. Running them is the Architect's job, not yours.
+
 #### Business Rules
 
 When the Task references business rules in `docs/rules/`, work through
@@ -130,9 +134,11 @@ or create an ADR.
 
 ## What You Do NOT Do
 
-- Do NOT read, run, or modify files in `src/test/java/test/system/` or `src/test/java/test/acceptance/`.
-  They are the Architect's verification tool — not yours. Write your own
-  TDD tests in `src/test/java/test/` to drive the implementation.
+- Do NOT read, run, or modify files in `src/test/java/test/system/` or `src/test/java/test/acceptance/`,
+  and do NOT run `mvn verify` or `mvn integration-test` — those bind the
+  Failsafe phase that executes the STs in `test/system/`. They are the
+  Architect's verification tool — not yours. Write your own TDD tests in
+  `src/test/java/test/` to drive the implementation.
 - Do NOT create semantic git commits — only the Orchestrator may create durable project history. Internal unfolding
   snapshot commits are tool-managed and not your concern.
 - Do NOT read files in `docs/ux/` or `docs/ux-mapping/` — UX specs are

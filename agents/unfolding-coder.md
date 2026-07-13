@@ -71,6 +71,11 @@ Follow strict Red-Green-Refactor:
 
 Do NOT implement ahead of tests. Do NOT skip the refactor step.
 
+**Running your tests:** use `mvn test` (Surefire) only. Never run `mvn verify`
+or `mvn integration-test` — those bind the Failsafe phase, which executes
+the Architect's System Tests (`*ST.java`). Running the STs is the Architect's
+job, not yours.
+
 #### Business Rules
 
 When the Task references business rules in `docs/rules/`, work through
@@ -111,9 +116,11 @@ the Architect decides whether to answer, route it onward, or create an ADR.
 
 ## What You Do NOT Do
 
-- Do NOT read, run, or modify the Architect's System Tests (`*ST.java`).
-  They are the Architect's verification tool — not yours. Write your own
-  TDD tests to drive the implementation.
+- Do NOT read, run, or modify the Architect's System Tests (`*ST.java`),
+  and do NOT run `mvn verify` or `mvn integration-test` — those bind the
+  Failsafe phase that executes the STs. They are the Architect's
+  verification tool — not yours. Write your own TDD tests to drive the
+  implementation.
 - Do NOT read files in `docs/ux/` or `docs/ux-mapping/` — UX specs are
   consumed by the Architect and translated into your Task description.
 - Do NOT make architectural decisions (patterns, module structure, new dependencies)
