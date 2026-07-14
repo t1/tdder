@@ -12,6 +12,7 @@ import {
 } from "./task-delegate.ts";
 import { buildChildInitialMessage, createChildAgentSession, type NestedDelegateToolFactory } from "./session-common.ts";
 import type { ChildOutputDetails } from "./child-output.ts";
+import type { CostLedger, SessionCostSnapshot } from "./cost-ledger.ts";
 
 export interface ChildSessionRunResult {
   session: AgentSession;
@@ -38,6 +39,7 @@ export interface StartChildSessionParams {
   model?: Model<any>;
   authStorage?: AuthStorage;
   modelRegistry?: ModelRegistry;
+  costLedger?: CostLedger;
 }
 
 export async function startChildSession({
@@ -57,6 +59,7 @@ export async function startChildSession({
   model,
   authStorage,
   modelRegistry,
+  costLedger,
 }: StartChildSessionParams): Promise<ChildSessionRunResult> {
   const existing = readTask(cwd, slug);
   return startChildSessionAttempt({
@@ -76,6 +79,7 @@ export async function startChildSession({
     model,
     authStorage,
     modelRegistry,
+    costLedger,
     existing,
   });
 }
@@ -97,6 +101,7 @@ async function startChildSessionAttempt({
   model,
   authStorage,
   modelRegistry,
+  costLedger,
   existing,
 }: StartChildSessionParams & { existing: Task | null }): Promise<ChildSessionRunResult> {
   const recreating = !!existing?.recreate_message;
@@ -120,6 +125,7 @@ async function startChildSessionAttempt({
     model,
     authStorage,
     modelRegistry,
+    costLedger,
   });
 
   let wasLocallyAborted = signal?.aborted === true || parentSignal?.aborted === true;
@@ -129,6 +135,7 @@ async function startChildSessionAttempt({
   let unsubscribeAbortObserver: (() => void) | undefined;
   let checkpointRecovery: ReturnType<typeof installCheckpointRecovery> | undefined;
   let taskPrepared = false;
+  let outcome: "finished" | "blocked" | "aborted" | "recreate" = "aborted";
   try {
     if (existing && recreating) {
       recreateTaskSession(cwd, slug, session.sessionId, session.sessionFile, existing.recreate_message!);
@@ -152,6 +159,7 @@ async function startChildSessionAttempt({
         base_sha: baseSha,
         snapshot_sha: snapshotSha,
       });
+      costLedger?.resetPrinted();
     }
     taskPrepared = true;
 
@@ -159,6 +167,7 @@ async function startChildSessionAttempt({
       sessionFile: session.sessionFile,
       getContextUsage: () => session.getContextUsage(),
       getCost: () => session.getSessionStats().cost,
+      getFinishedDescendantCost: costLedger ? () => costLedger.descendantCost(slug) : undefined,
     }) : undefined;
     onAbort = () => {
       wasLocallyAborted = true;
@@ -178,7 +187,6 @@ async function startChildSessionAttempt({
       const stack = err instanceof Error ? err.stack : String(err);
       console.error(`[unfolding] child session for task "${slug}" failed:`, stack);
     });
-    let outcome: "finished" | "blocked" | "aborted" | "recreate";
     try {
       outcome = await waitForChildDecision(
         async () => readTask(cwd, slug),
@@ -227,6 +235,7 @@ async function startChildSessionAttempt({
           model,
           authStorage,
           modelRegistry,
+          costLedger,
           previousSession: session,
         });
         resumed.finalOutputDetails = mergeOutputDetails(finalOutputDetails, resumed.finalOutputDetails);
@@ -251,13 +260,22 @@ async function startChildSessionAttempt({
         model,
         authStorage,
         modelRegistry,
+        costLedger,
         previousSession: session,
       });
     }
 
-    postOutput(`  💰 $${session.getSessionStats().cost.toFixed(4)} (↑${session.getSessionStats().tokens.input} ↓${session.getSessionStats().tokens.output})`);
+    postOutput(`  $${session.getSessionStats().cost.toFixed(2)} (↑${session.getSessionStats().tokens.input} ↓${session.getSessionStats().tokens.output})`);
     return { session, outcome, recreateMessage };
   } finally {
+    if (costLedger) {
+      try {
+        recordSessionCost(costLedger, session, slug, shortRole, parent_slug, outcome, recreating, cwd);
+      } catch (err: unknown) {
+        const detail = err instanceof Error ? err.message : String(err);
+        console.error(`[unfolding] cost recording for task "${slug}" failed: ${detail}`);
+      }
+    }
     checkpointRecovery?.unsubscribe();
     if (onAbort) {
       signal?.removeEventListener("abort", onAbort);
@@ -286,8 +304,9 @@ async function recreateChildSession({
   model,
   authStorage,
   modelRegistry,
+  costLedger,
   previousSession,
-}: Pick<StartChildSessionParams, "cwd" | "activeSessions" | "pi" | "postOutput" | "nestedDelegateToolFactory" | "signal" | "parentSignal" | "onUpdate" | "model" | "authStorage" | "modelRegistry"> & {
+}: Pick<StartChildSessionParams, "cwd" | "activeSessions" | "pi" | "postOutput" | "nestedDelegateToolFactory" | "signal" | "parentSignal" | "onUpdate" | "model" | "authStorage" | "modelRegistry" | "costLedger"> & {
   slug: string;
   body: string;
   previousSession: AgentSession;
@@ -317,6 +336,7 @@ async function recreateChildSession({
     model,
     authStorage,
     modelRegistry,
+    costLedger,
     existing: readTask(cwd, slug),
   });
 }
@@ -335,4 +355,31 @@ function mergeOutputDetails(
 
 export function readTaskSnapshot(cwd: string, slug: string): Task | null {
   return readTask(cwd, slug);
+}
+
+function recordSessionCost(
+  costLedger: CostLedger,
+  session: AgentSession,
+  slug: string,
+  role: string,
+  parent_slug: string | undefined,
+  outcome: "finished" | "blocked" | "aborted" | "recreate",
+  recreating: boolean,
+  cwd: string,
+): void {
+  // Aborted sessions: skip if the task file was deleted (rolled back by the
+  // commissioner — the rollback handler already recorded the cost).
+  if (outcome === "aborted" && !readTask(cwd, slug)) return;
+
+  const stats = session.getSessionStats();
+  const snapshot: SessionCostSnapshot = {
+    cost: stats.cost,
+    tokens: { input: stats.tokens.input, output: stats.tokens.output },
+  };
+  const status = outcome === "recreate" ? "aborted" : outcome;
+  const accumulate = recreating || outcome === "recreate";
+  costLedger.record(
+    { slug, role, parent_slug, status, cost: snapshot.cost, tokens: snapshot.tokens },
+    accumulate,
+  );
 }

@@ -96,6 +96,34 @@ thinking (`🤔`, rendered italic),
 assistant stream errors (`❌`), terminal child-session failures surfaced from assistant `message_end`
 (such as connection/stream aborts), and an explicit warning when a thinking-bearing assistant message is truncated
 by the length limit (`⚠ thinking truncated by length limit`).
+
+When a parent session has finished sub-sessions, their cost is shown behind the parent's own cost as a descendant
+sum: `[role] ⏱ total context-size $1.23 (+ $4.50)`. The `(+ $X)` is the sum of all **finished** descendant
+sessions — a currently running sub-session is excluded until it ends.
+
+After the orchestrator stops working (no live tasks remain, ledger has entries, not yet printed this engagement),
+a **cost summary table** is printed as a display-only message (visible to the user, not fed back to the LLM):
+
+```
+unfolding cost summary
+
+role          slug           cost
+──────────────────────────────────────────
+po            po-spec ✓      $1.23
+architect     arch-v1 ✗      $4.50
+orchestrator                 $0.50
+──────────────────────────────────────────
+grand total                  $6.23
+```
+
+Each delegated session gets one row (role, slug, ✓/✗ marker, cost). ✓ marks
+finished sessions; ✗ marks blocked, rolled-back, and aborted ones. Recreated
+sessions (new session file) appear as separate rows because each session file
+accumulates cost independently. The orchestrator row (empty slug, no marker) is
+last before the grand total. Block/unblock cycles on the same session file are a
+single row because `getSessionStats()` aggregates over the whole session file —
+cost is cumulative and does not reset on resume.
+
 It intentionally skips low-value protocol/lifecycle chatter such as `agent_start`, `agent_end`, `turn_start`,
 `message_start`, and assistant stream markers like `text_start`/`text_end`, `thinking_start`/`thinking_end`,
 `toolcall_*`, `start`, and `done`. Unexpected new child event types are rendered as compact transcript notes

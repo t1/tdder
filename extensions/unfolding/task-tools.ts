@@ -11,7 +11,7 @@ function formatTask(task: Task, session?: SessionLike): string {
   if (task.blocked_reason) parts.push(`  blocked: ${task.blocked_reason}`);
   if (session) {
     const stats = session.getSessionStats();
-    parts.push(`  live 💰 $${stats.cost.toFixed(4)} (↑${stats.tokens.input} ↓${stats.tokens.output})`);
+    parts.push(`  live $${stats.cost.toFixed(2)} (↑${stats.tokens.input} ↓${stats.tokens.output})`);
   }
   return parts.join("\n");
 }

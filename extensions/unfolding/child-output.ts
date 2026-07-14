@@ -45,6 +45,7 @@ export interface TotalChildOutputEvent {
   elapsedSeconds: number;
   contextUsage?: ContextUsageSnapshot;
   cost?: number;
+  finishedDescendantCost?: number;
 }
 
 export type ChildOutputEvent =
@@ -82,8 +83,8 @@ export function childOutputCommissionerNote(text: string): CommissionerNoteChild
   return { type: "t1-unfolding-commissioner-note", text };
 }
 
-export function childOutputTotal(elapsedSeconds: number, contextUsage?: ContextUsageSnapshot, cost?: number): TotalChildOutputEvent {
-  return { type: "total", elapsedSeconds, contextUsage, cost };
+export function childOutputTotal(elapsedSeconds: number, contextUsage?: ContextUsageSnapshot, cost?: number, finishedDescendantCost?: number): TotalChildOutputEvent {
+  return { type: "total", elapsedSeconds, contextUsage, cost, finishedDescendantCost };
 }
 
 function renderAssistantLine(role: string, icon: "💬" | "⋯", text: string): string {
@@ -112,13 +113,20 @@ export function renderContextUsageSuffix(contextUsage: ContextUsageSnapshot): st
 }
 
 export function renderCostSuffix(cost: number): string {
-  return `${ANSI_ITALIC_ON}💰 $${cost.toFixed(4)}${ANSI_ITALIC_OFF}`;
+  return `${ANSI_ITALIC_ON}$${cost.toFixed(2)}${ANSI_ITALIC_OFF}`;
 }
 
-export function renderTotalLine(role: string, elapsedSeconds: number, contextUsage?: ContextUsageSnapshot, cost?: number): string {
+export function renderDescendantCostSuffix(finishedDescendantCost: number): string {
+  return `${ANSI_ITALIC_ON}(+ $${finishedDescendantCost.toFixed(2)})${ANSI_ITALIC_OFF}`;
+}
+
+export function renderTotalLine(role: string, elapsedSeconds: number, contextUsage?: ContextUsageSnapshot, cost?: number, finishedDescendantCost?: number): string {
   const base = `  [${role}] ⏱ ${formatElapsedDuration(elapsedSeconds)}`;
   const withContext = contextUsage ? `${base} ${renderContextUsageSuffix(contextUsage)}` : base;
-  return cost !== undefined ? `${withContext} ${renderCostSuffix(cost)}` : withContext;
+  const withCost = cost !== undefined ? `${withContext} ${renderCostSuffix(cost)}` : withContext;
+  return finishedDescendantCost !== undefined && finishedDescendantCost > 0
+    ? `${withCost} ${renderDescendantCostSuffix(finishedDescendantCost)}`
+    : withCost;
 }
 
 export function renderChildOutputPlainText(role: string, events: ChildOutputEvent[]): string {
@@ -168,7 +176,7 @@ export function renderChildOutputPlainText(role: string, events: ChildOutputEven
     }
 
     if (event.type === "total") {
-      rendered.push(renderTotalLine(role, event.elapsedSeconds, event.contextUsage, event.cost));
+      rendered.push(renderTotalLine(role, event.elapsedSeconds, event.contextUsage, event.cost, event.finishedDescendantCost));
       continue;
     }
 

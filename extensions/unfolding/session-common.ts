@@ -8,6 +8,7 @@ import {createChildTaskTools} from "./child-task-tools.ts";
 import { makeTaskContinueDefinition } from "./task-delegate-tool.ts";
 import {resolveToolAllowlist, isPathAllowed} from "./unfold-helpers.ts";
 import { isQuarkusProject } from "../shared/quarkus-project.ts";
+import type { CostLedger } from "./cost-ledger.ts";
 
 export type NestedDelegateToolFactory = (shortRole: string, currentCommissionerSlug: string) => any;
 
@@ -23,6 +24,7 @@ export interface ChildSessionBuildParams {
   model?: Model<any>;
   authStorage?: AuthStorage;
   modelRegistry?: ModelRegistry;
+  costLedger?: CostLedger;
 }
 
 export function resolveCurrentModel(_pi: ExtensionAPI): Model<any> | undefined {
@@ -78,6 +80,7 @@ export async function createChildAgentSession({
                                                 model,
                                                 authStorage,
                                                 modelRegistry,
+                                                costLedger,
                                               }: ChildSessionBuildParams): Promise<{
   session: AgentSession;
   shortRole: string;
@@ -118,7 +121,7 @@ export async function createChildAgentSession({
     modelRegistry,
     tools: resolvedTools,
     excludeTools: ["task_list", "task_read"],
-    customTools: createChildTaskTools(cwd, slug, nestedDelegateToolFactory(shortRole, slug), makeTaskContinueDefinition(shortRole, activeSessions, pi, postOutput, undefined, undefined, slug), {
+    customTools: createChildTaskTools(cwd, slug, nestedDelegateToolFactory(shortRole, slug), makeTaskContinueDefinition(shortRole, activeSessions, pi, postOutput, undefined, undefined, slug, costLedger), {
       activeSessions,
       postOutput,
       pi,
@@ -127,6 +130,7 @@ export async function createChildAgentSession({
       model: selectedModel,
       modelRegistry,
       debugExportsEnabled: (pi as any).__unfoldingDebugExportsEnabled === true,
+      costLedger,
     }),
   });
   session.setSessionName(slug);

@@ -27,6 +27,7 @@ import { isUnfoldingFatalError } from "./fatal-error.ts";
 import { exportTaskCommissionerDebugHtmlIfEnabled, exportTaskDebugHtmlIfEnabled } from "./debug-export.ts";
 import { childOutputCommissionerNote, renderChildOutputBox, renderChildOutputResult, type ChildOutputDetails } from "./child-output.ts";
 import { buildConnectOptions, launchInTmux } from "./connect-session.ts";
+import { CostLedger } from "./cost-ledger.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -97,6 +98,26 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     filterDisplayOnlyMessages(event, UNFOLDING_CHILD_OUTPUT_TYPE) as { messages?: any[] } | undefined,
   );
 
+  // Accumulate root (orchestrator) cost from per-message usage.  Child
+  // sessions have their own ExtensionRunner, so this handler only fires for
+  // the orchestrator's own assistant messages — never for child messages.
+  pi.on("message_end", (event) => {
+    if (event.message.role === "assistant" && event.message.usage?.cost?.total) {
+      costLedger.addRootCost(event.message.usage.cost.total);
+    }
+  });
+
+  // Print the cost summary when the orchestrator finishes an engagement
+  // (ledger has entries, no live tasks, not yet printed this engagement).
+  pi.on("agent_settled", (_event, ctx) => {
+    if (costLedger.isPrinted || !costLedger.hasEntries) return;
+    if (listTasks(ctx.cwd).length > 0) return;
+    const summary = costLedger.renderSummary();
+    if (!summary) return;
+    costLedger.markPrinted();
+    postOutput(summary);
+  });
+
   pi.registerMessageRenderer<ChildOutputDetails>(UNFOLDING_CHILD_OUTPUT_TYPE, (message, _options, theme) => {
     const events = message.details?.childOutputEvents;
     if (!events || events.length === 0) return undefined;
@@ -116,6 +137,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
   /** Live child sessions keyed by task slug, for re-attaching after unblock/reopen. */
   const activeSessions = options?.activeSessions ?? new Map<string, AgentSession>();
   const postOutput = makePostOutput(pi);
+  const costLedger = new CostLedger();
 
   // Inject the orchestrator skill into the system prompt for the turn that
   // follows an /unfold invocation.
@@ -272,6 +294,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       undefined,
       (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, debugExportsEnabled),
       undefined,
+      costLedger,
     ),
     renderShell: "self",
     renderCall: (_args, _theme) => new Text("", 0, 0),
@@ -287,6 +310,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       undefined,
       (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, debugExportsEnabled),
       undefined,
+      costLedger,
     ),
     renderShell: "self",
     renderCall: (_args, _theme) => new Text("", 0, 0),
@@ -340,6 +364,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           model: ctx.model,
           modelRegistry: ctx.modelRegistry,
           exportDebugHtml: (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, debugExportsEnabled),
+          costLedger,
         });
 
         if (outcome === "aborted") {
@@ -408,6 +433,7 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
           model: ctx.model,
           modelRegistry: ctx.modelRegistry,
           exportDebugHtml: (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, debugExportsEnabled),
+          costLedger,
         });
 
         if (outcome === "aborted") {
@@ -454,8 +480,22 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       refreshAskSenseiCallback(pi, ctx);
       postOutput(`  ↩ task_rollback: ${params.slug}`);
       const childSession = activeSessions.get(params.slug);
-      if (childSession) await childSession.abort().catch(() => {
-      });
+      const task = readTask(ctx.cwd, params.slug);
+      if (childSession) {
+        await childSession.abort().catch(() => {
+        });
+        if (typeof childSession.getSessionStats === "function") {
+          const stats = childSession.getSessionStats();
+          costLedger.record(
+            { slug: params.slug, role: task?.to ?? "", parent_slug: task?.parent_slug, status: "rolled back", cost: stats.cost, tokens: { input: stats.tokens.input, output: stats.tokens.output } },
+            false,
+          );
+        } else {
+          costLedger.updateStatus(params.slug, "rolled back");
+        }
+      } else {
+        costLedger.updateStatus(params.slug, "rolled back");
+      }
       activeSessions.delete(params.slug);
       taskRollback(ctx.cwd, params.slug);
       return { content: [{ type: "text", text: `Task "${params.slug}" rolled back.` }], details: {} };

@@ -7,6 +7,7 @@ import { classifyDirectDelegate, readTask } from "./task-store.ts";
 import { abortSessionStack } from "./abort-flow.ts";
 import { FatalChildSessionError } from "./task-delegate.ts";
 import type { ChildOutputDetails } from "./child-output.ts";
+import type { CostLedger } from "./cost-ledger.ts";
 import { isUnfoldingFatalError } from "./fatal-error.ts";
 import { exportTaskCommissionerDebugHtmlIfEnabled } from "./debug-export.ts";
 import { assertDelegationAllowed, delegateRoleParameterSchema } from "./delegation-policy.ts";
@@ -30,6 +31,7 @@ async function runChildSession(
   signal: AbortSignal | undefined,
   onUpdate: any,
   ctx: any,
+  costLedger?: CostLedger,
 ): Promise<any> {
   const effectiveParentSlug = currentCommissionerSlug ?? params.parent_slug;
   await exportTaskCommissionerDebugHtmlIfEnabled(
@@ -50,12 +52,13 @@ async function runChildSession(
     pi,
     postOutput,
     nestedDelegateToolFactory: (shortRole: string, commissionerSlug: string) =>
-      makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput, onChildOutcome, exportDebugHtml, commissionerSlug),
+      makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput, onChildOutcome, exportDebugHtml, commissionerSlug, costLedger),
     signal,
     parentSignal: ctx.signal,
     onUpdate,
     model: ctx.model,
     modelRegistry: ctx.modelRegistry,
+    costLedger,
   });
 
   await onChildOutcome?.(ctx.cwd, params.slug, outcome);
@@ -113,6 +116,7 @@ export function makeTaskDelegateDefinition(
   onChildOutcome?: (cwd: string, slug: string, outcome: "finished" | "blocked" | "aborted" | "recreate") => Promise<void> | void,
   exportDebugHtml?: (cwd: string, slug: string) => Promise<void> | void,
   currentCommissionerSlug?: string,
+  costLedger?: CostLedger,
 ): any {
   return {
     name: "task_delegate",
@@ -134,7 +138,7 @@ export function makeTaskDelegateDefinition(
                 : `task_delegate failed: direct delegate "${existing.slug}" is blocked. Resolve it with task_unblock(...) or task_rollback(...).`,
           );
         }
-        return await runChildSession("delegated", params, from, activeSessions, pi, postOutput, onChildOutcome, exportDebugHtml, currentCommissionerSlug, signal, onUpdate, ctx);
+        return await runChildSession("delegated", params, from, activeSessions, pi, postOutput, onChildOutcome, exportDebugHtml, currentCommissionerSlug, signal, onUpdate, ctx, costLedger);
       } catch (err: unknown) {
         activeSessions.delete(params.slug);
 
@@ -168,6 +172,7 @@ export function makeTaskContinueDefinition(
   onChildOutcome?: (cwd: string, slug: string, outcome: "finished" | "blocked" | "aborted" | "recreate") => Promise<void> | void,
   exportDebugHtml?: (cwd: string, slug: string) => Promise<void> | void,
   currentCommissionerSlug?: string,
+  costLedger?: CostLedger,
 ): any {
   return {
     name: "task_continue",
@@ -186,7 +191,7 @@ export function makeTaskContinueDefinition(
         slug: existing.slug,
         body: existing.body,
         parent_slug: existing.parent_slug,
-      }, from, activeSessions, pi, postOutput, onChildOutcome, exportDebugHtml, currentCommissionerSlug, signal, onUpdate, ctx);
+      }, from, activeSessions, pi, postOutput, onChildOutcome, exportDebugHtml, currentCommissionerSlug, signal, onUpdate, ctx, costLedger);
     },
   };
 }

@@ -4,6 +4,7 @@ import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@ea
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { readTask } from "./task-store.ts";
 import { createChildAgentSession, type NestedDelegateToolFactory } from "./session-common.ts";
+import type { CostLedger } from "./cost-ledger.ts";
 
 export async function restoreChildSession(
   cwd: string,
@@ -15,6 +16,7 @@ export async function restoreChildSession(
   model?: Model<any>,
   authStorage?: AuthStorage,
   modelRegistry?: ModelRegistry,
+  costLedger?: CostLedger,
 ): Promise<{ session: AgentSession; shutdown: () => Promise<void> } | null> {
   const task = readTask(cwd, slug);
   if (!task?.session_file || !existsSync(task.session_file)) return null;
@@ -31,6 +33,7 @@ export async function restoreChildSession(
     model,
     authStorage,
     modelRegistry,
+    costLedger,
   });
   return { session, shutdown };
 }

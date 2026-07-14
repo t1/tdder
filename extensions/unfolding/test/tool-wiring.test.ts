@@ -56,22 +56,22 @@ describe("structural wiring", () => {
   });
 
   it("task_rollback tool calls taskRollback", () => {
-    const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1200);
+    const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1400);
     assert.ok(block.includes("taskRollback"), "must call taskRollback");
   });
 
   it("task_rollback posts args to postOutput", () => {
-    const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1200);
+    const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1400);
     assert.ok(block.includes("postOutput"), "must post args via postOutput for human visibility");
   });
 
   it("task_rollback aborts a live session before removing the handle", () => {
-    const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1200);
+    const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1400);
     assert.ok(block.includes(".abort("), "must abort a live session on rollback");
   });
 
   it("task_rollback removes the active session handle", () => {
-    const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1200);
+    const block = blockAfter(loadSrc(), 'name: "task_rollback"', 1400);
     assert.ok(block.includes("activeSessions.delete"), "must remove session from activeSessions on rollback");
   });
 

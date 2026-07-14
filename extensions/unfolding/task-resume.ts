@@ -11,6 +11,7 @@ import {
 import { restoreChildSession } from "./session-restore.ts";
 import { makeTaskDelegateDefinition } from "./task-delegate-tool.ts";
 import type { ChildOutputDetails } from "./child-output.ts";
+import type { CostLedger, SessionCostSnapshot } from "./cost-ledger.ts";
 
 export interface ResumeDelegatedTaskParams {
   action: "reopen" | "unblock";
@@ -28,6 +29,7 @@ export interface ResumeDelegatedTaskParams {
   authStorage?: AuthStorage;
   modelRegistry?: ModelRegistry;
   exportDebugHtml?: (cwd: string, slug: string) => Promise<void> | void;
+  costLedger?: CostLedger;
 }
 
 function missingSessionMessage(action: "reopen" | "unblock", slug: string): string {
@@ -54,6 +56,7 @@ export async function resumeDelegatedTask({
   authStorage,
   modelRegistry,
   exportDebugHtml,
+  costLedger,
 }: ResumeDelegatedTaskParams): Promise<"finished" | "blocked" | "aborted"> {
   let session = activeSessions.get(slug);
   let shutdown: (() => Promise<void>) | undefined;
@@ -64,10 +67,11 @@ export async function resumeDelegatedTask({
       activeSessions,
       pi,
       postOutput,
-      (shortRole: string) => makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput, undefined, exportDebugHtml),
+      (shortRole: string) => makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput, undefined, exportDebugHtml, undefined, costLedger),
       model,
       authStorage,
       modelRegistry,
+      costLedger,
     );
     session = restored?.session;
     shutdown = restored?.shutdown;
@@ -88,12 +92,14 @@ export async function resumeDelegatedTask({
       sessionFile: task?.session_file,
       getContextUsage: () => session.getContextUsage(),
       getCost: () => session.getSessionStats().cost,
+      getFinishedDescendantCost: costLedger ? () => costLedger.descendantCost(slug) : undefined,
     })
     : undefined;
   const checkpointRecovery = installCheckpointRecovery(session, cwd, slug, {
     onRecoveryNote: stream?.append,
   });
   let wasLocallyAborted = signal?.aborted === true || parentSignal?.aborted === true;
+  let outcome: "finished" | "blocked" | "aborted" = "aborted";
   const onAbort = () => {
     wasLocallyAborted = true;
     session.abort().catch(() => {});
@@ -107,7 +113,6 @@ export async function resumeDelegatedTask({
       console.error(`[unfolding] resumed child session for task "${slug}" failed:`, stack);
     });
 
-    let outcome: "finished" | "blocked" | "aborted";
     try {
       outcome = await waitForChildDecision(
         async () => readTask(cwd, slug),
@@ -149,7 +154,7 @@ export async function resumeDelegatedTask({
         return outcome;
       }
     } else {
-      postOutput(`  💰 $${session.getSessionStats().cost.toFixed(4)} (↑${session.getSessionStats().tokens.input} ↓${session.getSessionStats().tokens.output})`);
+      postOutput(`  $${session.getSessionStats().cost.toFixed(2)} (↑${session.getSessionStats().tokens.input} ↓${session.getSessionStats().tokens.output})`);
     }
 
     await exportDebugHtml?.(cwd, slug);
@@ -157,6 +162,25 @@ export async function resumeDelegatedTask({
     (resumeDelegatedTask as any).lastFinalOutputDetails = undefined;
     return outcome;
   } finally {
+    if (costLedger) {
+      try {
+        const skipAborted = outcome === "aborted" && !readTask(cwd, slug);
+        if (!skipAborted) {
+          const stats = session.getSessionStats();
+          const snapshot: SessionCostSnapshot = {
+            cost: stats.cost,
+            tokens: { input: stats.tokens.input, output: stats.tokens.output },
+          };
+          costLedger.record(
+            { slug, role: shortRole, parent_slug: task?.parent_slug, status: outcome, cost: snapshot.cost, tokens: snapshot.tokens },
+            false,
+          );
+        }
+      } catch (err: unknown) {
+        const detail = err instanceof Error ? err.message : String(err);
+        console.error(`[unfolding] cost recording for task "${slug}" failed: ${detail}`);
+      }
+    }
     signal?.removeEventListener("abort", onAbort);
     parentSignal?.removeEventListener("abort", onAbort);
     checkpointRecovery.unsubscribe();

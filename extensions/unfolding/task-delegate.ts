@@ -183,6 +183,7 @@ export interface StreamChildSessionOptions {
   sessionFile?: string;
   getContextUsage?: () => ContextUsageSnapshot | undefined;
   getCost?: () => number | undefined;
+  getFinishedDescendantCost?: () => number | undefined;
 }
 
 /**
@@ -334,7 +335,7 @@ export function streamChildSession(
 
   const renderElapsedLine = () => {
     const totalSeconds = Math.max(0, Math.floor(((endedAt ?? now()) - startedAt) / 1000));
-    return renderTotalLine(role, totalSeconds, options.getContextUsage?.(), options.getCost?.());
+    return renderTotalLine(role, totalSeconds, options.getContextUsage?.(), options.getCost?.(), options.getFinishedDescendantCost?.());
   };
 
   const getOutputEvents = (): ChildOutputEvent[] => [
@@ -366,6 +367,7 @@ export function streamChildSession(
       Math.max(0, Math.floor(((endedAt ?? now()) - startedAt) / 1000)),
       options.getContextUsage?.(),
       options.getCost?.(),
+      options.getFinishedDescendantCost?.(),
     ),
   ];
 

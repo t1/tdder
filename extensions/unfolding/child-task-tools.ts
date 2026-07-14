@@ -8,6 +8,7 @@ import { readTask, updateTaskStatus } from "./task-store.ts";
 import type { AskSenseiFn, AskSenseiParams } from "./ask-sensei.ts";
 import { UnfoldingFatalError } from "./fatal-error.ts";
 import { resumeDelegatedTask } from "./task-resume.ts";
+import type { CostLedger } from "./cost-ledger.ts";
 
 export interface ChildCommissionerContext {
   activeSessions: Map<string, AgentSession>;
@@ -19,6 +20,7 @@ export interface ChildCommissionerContext {
   authStorage?: AuthStorage;
   modelRegistry?: ModelRegistry;
   debugExportsEnabled?: boolean;
+  costLedger?: CostLedger;
 }
 
 export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTool: any, nestedContinueTool: any, commissionerCtx: ChildCommissionerContext): any[] {
@@ -129,6 +131,7 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
           exportDebugHtml: commissionerCtx.debugExportsEnabled
             ? (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, true)
             : undefined,
+          costLedger: commissionerCtx.costLedger,
         });
         if (outcome === "aborted") commissionerCtx.activeSessions.delete(params.slug);
         const blockedReason = outcome === "blocked" ? readTask(cwd, params.slug)?.blocked_reason : undefined;
@@ -174,6 +177,7 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
           exportDebugHtml: commissionerCtx.debugExportsEnabled
             ? (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, true)
             : undefined,
+          costLedger: commissionerCtx.costLedger,
         });
         if (outcome === "aborted") commissionerCtx.activeSessions.delete(params.slug);
         const blockedReason = outcome === "blocked" ? readTask(cwd, params.slug)?.blocked_reason : undefined;
@@ -193,7 +197,22 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
       parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
       async execute(_id: string, params: { slug: string }) {
         const childSession = commissionerCtx.activeSessions.get(params.slug);
-        if (childSession) await childSession.abort().catch(() => {});
+        const task = readTask(cwd, params.slug);
+        if (childSession && commissionerCtx.costLedger) {
+          await childSession.abort().catch(() => {});
+          if (typeof childSession.getSessionStats === "function") {
+            const stats = childSession.getSessionStats();
+            commissionerCtx.costLedger.record(
+              { slug: params.slug, role: task?.to ?? "", parent_slug: task?.parent_slug, status: "rolled back", cost: stats.cost, tokens: { input: stats.tokens.input, output: stats.tokens.output } },
+              false,
+            );
+          } else {
+            commissionerCtx.costLedger.updateStatus(params.slug, "rolled back");
+          }
+        } else {
+          if (childSession) await childSession.abort().catch(() => {});
+          commissionerCtx.costLedger?.updateStatus(params.slug, "rolled back");
+        }
         commissionerCtx.activeSessions.delete(params.slug);
         taskRollback(cwd, params.slug);
         return {
