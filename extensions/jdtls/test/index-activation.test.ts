@@ -85,6 +85,7 @@ function setSettings(json: unknown): void {
 interface CtxOpts {
   cwd?: string;
   confirmResult?: boolean;
+  hasUI?: boolean;
 }
 
 function makeApi(): {
@@ -128,6 +129,8 @@ function makeCtx(opts: CtxOpts = {}): ExtensionContext {
   const notifyCalls: Array<{ message: string; type?: string }> = [];
   const ctx = {
     cwd: opts.cwd ?? PROJECT,
+    mode: "tui",
+    hasUI: opts.hasUI ?? true,
     ui: {
       confirm: async (title: string, message: string) => {
         confirmCalls.push({ title, message });
@@ -262,6 +265,21 @@ describe("jdtls activation preference (tri-state)", () => {
     expect(mockJdtlsStart).not.toHaveBeenCalled();
     expect(statusCalls.map((s) => s.text)).not.toContain("[jdtls ●]");
     expect(mockWriteFileSync).not.toHaveBeenCalled();
+  });
+
+  it("does not prompt, persist, or start when no UI is available (headless/child session)", async () => {
+    setNoSettings();
+    const { api, handlers } = makeApi();
+    extension(api);
+    const ctx = makeCtx({ hasUI: false });
+    await fireSessionStart(handlers.get("session_start")!, ctx);
+
+    const { confirmCalls } = instrumentation(ctx);
+    // no prompt fired — ctx.ui.confirm returns false in headless sessions
+    expect(confirmCalls).toHaveLength(0);
+    // must NOT persist a choice — leave the setting absent for the next interactive session
+    expect(mockWriteFileSync).not.toHaveBeenCalled();
+    expect(mockJdtlsStart).not.toHaveBeenCalled();
   });
 });
 

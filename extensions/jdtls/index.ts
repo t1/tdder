@@ -720,6 +720,12 @@ export default function (pi: ExtensionAPI): void {
     const settings = readSettings(ctx.cwd);
     const enabled = settings?.enabled;
     if (enabled === undefined) {
+      // Only prompt when an interactive UI is available. In headless/child
+      // sessions (no-op uiContext) ctx.ui.confirm returns false, which would
+      // otherwise persist enabled:false and silently disable jdtls for the
+      // whole repo from a background session. Leave the setting absent so the
+      // next interactive session prompts properly.
+      if (!ctx.hasUI) return;
       const ok = await ctx.ui.confirm(
         "Enable jdtls tools?",
         `This project looks like a Java project and jdtls is installed. Enable Java language server tools (diagnostics, symbol search, rename, format)?`,
