@@ -248,10 +248,16 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
         pi: {
-          __unfoldingAskSensei: async (params: any) => {
-            asks.push(params);
-            return "42";
-          }
+          __unfoldingRootUi: {
+            hasUI: true,
+            mode: "rpc",
+            ui: {
+              async input(prompt: string) {
+                asks.push(prompt);
+                return "42";
+              },
+            },
+          },
         } as any,
         postOutput: () => {
         },
@@ -274,10 +280,16 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         },
         mutateTask: taskUnblock,
         pi: {
-          __unfoldingAskSensei: async (params: any) => {
-            asks.push(params);
-            return "42";
-          }
+          __unfoldingRootUi: {
+            hasUI: true,
+            mode: "rpc",
+            ui: {
+              async input(prompt: string) {
+                asks.push(prompt);
+                return "42";
+              },
+            },
+          },
         } as any,
         model: faux.getModel(),
         authStorage,
@@ -285,7 +297,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       });
 
       assert.equal(outcome, "finished");
-      assert.deepEqual(asks, [{question: "Resumed question?", role: "architect"}]);
+      assert.deepEqual(asks, ["[architect]\n\nResumed question?"]);
       const task = readTask(cwd, "architect-resume-ask");
       assert.ok(task?.status === "finished", `unexpected status: ${task?.status}`);
     } finally {

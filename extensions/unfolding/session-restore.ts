@@ -3,7 +3,7 @@ import type { Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { readTask } from "./task-store.ts";
-import { createChildAgentSession, type NestedDelegateToolFactory } from "./session-common.ts";
+import { createChildAgentSession, createChildUiBus, type NestedDelegateToolFactory } from "./session-common.ts";
 import type { CostLedger } from "./cost-ledger.ts";
 
 export async function restoreChildSession(
@@ -21,6 +21,7 @@ export async function restoreChildSession(
   const task = readTask(cwd, slug);
   if (!task?.session_file || !existsSync(task.session_file)) return null;
 
+  const childUiBus = createChildUiBus();
   const { session, shutdown } = await createChildAgentSession({
     cwd,
     role: task.to,
@@ -34,6 +35,7 @@ export async function restoreChildSession(
     authStorage,
     modelRegistry,
     costLedger,
+    childUiBus,
   });
   return { session, shutdown };
 }

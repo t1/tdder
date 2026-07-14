@@ -5,8 +5,7 @@ import { taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock, taskRollb
 import { CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
 import { exportTaskCommissionerDebugHtmlIfEnabled, exportTaskDebugHtmlIfEnabled } from "./debug-export.ts";
 import { readTask, updateTaskStatus } from "./task-store.ts";
-import type { AskSenseiFn, AskSenseiParams } from "./ask-sensei.ts";
-import { UnfoldingFatalError } from "./fatal-error.ts";
+import { askSenseiViaUi, type AskSenseiParams } from "./ask-sensei.ts";
 import { resumeDelegatedTask } from "./task-resume.ts";
 import type { CostLedger } from "./cost-ledger.ts";
 
@@ -14,7 +13,6 @@ export interface ChildCommissionerContext {
   activeSessions: Map<string, AgentSession>;
   postOutput: (lines: string) => void;
   pi: ExtensionAPI;
-  askSensei?: AskSenseiFn;
   role?: string;
   model?: Model<any>;
   authStorage?: AuthStorage;
@@ -81,17 +79,11 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
         options: Type.Optional(Type.Array(Type.String(), { description: "Optional suggested answers. If you recommend one, put it first — the questionnaire defaults to the first option." })),
         placeholder: Type.Optional(Type.String({ description: "Optional placeholder for free-text input when no options are provided." })),
       }),
-      async execute(_id: string, params: AskSenseiParams) {
-        if (!commissionerCtx.askSensei) {
-          throw new UnfoldingFatalError(
-            "ASK_SENSEI_PROXY_UNAVAILABLE",
-            "ask_sensei failed: no commissioner UI callback is available for this child session",
-          );
-        }
+      async execute(_id: string, params: AskSenseiParams, _signal: any, _onUpdate: any, ctx: any) {
         const labeledParams: AskSenseiParams = commissionerCtx.role
           ? { ...params, role: commissionerCtx.role }
           : params;
-        const answer = await commissionerCtx.askSensei(labeledParams);
+        const answer = await askSenseiViaUi(labeledParams, ctx);
         return {
           content: [{ type: "text", text: answer }],
           details: { answer },

@@ -414,14 +414,20 @@ describe("child commissioner tools", () => {
     }
   });
 
-  it("task_delegate preserves the existing ask_sensei callback when the delegating session has no UI", async () => {
+  it("nested child prompts route to the captured root UI with role labeling", async () => {
     const { cwd } = makeTestGitRepo("child-commissioner");
-    const { faux, auth, modelRegistry } = sharedFauxSetup("nested-ask-sensei");
-    const asks: any[] = [];
+    const { faux, auth, modelRegistry } = sharedFauxSetup("nested-root-ui");
+    const prompts: string[] = [];
     const pi = {
-      __unfoldingAskSensei: async (params: any) => {
-        asks.push(params);
-        return "WORKS";
+      __unfoldingRootUi: {
+        hasUI: true,
+        mode: "rpc",
+        ui: {
+          async input(prompt: string) {
+            prompts.push(prompt);
+            return "WORKS";
+          },
+        },
       },
     } as any;
     try {
@@ -437,7 +443,7 @@ describe("child commissioner tools", () => {
         "1",
         {
           role: "coder",
-          slug: "gc-ask-sensei",
+          slug: "gc-root-ui",
           body: "Immediately call ask_sensei with the question 'Nested question?' and then call task_finished.",
         },
         AbortSignal.timeout(3000),
@@ -454,12 +460,13 @@ describe("child commissioner tools", () => {
       );
 
       assert.match(result.content[0].text, /Outcome: finished/);
-      assert.deepEqual(asks, [{ question: "Nested question?", role: "coder" }]);
+      assert.deepEqual(prompts, ["[coder]\n\nNested question?"]);
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);
     }
   });
+
 
   it("child session should abort when its propagated signal aborts during nested delegation", async () => {
     const { cwd } = makeTestGitRepo("child-commissioner");

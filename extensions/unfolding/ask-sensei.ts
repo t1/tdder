@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { Editor, type EditorTheme, Key, matchesKey, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { isUnfoldingFatalError, UnfoldingFatalError } from "./fatal-error.ts";
 
@@ -13,6 +13,8 @@ export interface AskSenseiParams {
 export type AskSenseiFn = (params: AskSenseiParams) => Promise<string>;
 
 type AskSenseiContext = Pick<ExtensionContext, "mode" | "ui">;
+
+type RootUiCapture = Pick<ExtensionContext, "hasUI" | "mode"> & { ui: ExtensionUIContext };
 
 export async function askSenseiViaUi(
   params: AskSenseiParams,
@@ -203,7 +205,17 @@ export function createAskSenseiFn(ctx: Pick<ExtensionContext, "hasUI" | "mode" |
   };
 }
 
-export function refreshAskSenseiCallback(pi: ExtensionAPI, ctx: Pick<ExtensionContext, "hasUI" | "mode" | "ui">): void {
+export function captureRootUiContext(pi: ExtensionAPI, ctx: Pick<ExtensionContext, "hasUI" | "mode" | "ui">): void {
+  const current = (pi as any).__unfoldingRootUi as RootUiCapture | undefined;
+  if ((ctx.ui as any)?.__unfoldingProxy === true && current) return;
   if (!ctx.hasUI) return;
-  (pi as any).__unfoldingAskSensei = createAskSenseiFn(ctx);
+  (pi as any).__unfoldingRootUi = { hasUI: ctx.hasUI, mode: ctx.mode, ui: ctx.ui };
+}
+
+export function getCapturedRootUiContext(pi: ExtensionAPI): RootUiCapture | undefined {
+  return (pi as any).__unfoldingRootUi as RootUiCapture | undefined;
+}
+
+export function refreshAskSenseiCallback(pi: ExtensionAPI, ctx: Pick<ExtensionContext, "hasUI" | "mode" | "ui">): void {
+  captureRootUiContext(pi, ctx);
 }

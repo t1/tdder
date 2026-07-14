@@ -29,6 +29,18 @@ export interface NoteChildOutputEvent {
   text: string;
 }
 
+export interface WidgetChildOutputEvent {
+  type: "widget";
+  key: string;
+  lines?: string[];
+}
+
+export interface StatusChildOutputEvent {
+  type: "status";
+  key: string;
+  text?: string;
+}
+
 export interface CommissionerNoteChildOutputEvent {
   type: "t1-unfolding-commissioner-note";
   text: string;
@@ -52,6 +64,8 @@ export type ChildOutputEvent =
   | HeaderChildOutputEvent
   | ToolChildOutputEvent
   | NoteChildOutputEvent
+  | WidgetChildOutputEvent
+  | StatusChildOutputEvent
   | CommissionerNoteChildOutputEvent
   | TotalChildOutputEvent
   | AgentSessionEvent;
@@ -77,6 +91,14 @@ export function childOutputTool(
 
 export function childOutputNote(text: string): NoteChildOutputEvent {
   return { type: "note", text };
+}
+
+export function childOutputWidget(key: string, lines: string[] | undefined): WidgetChildOutputEvent {
+  return { type: "widget", key, lines };
+}
+
+export function childOutputStatus(key: string, text: string | undefined): StatusChildOutputEvent {
+  return { type: "status", key, text };
 }
 
 export function childOutputCommissionerNote(text: string): CommissionerNoteChildOutputEvent {
@@ -172,6 +194,16 @@ export function renderChildOutputPlainText(role: string, events: ChildOutputEven
 
     if (event.type === "note" || event.type === "t1-unfolding-commissioner-note") {
       rendered.push(event.text);
+      continue;
+    }
+
+    if (event.type === "widget") {
+      if (event.lines && event.lines.length > 0) rendered.push(...event.lines);
+      continue;
+    }
+
+    if (event.type === "status") {
+      if (event.text) rendered.push(`  [${role}] ${event.text}`);
       continue;
     }
 

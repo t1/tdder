@@ -162,6 +162,8 @@ interface QuarkusState {
   suppressedLifecycleChanges: Map<string, number>;
   /** Whether refreshAppStatus has already established a baseline service-state snapshot. */
   hasObservedStates: boolean;
+  /** Monotonic token used to ignore late async startup completions after shutdown. */
+  sessionEpoch: number;
 }
 
 /**
@@ -632,6 +634,7 @@ export default async function (pi: ExtensionAPI) {
     pendingLifecycleChanges: new Map(),
     suppressedLifecycleChanges: new Map(),
     hasObservedStates: false,
+    sessionEpoch: 0,
   };
 
   // -------------------------------------------------------------------------
@@ -1226,10 +1229,6 @@ export default async function (pi: ExtensionAPI) {
     if (preferred) return preferred;
     if (services.length === 0) return undefined;
     if (services.length === 1) return services[0];
-    if (ctx.mode !== "tui") {
-      ctx.ui.notify(`Multiple Quarkus services are available. Pass a module name to /quarkus ${action}.`, "warning");
-      return null;
-    }
     return selectServiceTarget(action, services, ctx);
   }
 
@@ -1560,10 +1559,6 @@ export default async function (pi: ExtensionAPI) {
     }
     if (candidates.length === 1) {
       return stopInstances(candidates, cwd, ctx);
-    }
-    if (ctx.mode !== "tui") {
-      ctx.ui.notify("Multiple Quarkus services are running. Pass module names to /quarkus stop explicitly.", "warning");
-      return;
     }
 
     const selected = await selectInstancesToStop(candidates, ctx);
@@ -2188,11 +2183,17 @@ export default async function (pi: ExtensionAPI) {
 
     if (!isQuarkusProject(cwd)) return;
 
+    const startupEpoch = ++state.sessionEpoch;
     hideBootstrapToolWhenQuarkusIsActive();
     ctx.ui.setStatus("quarkus", "[quarkus starting…]");
     // Start the MCP server in the background so it doesn't block session startup.
     ensureClient(cwd)
       .then((c) => {
+        if (startupEpoch !== state.sessionEpoch) {
+          c.close().catch(() => {
+          });
+          return;
+        }
         ctx.ui.setStatus("quarkus", undefined);
         state.availableToolCount = c.tools.length;
         const availableNames = new Set(c.tools.map((t) => t.name));
@@ -2218,6 +2219,7 @@ export default async function (pi: ExtensionAPI) {
         });
       })
       .catch((err) => {
+        if (startupEpoch !== state.sessionEpoch) return;
         ctx.ui.setStatus("quarkus", undefined);
         if (err instanceof JbangMissingError) {
           handleJbangMissing(cwd, ctx).catch(() => {
@@ -2229,6 +2231,7 @@ export default async function (pi: ExtensionAPI) {
   });
 
   pi.on("session_shutdown", async () => {
+    state.sessionEpoch += 1;
     if (state.statusPoller) {
       clearInterval(state.statusPoller);
       state.statusPoller = null;

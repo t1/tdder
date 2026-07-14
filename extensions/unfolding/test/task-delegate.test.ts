@@ -695,6 +695,80 @@ describe("streamChildSession", () => {
     assert.ok(!last.includes("unexpected child event"), `did not expect unexpected-event warning, got: ${last}`);
   });
 
+  it("renders forwarded widget lines in place and removes them when cleared", () => {
+    const updates: Array<{ text: string; details: any }> = [];
+    const fakeSession = {
+      subscribe: (_h: any) => () => {
+      },
+    } as any;
+    let uiListener: ((event: any) => void) | undefined;
+    streamChildSession(fakeSession, "architect", "slug", (u: any) => updates.push({
+      text: u.content[0].text,
+      details: u.details,
+    }), {
+      subscribeUiEvents: (listener) => {
+        uiListener = listener;
+        return () => {
+        };
+      },
+    });
+
+    uiListener!({type: "widget", key: "maven", lines: ["⚙ Maven  8s  |  3314 lines  |  [github-pom-sync] test"]});
+    let last = updates[updates.length - 1];
+    assert.ok(last.text.includes("⚙ Maven  8s  |  3314 lines  |  [github-pom-sync] test"), `expected forwarded widget line, got: ${last.text}`);
+    let widgetEvents = last.details.childOutputEvents.filter((event: any) => event.type === "widget");
+    assert.equal(widgetEvents.length, 1);
+    assert.deepEqual(widgetEvents[0].lines, ["⚙ Maven  8s  |  3314 lines  |  [github-pom-sync] test"]);
+
+    uiListener!({type: "widget", key: "maven", lines: ["⚙ Maven  9s  |  3400 lines  |  [github-pom-sync] test"]});
+    last = updates[updates.length - 1];
+    assert.ok(!last.text.includes("⚙ Maven  8s  |  3314 lines  |  [github-pom-sync] test"), `expected widget replacement, got: ${last.text}`);
+    assert.ok(last.text.includes("⚙ Maven  9s  |  3400 lines  |  [github-pom-sync] test"), `expected updated widget line, got: ${last.text}`);
+
+    uiListener!({type: "widget", key: "maven", lines: undefined});
+    last = updates[updates.length - 1];
+    assert.ok(!last.text.includes("⚙ Maven  9s  |  3400 lines  |  [github-pom-sync] test"), `expected cleared widget line, got: ${last.text}`);
+    widgetEvents = last.details.childOutputEvents.filter((event: any) => event.type === "widget");
+    assert.equal(widgetEvents.length, 0);
+  });
+
+  it("renders forwarded status lines in place and removes them when cleared", () => {
+    const updates: Array<{ text: string; details: any }> = [];
+    const fakeSession = {
+      subscribe: (_h: any) => () => {
+      },
+    } as any;
+    let uiListener: ((event: any) => void) | undefined;
+    streamChildSession(fakeSession, "architect", "slug", (u: any) => updates.push({
+      text: u.content[0].text,
+      details: u.details,
+    }), {
+      subscribeUiEvents: (listener) => {
+        uiListener = listener;
+        return () => {
+        };
+      },
+    });
+
+    uiListener!({type: "status", key: "quarkus", text: "[quarkus start…]"});
+    let last = updates[updates.length - 1];
+    assert.ok(last.text.includes("[architect] [quarkus start…]"), `expected forwarded status line, got: ${last.text}`);
+    let statusEvents = last.details.childOutputEvents.filter((event: any) => event.type === "status");
+    assert.equal(statusEvents.length, 1);
+    assert.equal(statusEvents[0].text, "[quarkus start…]");
+
+    uiListener!({type: "status", key: "quarkus", text: "[quarkus ● :8080]"});
+    last = updates[updates.length - 1];
+    assert.ok(!last.text.includes("[architect] [quarkus start…]"), `expected status replacement, got: ${last.text}`);
+    assert.ok(last.text.includes("[architect] [quarkus ● :8080]"), `expected updated status line, got: ${last.text}`);
+
+    uiListener!({type: "status", key: "quarkus", text: undefined});
+    last = updates[updates.length - 1];
+    assert.ok(!last.text.includes("[architect] [quarkus ● :8080]"), `expected cleared status line, got: ${last.text}`);
+    statusEvents = last.details.childOutputEvents.filter((event: any) => event.type === "status");
+    assert.equal(statusEvents.length, 0);
+  });
+
   it("returns unsubscribe function that removes the listener and clears timers", () => {
     let unsubscribeCalled = false;
     let intervalCallback: (() => void) | undefined;

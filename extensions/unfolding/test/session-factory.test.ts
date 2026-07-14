@@ -753,7 +753,7 @@ describe("startChildSession groundwork", () => {
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
         pi: {
-          __unfoldingAskSensei: async () => "5",
+          __unfoldingRootUi: { hasUI: true, mode: "rpc", ui: { async input() { return "5"; } } },
           __unfoldingExtensionPaths: [
             resolve(new URL("../../maven", import.meta.url).pathname),
             resolve(new URL("../../idea", import.meta.url).pathname),
@@ -793,7 +793,7 @@ describe("startChildSession groundwork", () => {
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
         pi: {
-          __unfoldingAskSensei: async () => "5",
+          __unfoldingRootUi: { hasUI: true, mode: "rpc", ui: { async input() { return "5"; } } },
         } as any,
         postOutput: () => {},
         nestedDelegateToolFactory,
@@ -836,7 +836,7 @@ describe("startChildSession groundwork", () => {
         body: "Call task_block with blocked_reason 'need input'. Just call the tool, nothing else.",
         activeSessions,
         pi: {
-          __unfoldingAskSensei: async () => "5",
+          __unfoldingRootUi: { hasUI: true, mode: "rpc", ui: { async input() { return "5"; } } },
         } as any,
         postOutput: () => {},
         nestedDelegateToolFactory,
@@ -921,9 +921,19 @@ describe("startChildSession groundwork", () => {
         slug: "architect-ask-sensei",
         body: "Immediately ask Sensei a direct question, then finish.",
         activeSessions: new Map() as any,
-        pi: { __unfoldingAskSensei: async (params: any) => {
-          asks.push(params);
-          return "B";
+        pi: { __unfoldingRootUi: {
+          hasUI: true,
+          mode: "rpc",
+          ui: {
+            async select(prompt: string, options: string[]) {
+              asks.push({ prompt, options });
+              return "B";
+            },
+            async editor(prompt: string, prefill: string) {
+              asks.push({ prompt, prefill });
+              return "B";
+            },
+          },
         } } as any,
         postOutput: () => {},
         nestedDelegateToolFactory,
@@ -933,7 +943,10 @@ describe("startChildSession groundwork", () => {
       });
 
       assert.equal(result.outcome, "finished");
-      assert.deepEqual(asks, [{ question: "Architect direct question?", options: ["A", "B"], role: "architect" }]);
+      assert.deepEqual(asks, [
+        { prompt: "[architect]\n\nArchitect direct question?", options: ["A", "B"] },
+        { prompt: "[architect]\n\nArchitect direct question?", prefill: "B" },
+      ]);
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);
@@ -966,9 +979,15 @@ describe("startChildSession groundwork", () => {
         slug: "po-ask-sensei",
         body: "Immediately ask Sensei a direct question, then finish.",
         activeSessions: new Map() as any,
-        pi: { __unfoldingAskSensei: async (params: any) => {
-          asks.push(params);
-          return "Because";
+        pi: { __unfoldingRootUi: {
+          hasUI: true,
+          mode: "rpc",
+          ui: {
+            async input(prompt: string) {
+              asks.push(prompt);
+              return "Because";
+            },
+          },
         } } as any,
         postOutput: () => {},
         nestedDelegateToolFactory,
@@ -978,7 +997,7 @@ describe("startChildSession groundwork", () => {
       });
 
       assert.equal(result.outcome, "finished");
-      assert.deepEqual(asks, [{ question: "PO direct question?", role: "po" }]);
+      assert.deepEqual(asks, ["[po]\n\nPO direct question?"]);
     } finally {
       faux.unregister();
       cleanupTestTempDir(cwd);
@@ -1066,15 +1085,19 @@ describe("startChildSession groundwork", () => {
     assert.ok(src.includes("nestedDelegateToolFactory"));
   });
 
-  it("session-common fires session_start via bindExtensions and shutdown emits session_shutdown", () => {
+  it("session-common binds extensions headless first, then swaps in proxied child UI, and shutdown emits session_shutdown", () => {
     const common = readFileSync(new URL("../session-common.ts", import.meta.url).pathname, "utf8");
-    assert.ok(common.includes("bindExtensions({})"), "createChildAgentSession must call bindExtensions");
+    assert.ok(common.includes("bindExtensions({})"), "createChildAgentSession must call bindExtensions headless first");
+    assert.ok(common.includes("createChildUiContext"), "createChildAgentSession must install proxied child UI after startup");
+    assert.ok(common.includes('setUIContext(createChildUiContext(pi, shortRole, childUiBus, theme), "tui")'), "child UI must be swapped in via runner.setUIContext after bindExtensions");
     assert.ok(common.includes("session_shutdown"), "shutdown helper must emit session_shutdown");
   });
 
-  it("session-factory calls shutdown in finally", () => {
+  it("session-factory calls shutdown in finally and wires child UI bus into the stream", () => {
     const src = readFileSync(new URL("../session-factory.ts", import.meta.url).pathname, "utf8");
     assert.ok(src.includes("shutdown()"), "startChildSession must call shutdown() in finally");
+    assert.ok(src.includes("createChildUiBus()"), "startChildSession must create a shared child UI bus");
+    assert.ok(src.includes("subscribeUiEvents"), "startChildSession must forward child UI events into streamChildSession");
   });
 
   it("session-restore returns shutdown alongside session", () => {

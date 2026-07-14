@@ -8,8 +8,10 @@ import {
   type ChildOutputEvent,
   childOutputHeader,
   childOutputNote,
+  childOutputStatus,
   childOutputTool,
   childOutputTotal,
+  childOutputWidget,
   type ContextUsageSnapshot,
   formatElapsedDuration,
   renderTotalLine,
@@ -166,7 +168,9 @@ type StreamRow =
   outputTail?: string[]
 }
   | { kind: "assistant"; rowKey: string; icon: "💬" | "⋯"; text: string }
-  | { kind: "note"; text: string };
+  | { kind: "note"; text: string }
+  | { kind: "widget"; key: string; lines?: string[] }
+  | { kind: "status"; key: string; text?: string };
 
 function renderAssistantRow(role: string, row: Extract<StreamRow, { kind: "assistant" }>): string {
   const prefix = `  [${role}] ${row.icon} `;
@@ -184,7 +188,13 @@ export interface StreamChildSessionOptions {
   getContextUsage?: () => ContextUsageSnapshot | undefined;
   getCost?: () => number | undefined;
   getFinishedDescendantCost?: () => number | undefined;
+  subscribeUiEvents?: (listener: (event: ChildUiEvent) => void) => () => void;
 }
+
+export type ChildUiEvent =
+  | { type: "widget"; key: string; lines?: string[] }
+  | { type: "status"; key: string; text?: string }
+  | { type: "note"; text: string };
 
 /**
  * Child-session display policy:
@@ -314,6 +324,7 @@ export function streamChildSession(
   const startedAt = now();
   let endedAt: number | undefined;
   let timer: ReturnType<typeof setInterval> | undefined;
+  let reachedTerminalCheckpoint = false;
 
   const renderToolRow = (row: Extract<StreamRow, { kind: "tool" }>): string[] => {
     const freezeElapsed = row.finishedAt === undefined && DELEGATION_TOOLS.has(row.toolName);
@@ -361,6 +372,10 @@ export function streamChildSession(
           } as AgentSessionEvent];
         case "note":
           return [childOutputNote(row.text)];
+        case "widget":
+          return [childOutputWidget(row.key, row.lines)];
+        case "status":
+          return [childOutputStatus(row.key, row.text)];
       }
     }),
     childOutputTotal(
@@ -381,6 +396,10 @@ export function streamChildSession(
           return [renderAssistantRow(role, row)];
         case "note":
           return [row.text];
+        case "widget":
+          return row.lines ?? [];
+        case "status":
+          return row.text ? [`  [${role}] ${row.text}`] : [];
       }
     }),
     renderElapsedLine(),
@@ -489,6 +508,9 @@ export function streamChildSession(
       row.status = event.isError ? "error" : "success";
       row.finishedAt = now();
       row.errorSummary = event.isError ? summarizeToolError(event.result) : undefined;
+      if (!event.isError && (row.summary === "task_finished" || row.summary === "task_block")) {
+        reachedTerminalCheckpoint = true;
+      }
       flush();
       return;
     }
@@ -570,9 +592,38 @@ export function streamChildSession(
     flush();
   };
 
+  const upsertUiRow = (row: Extract<StreamRow, { kind: "widget" | "status" }>) => {
+    const existingIndex = rows.findIndex(existing => existing.kind === row.kind && existing.key === row.key);
+    if (existingIndex >= 0) rows.splice(existingIndex, 1, row);
+    else rows.push(row);
+    flush();
+  };
+
+  const removeUiRow = (kind: "widget" | "status", key: string) => {
+    const existingIndex = rows.findIndex(existing => existing.kind === kind && existing.key === key);
+    if (existingIndex < 0) return;
+    rows.splice(existingIndex, 1);
+    flush();
+  };
+
   ensureTimer();
   flush();
   const unsubscribeSession = session.subscribe(handleEvent);
+  const unsubscribeUi = options.subscribeUiEvents?.((event) => {
+    if (reachedTerminalCheckpoint) return;
+    if (event.type === "note") {
+      rows.push({kind: "note", text: event.text});
+      flush();
+      return;
+    }
+    if (event.type === "widget") {
+      if (event.lines && event.lines.length > 0) upsertUiRow({kind: "widget", key: event.key, lines: event.lines});
+      else removeUiRow("widget", event.key);
+      return;
+    }
+    if (event.text) upsertUiRow({kind: "status", key: event.key, text: event.text});
+    else removeUiRow("status", event.key);
+  });
   return {
     append,
     getLines,
@@ -583,6 +634,7 @@ export function streamChildSession(
         clearIntervalFn(timer);
         timer = undefined;
       }
+      unsubscribeUi?.();
       unsubscribeSession();
     },
   };

@@ -20,7 +20,7 @@ import { assertValidRootWorkflow } from "./task-summary.ts";
 import { resumeDelegatedTask } from "./task-resume.ts";
 import { filterDisplayOnlyMessages } from "./display-only.ts";
 import { makeTaskDelegateDefinition, makeTaskContinueDefinition } from "./task-delegate-tool.ts";
-import { createAskSenseiFn, refreshAskSenseiCallback } from "./ask-sensei.ts";
+import { captureRootUiContext, createAskSenseiFn, refreshAskSenseiCallback } from "./ask-sensei.ts";
 import { abortSessionStack } from "./abort-flow.ts";
 import { FatalChildSessionError, loadAgentRoleConfig } from "./task-delegate.ts";
 import { isUnfoldingFatalError } from "./fatal-error.ts";
@@ -86,7 +86,7 @@ function makePostOutput(pi: ExtensionAPI) {
 }
 
 export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<string, AgentSession> }) {
-  (pi as any).__unfoldingAskSensei = undefined;
+  (pi as any).__unfoldingRootUi = undefined;
   (pi as any).__unfoldingDebugExportsEnabled = false;
   (pi as any).__unfoldingExtensionPaths = undefined;
 
@@ -242,8 +242,8 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       placeholder: Type.Optional(Type.String({ description: "Optional placeholder for free-text input when no options are provided." })),
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
+      captureRootUiContext(pi, ctx);
       const askSensei = createAskSenseiFn(ctx);
-      (pi as any).__unfoldingAskSensei = askSensei;
       const answer = await askSensei(params);
       return {
         content: [{ type: "text", text: answer }],

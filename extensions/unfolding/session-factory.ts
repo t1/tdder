@@ -10,7 +10,7 @@ import {
   streamChildSession,
   waitForChildDecision,
 } from "./task-delegate.ts";
-import { buildChildInitialMessage, createChildAgentSession, type NestedDelegateToolFactory } from "./session-common.ts";
+import { buildChildInitialMessage, createChildAgentSession, createChildUiBus, type NestedDelegateToolFactory } from "./session-common.ts";
 import type { ChildOutputDetails } from "./child-output.ts";
 import type { CostLedger, SessionCostSnapshot } from "./cost-ledger.ts";
 
@@ -113,6 +113,8 @@ async function startChildSessionAttempt({
     ? SessionManager.open(existing!.session_file!)
     : SessionManager.create(cwd);
 
+  const childUiBus = createChildUiBus();
+
   const { session, shortRole, shutdown } = await createChildAgentSession({
     cwd,
     role,
@@ -126,6 +128,7 @@ async function startChildSessionAttempt({
     authStorage,
     modelRegistry,
     costLedger,
+    childUiBus,
   });
 
   let wasLocallyAborted = signal?.aborted === true || parentSignal?.aborted === true;
@@ -168,6 +171,7 @@ async function startChildSessionAttempt({
       getContextUsage: () => session.getContextUsage(),
       getCost: () => session.getSessionStats().cost,
       getFinishedDescendantCost: costLedger ? () => costLedger.descendantCost(slug) : undefined,
+      subscribeUiEvents: (listener) => childUiBus.subscribe(listener),
     }) : undefined;
     onAbort = () => {
       wasLocallyAborted = true;

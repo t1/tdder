@@ -216,22 +216,24 @@ describe("registered task tools", () => {
     assert.equal(result.details.answer, "C");
   });
 
-  it("child ask_sensei proxies through commissioner callback", async () => {
-    const asks: any[] = [];
+  it("child ask_sensei uses the child session UI proxy", async () => {
     const [tool] = createChildTaskTools(".", "child", {name: "task_delegate"} as any, {name: "task_continue"} as any, {
       activeSessions: new Map() as any,
       postOutput: () => {
       },
       pi: {} as any,
-      askSensei: async (params) => {
-        asks.push(params);
-        return "5";
-      },
     }).filter(tool => tool.name === "ask_sensei");
 
-    const result = await tool.execute("1", {question: "2+3?"});
+    const result = await tool.execute("1", {question: "2+3?"}, undefined, undefined, {
+      mode: "rpc",
+      ui: {
+        async input(prompt: string) {
+          assert.equal(prompt, "2+3?");
+          return "5";
+        },
+      },
+    });
 
-    assert.deepEqual(asks, [{question: "2+3?"}]);
     assert.equal(result.content[0].text, "5");
     assert.equal(result.details.answer, "5");
   });
@@ -267,7 +269,7 @@ describe("registered task tools", () => {
     );
   });
 
-  it("child ask_sensei fails hard when the commissioner callback is missing", async () => {
+  it("child ask_sensei treats proxied dialog cancellation as a normal abort", async () => {
     const [tool] = createChildTaskTools(".", "child", {name: "task_delegate"} as any, {name: "task_continue"} as any, {
       activeSessions: new Map() as any,
       postOutput: () => {
@@ -276,8 +278,15 @@ describe("registered task tools", () => {
     }).filter(tool => tool.name === "ask_sensei");
 
     await assert.rejects(
-      () => tool.execute("1", {question: "2+3?"}),
-      /ask_sensei failed: no commissioner UI callback is available for this child session/,
+      () => tool.execute("1", {question: "2+3?"}, undefined, undefined, {
+        mode: "rpc",
+        ui: {
+          async input() {
+            return undefined;
+          },
+        },
+      }),
+      /request was aborted/,
     );
   });
 

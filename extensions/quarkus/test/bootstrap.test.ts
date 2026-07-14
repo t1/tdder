@@ -42,7 +42,7 @@ describe("quarkus bootstrap pom", () => {
     assert.match(src, /function hideBootstrapToolWhenQuarkusIsActive/);
     assert.match(src, /pi\.getActiveTools\(\)/);
     assert.match(src, /pi\.setActiveTools\(activeTools\.filter\(\(toolName\) => toolName !== "quarkus_bootstrap"\)\)/);
-    assert.match(src, /if \(!isQuarkusProject\(cwd\)\) return;\s*\n\s*hideBootstrapToolWhenQuarkusIsActive\(\);/);
+    assert.match(src, /if \(!isQuarkusProject\(cwd\)\) return;[\s\S]*hideBootstrapToolWhenQuarkusIsActive\(\);/);
   });
 
   it("bootstrap guidelines tell the LLM the Quarkus tools become available in the current session", () => {

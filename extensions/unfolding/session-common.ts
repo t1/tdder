@@ -1,7 +1,7 @@
 import {existsSync, readdirSync} from "node:fs";
 import {basename, dirname, join, resolve} from "node:path";
 import type {Model} from "@earendil-works/pi-ai";
-import type {AgentSession, AuthStorage, ExtensionAPI, ModelRegistry} from "@earendil-works/pi-coding-agent";
+import type {AgentSession, AuthStorage, ExtensionAPI, ExtensionUIContext, ModelRegistry} from "@earendil-works/pi-coding-agent";
 import {createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager} from "@earendil-works/pi-coding-agent";
 import {CHILD_FIXED_INSTRUCTION, loadAgentRoleConfig} from "./task-delegate.ts";
 import {createChildTaskTools} from "./child-task-tools.ts";
@@ -9,6 +9,8 @@ import { makeTaskContinueDefinition } from "./task-delegate-tool.ts";
 import {resolveToolAllowlist, isPathAllowed} from "./unfold-helpers.ts";
 import { isQuarkusProject } from "../shared/quarkus-project.ts";
 import type { CostLedger } from "./cost-ledger.ts";
+import type { ChildUiEvent } from "./task-delegate.ts";
+import { getCapturedRootUiContext } from "./ask-sensei.ts";
 
 export type NestedDelegateToolFactory = (shortRole: string, currentCommissionerSlug: string) => any;
 
@@ -25,10 +27,73 @@ export interface ChildSessionBuildParams {
   authStorage?: AuthStorage;
   modelRegistry?: ModelRegistry;
   costLedger?: CostLedger;
+  childUiBus?: ChildUiBus;
+}
+
+export interface ChildUiBus {
+  emit(event: ChildUiEvent): void;
+  subscribe(listener: (event: ChildUiEvent) => void): () => void;
 }
 
 export function resolveCurrentModel(_pi: ExtensionAPI): Model<any> | undefined {
   return undefined;
+}
+
+export function createChildUiBus(): ChildUiBus {
+  const listeners = new Set<(event: ChildUiEvent) => void>();
+  return {
+    emit(event: ChildUiEvent) {
+      for (const listener of [...listeners]) listener(event);
+    },
+    subscribe(listener: (event: ChildUiEvent) => void) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
+function createChildUiContext(pi: ExtensionAPI, _role: string, bus: ChildUiBus, theme: ExtensionUIContext["theme"]): ExtensionUIContext {
+  const rootUi = getCapturedRootUiContext(pi);
+  const interactiveUi = rootUi?.ui;
+  return {
+    select: async (title, options, opts) => interactiveUi?.select(title, options, opts),
+    confirm: async (title, message, opts) => interactiveUi?.confirm(title, message, opts) ?? false,
+    input: async (title, placeholder, opts) => interactiveUi?.input(title, placeholder, opts),
+    notify: (message, _type) => {
+      bus.emit({type: "note", text: `  [${_role}] ℹ ${message}`});
+    },
+    onTerminalInput: () => () => {},
+    setStatus: (key, text) => {
+      bus.emit({type: "status", key, text});
+    },
+    setWorkingMessage: () => {},
+    setWorkingVisible: () => {},
+    setWorkingIndicator: () => {},
+    setHiddenThinkingLabel: () => {},
+    setWidget: (key, content) => {
+      bus.emit({type: "widget", key, lines: Array.isArray(content) ? content : undefined});
+    },
+    setFooter: () => {},
+    setHeader: () => {},
+    setTitle: () => {},
+    custom: async (factory, options) => interactiveUi?.custom(factory as any, options as any),
+    pasteToEditor: (text) => interactiveUi?.pasteToEditor?.(text),
+    setEditorText: (text) => interactiveUi?.setEditorText?.(text),
+    getEditorText: () => interactiveUi?.getEditorText?.() ?? "",
+    editor: async (title, prefill) => interactiveUi?.editor(title, prefill),
+    addAutocompleteProvider: () => {},
+    setEditorComponent: () => {},
+    getEditorComponent: () => undefined,
+    get theme() {
+      return theme;
+    },
+    getAllThemes: () => interactiveUi?.getAllThemes?.() ?? [],
+    getTheme: (name) => interactiveUi?.getTheme?.(name),
+    setTheme: (nextTheme) => interactiveUi?.setTheme?.(nextTheme) ?? ({success: false, error: "UI not available"}),
+    getToolsExpanded: () => interactiveUi?.getToolsExpanded?.() ?? false,
+    setToolsExpanded: (expanded) => interactiveUi?.setToolsExpanded?.(expanded),
+    __unfoldingProxy: true,
+  } as ExtensionUIContext & { __unfoldingProxy?: true };
 }
 
 function filterActiveToolsForWorkspace(cwd: string, toolNames: string[]): string[] {
@@ -81,6 +146,7 @@ export async function createChildAgentSession({
                                                 authStorage,
                                                 modelRegistry,
                                                 costLedger,
+                                                childUiBus,
                                               }: ChildSessionBuildParams): Promise<{
   session: AgentSession;
   shortRole: string;
@@ -125,7 +191,6 @@ export async function createChildAgentSession({
       activeSessions,
       postOutput,
       pi,
-      askSensei: (pi as any).__unfoldingAskSensei,
       role: shortRole,
       model: selectedModel,
       modelRegistry,
@@ -135,6 +200,14 @@ export async function createChildAgentSession({
   });
   session.setSessionName(slug);
   await session.bindExtensions({});
+
+  if (childUiBus) {
+    const runner = (session as any)._extensionRunner;
+    const theme = runner?.getUIContext?.().theme;
+    if (runner?.setUIContext && theme) {
+      runner.setUIContext(createChildUiContext(pi, shortRole, childUiBus, theme), "tui");
+    }
+  }
 
   if (hasWildcards && roleConfig.tools) {
     const allToolNames = session.getAllTools().map((t: any) => t.name);

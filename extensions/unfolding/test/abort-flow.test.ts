@@ -50,12 +50,12 @@ describe("abort-flow", () => {
       assert.match(summary, /- task-a -> task-b -> task-c/);
       assert.match(summary, /task statuses below are the last persisted snapshot:/);
       assert.match(summary, /\[in_progress\] task-a → po/);
-      assert.match(summary, /live 💰 \$1\.2500/);
+      assert.match(summary, /live \$1\.25 \(↑12 ↓34\)/);
       assert.match(summary, /\[in_progress\] task-b → architect/);
-      assert.match(summary, /live 💰 \$0\.7500/);
+      assert.match(summary, /live \$0\.75 \(↑10 ↓20\)/);
       assert.match(summary, /\[blocked\] task-c → coder/);
       assert.match(summary, /blocked: waiting for answer/);
-      assert.match(summary, /live 💰 \$0\.5000/);
+      assert.match(summary, /live \$0\.50 \(↑8 ↓13\)/);
     } finally {
       cleanupTestTempDir(cwd);
     }

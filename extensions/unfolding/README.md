@@ -90,12 +90,16 @@ workflow control. The summary is derived from live task files only.
 
 Delegated child progress forwarded into the commissioner session includes
 live tool rows (`⚙`) with in-place human-readable elapsed timers (`59s`, `1m 5s`, `2h 3m 4s`) plus terminal markers (
-`✓` / `✗`), a total running-time line
+`✓` / `✗`), forwarded child extension UI display updates such as status lines and string-array widgets (for example the
+live Maven progress widget), a total running-time line
 at the end (`[role] ⏱ total context-size cost`), nested delegated-task live updates, assistant text (`💬`), assistant
 thinking (`🤔`, rendered italic),
 assistant stream errors (`❌`), terminal child-session failures surfaced from assistant `message_end`
 (such as connection/stream aborts), and an explicit warning when a thinking-bearing assistant message is truncated
 by the length limit (`⚠ thinking truncated by length limit`).
+
+Interactive child UI is also proxied to the root session: descendant `ask_sensei`, confirm/select/input/editor dialogs,
+and TUI pickers are shown to the human with role labeling (for example `[architect]`).
 
 When a parent session has finished sub-sessions, their cost is shown behind the parent's own cost as a descendant
 sum: `[role] ⏱ total context-size $1.23 (+ $4.50)`. The `(+ $X)` is the sum of all **finished** descendant
