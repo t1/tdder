@@ -154,10 +154,10 @@ mediates. The process remains valid even when a runtime needs more mediation.
 | Architecture Decision Records | `docs/adr/`           | Architect    |
 | Acceptance Tests              | `docs/ats/`           | PO (private) |
 | AT index (incl. Roles)        | `docs/ats/INDEX.md`   | PO (shared)  |
-| AT step catalog               | `docs/ats/steps/`     | PO (shared)  |
+| AT step catalog               | `docs/ats/STEPS.md`   | PO (shared)  |
 | Business Rules                | `docs/rules/`         | PO (shared)  |
 | Business Rules index          | `docs/rules/INDEX.md` | PO (shared)  |
-| Business Rule step catalog    | `docs/rules/steps/`   | PO (shared)  |
+| Business Rule step catalog    | `docs/rules/STEPS.md` | PO (shared)  |
 | UX component catalog          | `docs/ux/`            | UX Designer  |
 | UX tech mappings              | `docs/ux-mapping/`    | Architect    |
 | API resource catalog          | `docs/api/`           | API Designer |

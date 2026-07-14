@@ -272,7 +272,7 @@ Do **not** end turns with long status monologues after you already know the next
 When several small planning artifacts are obviously needed together (e.g. feature file, rule file, indexes, step catalogs), batch them in the same turn instead of narrating them one by one across many turns.
 
 Before writing or changing any `.feature` files, read the step catalog
-(`docs/ats/steps/` and `docs/rules/steps/`) to know which step patterns
+(`docs/ats/STEPS.md` and `docs/rules/STEPS.md`) to know which step patterns
 already exist. Use existing patterns for that category where possible.
 
 Then review the requested steps for opportunities to consolidate several
@@ -311,13 +311,11 @@ Behavior: <what this step does>
 
 Maintain separate step catalogs for each category:
 
-- `docs/ats/steps/` — AT step patterns
-- `docs/rules/steps/` — business rule step patterns
+- `docs/ats/STEPS.md` — AT step patterns
+- `docs/rules/STEPS.md` — business rule step patterns
 
-Each catalog starts as a single file (e.g., `docs/ats/steps/STEPS.md`).
-Re-evaluate the naming, organization, and directory structure of the
-catalog files as the project grows — split into multiple files when a
-single file becomes hard to navigate.
+Keep each catalog as a single file at that location unless there is a
+strong reason to change the structure later.
 
 After writing or updating `.feature` files, also maintain the INDEX files:
 
@@ -385,7 +383,7 @@ Then create an `[ARCH]` task with:
 - The Feature **slug**
 - Any context the Architect needs
 - The **new, changed, and removed step patterns** since the last commission,
-  from `docs/ats/steps/` and `docs/rules/steps/`. If this is the first
+  from `docs/ats/STEPS.md` and `docs/rules/STEPS.md`. If this is the first
   Feature, all patterns are new.
 - For UI Features: the **UX spec** (component references and interaction
   flow) and the **UX change summary** (new, changed, removed, renamed

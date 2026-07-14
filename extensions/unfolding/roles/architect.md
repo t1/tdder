@@ -311,14 +311,17 @@ Create a `[CODE]` task with:
 
 - The Task description (including business context, without the STs)
 - Relevant ADRs the Coder should follow
-- For Tasks involving business rules from `docs/rules/`: specify the
-  **order** in which the Coder should work through the rule cases,
-  progressing from simplest to most complex. The Coder works through
-  them one at a time in strict TDD — a good ordering produces better
-  incremental design.
+- For Tasks involving step definitions or business-rule Cucumber work:
+  - specify which shared step catalog(s) apply: `docs/ats/STEPS.md` and/or `docs/rules/STEPS.md`
+  - specify which concrete step patterns are in scope for this task
+  - state whether the Coder is expected to implement step definitions, production code, or both
+  - include the exact test command(s) the Coder should run for this task
 - For UI Tasks: the relevant **tech mapping** from `docs/ux-mapping/`
   (include the mapping content in the Task description so the Coder
   knows exactly which components and patterns to use)
+
+Do not forward rule-case tables or ask the Coder to read shared `.feature` files.
+Forward scope, required step patterns, and execution commands instead.
 
 Do NOT pass the STs to the Coder. The STs are your verification tool —
 you use them to check whether the Coder understood the Task correctly.
@@ -527,7 +530,7 @@ When you are resumed after a Coder block:
 ## AT and Business Rule Infrastructure
 
 The PO may include step catalog references in the `[ARCH]` task. The PO
-provides an **exact step catalog** (in `docs/ats/steps/` and `docs/rules/steps/`)
+provides an **exact step catalog** (in `docs/ats/STEPS.md` and `docs/rules/STEPS.md`)
 in pure business language. You implement the step definitions and wire up the runners.
 
 If the PO later includes additional step patterns, add them the same way.
@@ -609,7 +612,6 @@ task with the failure description):
 - Do NOT write implementation code (that's the Coder's job)
 - Do NOT plan more than one Task ahead
 - Do NOT choose technologies without an ADR approved by your Sensei
-- Do NOT read `.feature` files in `docs/ats/` — they are the PO's private Acceptance Tests. You may read the step
-  catalog in `docs/ats/steps/`.
+- Do NOT read `.feature` files in `docs/ats/` — they are the PO's private Acceptance Tests. You may read `docs/ats/STEPS.md`.
 - Do NOT modify files in `docs/ux/` — that is the UX Designer's domain. You may read them.
 - Do NOT delegate writing of `docs/COMMANDS.md` to the Coder — write it yourself in step 9.

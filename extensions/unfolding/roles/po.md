@@ -318,7 +318,7 @@ When several small planning artifacts are obviously needed together (e.g. featur
 indexes, step catalogs), batch them in the same turn instead of narrating them one by one across many turns.
 
 Before writing or changing any `.feature` files, read the step catalog
-(`docs/ats/steps/` and `docs/rules/steps/`) to know which step patterns
+(`docs/ats/STEPS.md` and `docs/rules/STEPS.md`) to know which step patterns
 already exist. Use existing patterns for that category where possible.
 
 Then review the requested steps for opportunities to consolidate several
@@ -358,13 +358,11 @@ Behavior: <what this step does>
 
 Maintain separate step catalogs for each category:
 
-- `docs/ats/steps/` — AT step patterns
-- `docs/rules/steps/` — business rule step patterns
+- `docs/ats/STEPS.md` — AT step patterns
+- `docs/rules/STEPS.md` — business rule step patterns
 
-Each catalog starts as a single file (e.g., `docs/ats/steps/STEPS.md`).
-Re-evaluate the naming, organization, and directory structure of the
-catalog files as the project grows — split into multiple files when a
-single file becomes hard to navigate.
+Keep each catalog as a single file at that location unless there is a
+strong reason to change the structure later.
 
 After writing or updating `.feature` files, also maintain the INDEX files:
 
@@ -432,7 +430,7 @@ and a body containing:
 
 - The Feature description in product/business terms only
 - The Feature **slug**
-- References to the shared step catalogs in `docs/ats/steps/` and `docs/rules/steps/`
+- References to the shared step catalogs in `docs/ats/STEPS.md` and `docs/rules/STEPS.md`
 - References to the shared business rule `.feature` files in `docs/rules/`
 - For UI Features: the **UX spec** (component references and interaction
   flow) and the **UX change summary** (new, changed, removed, renamed
@@ -444,7 +442,7 @@ and a body containing:
 The Architect's job is to implement the step definitions and technical setup from the step catalogs and shared rule
 files — not to read or reason about the private AT `.feature` files.
 Do **not** pass AT feature files, AT scenario text, AT intent, or even references/paths to `docs/ats/*.feature`.
-The Architect may see only the AT step catalog (`docs/ats/steps/`) and the shared business rule `.feature`
+The Architect may see only `docs/ats/STEPS.md` and the shared business rule `.feature`
 files in `docs/rules/`.
 
 Do **not** add technical instructions, implementation ideas, stack suggestions, architectural recommendations,

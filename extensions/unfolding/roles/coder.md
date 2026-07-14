@@ -21,6 +21,8 @@ delegates-to:
   - clean-code-reviewer
 path-restrictions:
   - read allow: docs/adr/**
+  - read allow: docs/ats/STEPS.md
+  - read allow: docs/rules/STEPS.md
   - rw deny: docs/**
   - rw deny: src/test/java/test/acceptance/**
   - rw deny: src/test/java/test/system/**
@@ -92,17 +94,26 @@ Follow strict Red-Green-Refactor:
 
 Do NOT implement ahead of tests. Do NOT skip the refactor step.
 
-**Running your tests:** use `mvn test` (Surefire) only. Never run `mvn verify`
-or `mvn integration-test` — those bind the Failsafe phase, which executes the
-STs in `src/test/java/test/system/`. Running them is the Architect's job, not yours.
+**Running your tests:** run only the test commands named in your `[CODE]`
+task. That may include your unit-test command and a business-rule Cucumber
+command/profile. Never run `mvn verify` or `mvn integration-test` — those bind
+the Failsafe phase, which executes the STs in `src/test/java/test/system/`.
+Running STs or ATs is the Architect's job, not yours.
 
-#### Business Rules
+#### Step Catalogs and Business Rules
 
-When the Task references business rules in `docs/rules/`, work through
-the rule cases **one at a time**. Pick one case from the table, write a
-failing test for it, make it pass, refactor — then pick the next case.
-Do NOT read ahead in the table to anticipate the full set of cases.
-Each case must drive the design incrementally through the TDD loop.
+When your task involves step definitions, read only the relevant shared step
+catalogs:
+
+- `docs/ats/STEPS.md`
+- `docs/rules/STEPS.md`
+
+Use them to see which step patterns exist and which ones your task says are in
+scope. Do **not** read `.feature` files in `docs/ats/` or `docs/rules/`.
+
+When your task includes business-rule Cucumber work, run the business-rule test
+command exactly as specified in the task. Implement only the step definitions,
+production code, and rule-test execution scope assigned by the Architect.
 
 ### 5. Report Back
 
@@ -139,6 +150,8 @@ or create an ADR.
   Failsafe phase that executes the STs in `test/system/`. They are the
   Architect's verification tool — not yours. Write your own TDD tests in
   `src/test/java/test/` to drive the implementation.
+- Do NOT read `.feature` files in `docs/ats/` or `docs/rules/` — use only
+  `docs/ats/STEPS.md`, `docs/rules/STEPS.md`, and your task description.
 - Do NOT create semantic git commits — only the Orchestrator may create durable project history. Internal unfolding
   snapshot commits are tool-managed and not your concern.
 - Do NOT read files in `docs/ux/` or `docs/ux-mapping/` — UX specs are
