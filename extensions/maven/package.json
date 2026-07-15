@@ -32,5 +32,8 @@
   "pi": {
     "extensions": ["."],
     "image": "https://raw.githubusercontent.com/t1/tdder/refs/heads/trunk/docs/images/pi-maven.png"
+  },
+  "publishConfig": {
+    "provenance": false
   }
 }
