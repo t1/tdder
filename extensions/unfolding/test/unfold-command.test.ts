@@ -87,6 +87,18 @@ describe("parseFrontmatterTools", () => {
     assert.match(architectMd, /Do \*\*not\*\* force the problem into an ADR first/);
     assert.match(architectMd, /Do \*\*not\*\* use `task_block` for technical implementation problems\./);
   });
+
+  it("po+architect roles require explicit product evidence before protocol words like REST count as valid PO input", () => {
+    assert.match(poMd, /Externally visible integration contract — but only when external integrators are actual product actors/);
+    assert.match(poMd, /Commission the API Designer only when \*\*all\*\* of these are true:/);
+    assert.match(poMd, /the external consumer is explicit/);
+    assert.match(poMd, /programmatic integration is itself part of the user\/customer value of this Feature/);
+    assert.match(poMd, /Use only these sections in the `\[ARCH\]` task, in this order:/);
+    assert.match(architectMd, /If the handoff uses protocol or contract words such as `REST`, `REST\/JSON`, `GraphQL`, `webhook`, `event stream`,/);
+    assert.match(architectMd, /require explicit product evidence inside the handoff itself/);
+    assert.match(architectMd, /If any of that proof is missing, treat the handoff as malformed technical steering/);
+    assert.match(architectMd, /UX specs, customer-facing integration-contract specs, and clearly labeled/);
+  });
   it("coder.md declares the expected tool allowlist", () => {
     const tools = parseFrontmatterTools(coderMd);
     assert.deepEqual(tools, [

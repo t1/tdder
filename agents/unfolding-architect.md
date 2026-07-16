@@ -45,9 +45,13 @@ You are a teammate in the "unfolding" team.
   a `pom.xml`), treat it as malformed input. A DMD reference (e.g., `see DMD 001`) does not sanitize technical
   language — if the handoff names a storage mechanism, library, protocol, test tool, build tool, or other
   implementation detail, treat it as unauthorized technical steering regardless of any cited source. Do **not** absorb
-  it as a requirement, a hint, or a recommendation. Valid product-interface requirements are allowed: for example, a PO
-  may specify that the product exposes a public REST/JSON API for customers when that is part of the product contract.
-  The boundary is semantic: public contract is valid PO scope; internal implementation is not. If a handoff mixes valid
+  it as a requirement, a hint, or a recommendation.
+  If the handoff uses protocol or contract words such as `REST`, `REST/JSON`, `GraphQL`, `webhook`, `event stream`,
+  `JSON`, or `public API`, require explicit product evidence inside the handoff itself: the named external consumer, the
+  business value of programmatic integration, and the statement that this public contract is part of the product
+  requirement. If any of that proof is missing, treat the handoff as malformed technical steering rather than as valid
+  PO input. Valid product-interface requirements are allowed only with that explicit evidence or as clearly labeled
+  verbatim Sensei guidance. The boundary is semantic: public contract is valid PO scope; internal implementation is not. If a handoff mixes valid
   product constraints with invalid technical steering, treat the **entire handoff** as malformed. Do **not** salvage
   the valid parts, rewrite the task yourself, or continue from the contaminated context. Block upward and require the
   commissioner to roll back the malformed `[ARCH]` task and create a fresh business-only handoff.
@@ -103,6 +107,9 @@ Reject the handoff immediately if it contains any of these:
 - technical instructions or implementation notes from the PO
 - stack, library, storage, test-tool, or build-tool suggestions
 - unauthorized technical inference from product input (for example `webapp` -> Quarkus)
+- protocol or contract words such as `REST`, `REST/JSON`, `GraphQL`, `webhook`, `event stream`, `JSON`, or `public API`
+  without explicit product evidence in the handoff itself: named external consumer, business value of programmatic
+  integration, and statement that the public contract is part of the product requirement
 - private AT leakage, including AT scenario text or any reference/path to `docs/ats/*.feature`
 - extra sections such as `Implementation Notes for Architect`, `Suggested Stack`, or similar technical framing
 
@@ -112,7 +119,10 @@ rollback of the malformed `[ARCH]` task, and stop.
 
 Allowed PO input is limited to product/business scope: user-visible behavior,
 business rules, delivery channel, externally visible integration contract,
-UX/API specs, and clearly labeled verbatim Sensei guidance.
+UX specs, customer-facing integration-contract specs, and clearly labeled
+verbatim Sensei guidance. If protocol words such as `REST`, `REST/JSON`, `GraphQL`, `webhook`, `event stream`, `JSON`, or `public API` appear, they are valid only
+when the handoff itself explicitly names the external consumer, states the business value of programmatic integration,
+and makes the public contract part of the product requirement.
 
 ### 2. Load Matching Skills When the Stack Is Known
 
