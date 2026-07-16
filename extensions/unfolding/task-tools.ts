@@ -43,7 +43,22 @@ export function taskRead(cwd: string, slug: string): string {
   return lines.join("\n");
 }
 
+function directDelegatesOf(tasks: Task[], slug: string): Task[] {
+  return tasks.filter(task => task.parent_slug === slug);
+}
+
+function assertNoDirectDelegates(tasks: Task[], slug: string, action: "finish" | "accept"): void {
+  const delegates = directDelegatesOf(tasks, slug);
+  if (delegates.length === 0) return;
+  const delegateList = delegates.map(task => `"${task.slug}" (${task.status})`).join(", ");
+  throw new Error(
+    `Cannot ${action} task "${slug}" while direct delegate tasks still exist: ${delegateList}. ` +
+    `Resolve them first with task_accept(...), task_reopen(...), task_unblock(...), or task_rollback(...).`,
+  );
+}
+
 export function taskFinished(cwd: string, slug: string): void {
+  assertNoDirectDelegates(listTasks(cwd), slug, "finish");
   updateTaskStatus(cwd, slug, "finished");
 }
 
@@ -53,6 +68,7 @@ export function taskBlock(cwd: string, slug: string, reason: string | undefined)
 }
 
 export function taskAccept(cwd: string, slug: string): void {
+  assertNoDirectDelegates(listTasks(cwd), slug, "accept");
   deleteTask(cwd, slug);
 }
 

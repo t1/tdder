@@ -132,6 +132,11 @@ describe("structural wiring", () => {
     assert.ok(block.includes("postOutput"), "must post args via postOutput for human visibility");
   });
 
+  it("task_accept logs success only after taskAccept succeeds", () => {
+    const block = blockAfter(loadSrc(), 'name: "task_accept"');
+    assert.ok(block.indexOf("taskAccept(") < block.indexOf("postOutput(`  ✅ task_accept:"), "task_accept must emit success output only after the mutation succeeds");
+  });
+
   it("task_reopen exports the commissioner session before resuming the child", () => {
     const block = blockAfter(loadSrc(), 'name: "task_reopen"', 1800);
     assert.ok(block.includes("exportTaskCommissionerDebugHtmlIfEnabled"), "must export commissioner session on reopen in debug mode");

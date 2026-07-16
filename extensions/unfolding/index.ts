@@ -324,8 +324,8 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
     parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       refreshAskSenseiCallback(pi, ctx);
-      postOutput(`  ✅ task_accept: ${params.slug}`);
       taskAccept(ctx.cwd, params.slug);
+      postOutput(`  ✅ task_accept: ${params.slug}`);
       activeSessions.delete(params.slug);
       return { content: [{ type: "text", text: `Task "${params.slug}" accepted.` }], details: {} };
     },

@@ -372,7 +372,7 @@ describe("registered task tools", () => {
       createTask(cwd, {
         slug: "child-reopen-debug",
         from: "po",
-        to: "coder",
+        to: "architect",
         body: "Redo",
       });
       updateTaskStatus(cwd, "child-reopen-debug", "finished");
@@ -417,7 +417,7 @@ describe("registered task tools", () => {
       createTask(cwd, {
         slug: "child-unblock-debug",
         from: "po",
-        to: "coder",
+        to: "architect",
         body: "Continue",
       });
       updateTaskStatus(cwd, "child-unblock-debug", "blocked", "waiting");
@@ -929,6 +929,8 @@ describe("registered task tools", () => {
   it("nested task_delegate returns an aborted result without aborting its own commissioner run", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
     try {
+      createTask(cwd, { slug: "po-root", from: "orchestrator", to: "po", body: "PO" });
+      createTask(cwd, { slug: "arch-1", from: "po", to: "architect", body: "ARCH", parent_slug: "po-root" });
       const activeSessions = new Map<string, any>();
       const nestedTool = makeTaskDelegateDefinition("architect", activeSessions as any, {} as any, () => {}, undefined, undefined, "arch-1");
       const controller = new AbortController();

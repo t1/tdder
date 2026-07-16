@@ -273,6 +273,19 @@ describe("deleteTask", () => {
       cleanupTestTempDir(cwd);
     }
   });
+
+  it("fails atomically when deleting a parent would orphan a child", () => {
+    const cwd = makeTestTempDir("task-test");
+    try {
+      createTask(cwd, { slug: "po-root", from: "orchestrator", to: "po", body: "PO" });
+      createTask(cwd, { slug: "arch-child", from: "po", to: "architect", body: "ARCH", parent_slug: "po-root" });
+      assert.throws(() => deleteTask(cwd, "po-root"), /references missing parent "po-root"/);
+      assert.ok(readTask(cwd, "po-root"), "parent task must still exist after failed delete");
+      assert.ok(readTask(cwd, "arch-child"), "child task must still exist after failed delete");
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
 });
 
 describe("task tree invariants", () => {
@@ -396,6 +409,20 @@ describe("tasks.yaml summary", () => {
       assert.equal(existsSync(join(cwd, ".pi", "unfolding", "tasks.yaml")), true);
       deleteTask(cwd, "po-todo-webapp");
       assert.equal(existsSync(join(cwd, ".pi", "unfolding", "tasks.yaml")), false);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("keeps tasks.yaml unchanged after a failed atomic delete", () => {
+    const cwd = makeTestTempDir("task-test");
+    try {
+      createTask(cwd, { slug: "po-root", from: "orchestrator", to: "po", body: "PO" });
+      createTask(cwd, { slug: "arch-child", from: "po", to: "architect", body: "ARCH", parent_slug: "po-root" });
+      const before = readFileSync(join(cwd, ".pi", "unfolding", "tasks.yaml"), "utf8");
+      assert.throws(() => deleteTask(cwd, "po-root"), /references missing parent "po-root"/);
+      const after = readFileSync(join(cwd, ".pi", "unfolding", "tasks.yaml"), "utf8");
+      assert.equal(after, before);
     } finally {
       cleanupTestTempDir(cwd);
     }

@@ -164,6 +164,18 @@ describe("taskFinished", () => {
       cleanupTestTempDir(cwd);
     }
   });
+
+  it("rejects finishing a task that still has a direct delegate", () => {
+    const cwd = makeTestTempDir("tools-test");
+    try {
+      createTask(cwd, { slug: "po-root", from: "orchestrator", to: "po", body: "PO" });
+      createTask(cwd, { slug: "arch-child", from: "po", to: "architect", body: "ARCH", parent_slug: "po-root" });
+      assert.throws(() => taskFinished(cwd, "po-root"), /Cannot finish task "po-root" while direct delegate tasks still exist: "arch-child" \(in_progress\)/);
+      assert.ok(taskRead(cwd, "po-root").includes("status: in_progress"));
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -206,6 +218,20 @@ describe("taskAccept", () => {
       createTask(cwd, { slug: "accept-me", from: "orchestrator", to: "po", body: "Done" });
       taskAccept(cwd, "accept-me");
       assert.throws(() => taskRead(cwd, "accept-me"), /accept-me/);
+    } finally {
+      cleanupTestTempDir(cwd);
+    }
+  });
+
+  it("rejects accepting a task that still has a direct delegate and leaves the store unchanged", () => {
+    const cwd = makeTestTempDir("tools-test");
+    try {
+      createTask(cwd, { slug: "po-root", from: "orchestrator", to: "po", body: "PO" });
+      createTask(cwd, { slug: "arch-child", from: "po", to: "architect", body: "ARCH", parent_slug: "po-root" });
+      taskFinished(cwd, "arch-child");
+      assert.throws(() => taskAccept(cwd, "po-root"), /Cannot accept task "po-root" while direct delegate tasks still exist: "arch-child" \(finished\)/);
+      assert.ok(taskRead(cwd, "po-root").includes("po-root"));
+      assert.ok(taskRead(cwd, "arch-child").includes("arch-child"));
     } finally {
       cleanupTestTempDir(cwd);
     }

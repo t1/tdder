@@ -219,8 +219,8 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
       description: "Accept a finished delegated task (commissioner).",
       parameters: Type.Object({ slug: Type.String({ description: "Task slug" }) }),
       async execute(_id: string, params: { slug: string }) {
-        commissionerCtx.postOutput(`  ✅ task_accept: ${params.slug}`);
         taskAccept(cwd, params.slug);
+        commissionerCtx.postOutput(`  ✅ task_accept: ${params.slug}`);
         commissionerCtx.activeSessions.delete(params.slug);
         return { content: [{ type: "text", text: `Task "${params.slug}" accepted.` }], details: {} };
       },

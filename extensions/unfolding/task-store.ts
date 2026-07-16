@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, appendFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
+import { existsSync, readFileSync, appendFileSync, writeFileSync, mkdirSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { assertValidTaskTree, writeTaskSummary } from "./task-summary.ts";
 
@@ -34,6 +34,11 @@ export interface Task extends TaskInput {
   resume_message?: string;
 }
 
+interface TaskRecord {
+  filename: string;
+  task: Task;
+}
+
 // ---------------------------------------------------------------------------
 // ensureGitExclude
 // ---------------------------------------------------------------------------
@@ -55,18 +60,18 @@ export function ensureGitExclude(cwd: string): void {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
+function unfoldingDir(cwd: string): string {
+  return join(cwd, ".pi", "unfolding");
+}
+
 function tasksDir(cwd: string): string {
-  return join(cwd, ".pi/unfolding/tasks");
+  return join(unfoldingDir(cwd), "tasks");
 }
 
 function ensureTasksDir(cwd: string): string {
   const dir = tasksDir(cwd);
   mkdirSync(dir, { recursive: true });
   return dir;
-}
-
-function taskFilename(cwd: string, slug: string): string {
-  return join(ensureTasksDir(cwd), `${slug}.yaml`);
 }
 
 function serialize(task: Task): string {
@@ -112,33 +117,97 @@ function deserialize(rawContent: string): Task {
   return task as Task;
 }
 
-function taskFiles(cwd: string): Array<{ file: string; task: Task }> {
+function taskFiles(cwd: string): TaskRecord[] {
   const dir = tasksDir(cwd);
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter(f => f.endsWith(".yaml"))
     .sort()
-    .map(f => ({
-      file: join(dir, f),
-      task: deserialize(readFileSync(join(dir, f), "utf8")),
+    .map(filename => ({
+      filename,
+      task: deserialize(readFileSync(join(dir, filename), "utf8")),
     }));
 }
 
-function rewriteSummary(cwd: string): void {
-  const tasks = listTasks(cwd);
+function shouldValidateTaskTree(tasks: Task[]): boolean {
+  if (tasks.length === 0) return false;
+  const roots = tasks.filter(task => !task.parent_slug);
+  return roots.length === 1 && roots[0]?.from === "orchestrator";
+}
+
+function validateProspectiveTasks(tasks: Task[]): void {
+  const bySlug = new Map(tasks.map(task => [task.slug, task]));
+  const childrenByParent = new Map<string, Task[]>();
+
+  for (const task of tasks) {
+    if (!task.parent_slug) continue;
+    const parent = bySlug.get(task.parent_slug);
+    if (!parent) {
+      throw new Error(`Invariant violation: task "${task.slug}" references missing parent "${task.parent_slug}". Stop and report the corrupted task state to the user.`);
+    }
+    if (task.from !== parent.to) {
+      throw new Error(`Invariant violation: task "${task.slug}" is delegated from "${task.from}", but its parent role is "${parent.to}". Stop and report the corrupted task state to the user.`);
+    }
+    const delegates = childrenByParent.get(task.parent_slug) ?? [];
+    delegates.push(task);
+    childrenByParent.set(task.parent_slug, delegates);
+  }
+
+  for (const [parentSlug, delegates] of childrenByParent.entries()) {
+    if (delegates.length > 1) {
+      throw new Error(`Invariant violation: task "${parentSlug}" has ${delegates.length} direct delegates. Stop and report the corrupted task state to the user.`);
+    }
+  }
+}
+
+function rewriteSummaryFromTasks(cwd: string, tasks: Task[]): void {
   if (tasks.length === 0) {
     writeTaskSummary(cwd, tasks);
     return;
   }
 
-  const roots = tasks.filter(task => !task.parent_slug);
-  if (roots.length === 1 && roots[0]?.from === "orchestrator") {
-    assertValidTaskTree(tasks);
+  if (shouldValidateTaskTree(tasks)) {
     writeTaskSummary(cwd, tasks);
     return;
   }
 
   writeTaskSummary(cwd, []);
+}
+
+function generateOpaqueFilename(): string {
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const rand = Math.random().toString(36).slice(2, 6);
+  return `${ts}-${rand}.yaml`;
+}
+
+function persistTaskRecords(cwd: string, records: TaskRecord[]): void {
+  const normalized = records.map(({ filename, task }) => ({ filename, task }));
+  const tasks = normalized.map(({ task }) => task);
+  validateProspectiveTasks(tasks);
+
+  mkdirSync(unfoldingDir(cwd), { recursive: true });
+  const dir = tasksDir(cwd);
+  const token = Math.random().toString(36).slice(2, 8);
+  const tempDir = join(unfoldingDir(cwd), `tasks.tmp-${token}`);
+  const backupDir = join(unfoldingDir(cwd), `tasks.bak-${token}`);
+  const hadDir = existsSync(dir);
+
+  mkdirSync(tempDir, { recursive: true });
+  for (const { filename, task } of normalized) {
+    writeFileSync(join(tempDir, filename), serialize(task));
+  }
+
+  try {
+    if (hadDir) renameSync(dir, backupDir);
+    renameSync(tempDir, dir);
+    if (hadDir) rmSync(backupDir, { recursive: true, force: true });
+  } catch (error) {
+    if (existsSync(tempDir)) rmSync(tempDir, { recursive: true, force: true });
+    if (hadDir && existsSync(backupDir) && !existsSync(dir)) renameSync(backupDir, dir);
+    throw error;
+  }
+
+  rewriteSummaryFromTasks(cwd, tasks);
 }
 
 // ---------------------------------------------------------------------------
@@ -147,17 +216,13 @@ function rewriteSummary(cwd: string): void {
 
 export function createTask(cwd: string, input: TaskInput): Task {
   ensureGitExclude(cwd);
-  const existing = taskFiles(cwd).find(({ task }) => task.slug === input.slug);
+  const records = taskFiles(cwd);
+  const existing = records.find(({ task }) => task.slug === input.slug);
   if (existing) {
     throw new Error(`Task with slug "${input.slug}" already exists`);
   }
   const task: Task = { ...input, status: "in_progress" };
-  const dir = ensureTasksDir(cwd);
-  const ts = new Date().toISOString().replace(/[:.]/g, "-");
-  const rand = Math.random().toString(36).slice(2, 6);
-  const filename = join(dir, `${ts}-${rand}.yaml`);
-  writeFileSync(filename, serialize(task));
-  rewriteSummary(cwd);
+  persistTaskRecords(cwd, [...records, { filename: generateOpaqueFilename(), task }]);
   return task;
 }
 
@@ -217,7 +282,8 @@ export function updateTaskStatus(
   resume_message?: string,
   recreate_message?: string,
 ): void {
-  const found = taskFiles(cwd).find(({ task }) => task.slug === slug);
+  const records = taskFiles(cwd);
+  const found = records.find(({ task }) => task.slug === slug);
   if (!found) throw new Error(`Task "${slug}" not found`);
   const updated: Task = { ...found.task, status };
   if (status === "blocked" && blocked_reason) {
@@ -235,8 +301,11 @@ export function updateTaskStatus(
   } else {
     delete updated.resume_message;
   }
-  writeFileSync(found.file, serialize(updated));
-  rewriteSummary(cwd);
+  persistTaskRecords(cwd, records.map(record =>
+    record.task.slug === slug
+      ? { ...record, task: updated }
+      : record,
+  ));
 }
 
 export function recreateTaskSession(
@@ -246,7 +315,8 @@ export function recreateTaskSession(
   session_file: string,
   resume_message: string,
 ): void {
-  const found = taskFiles(cwd).find(({ task }) => task.slug === slug);
+  const records = taskFiles(cwd);
+  const found = records.find(({ task }) => task.slug === slug);
   if (!found) throw new Error(`Task "${slug}" not found`);
   const updated: Task = {
     ...found.task,
@@ -257,8 +327,11 @@ export function recreateTaskSession(
   };
   delete updated.blocked_reason;
   delete updated.recreate_message;
-  writeFileSync(found.file, serialize(updated));
-  rewriteSummary(cwd);
+  persistTaskRecords(cwd, records.map(record =>
+    record.task.slug === slug
+      ? { ...record, task: updated }
+      : record,
+  ));
 }
 
 // ---------------------------------------------------------------------------
@@ -266,8 +339,8 @@ export function recreateTaskSession(
 // ---------------------------------------------------------------------------
 
 export function deleteTask(cwd: string, slug: string): void {
-  const found = taskFiles(cwd).find(({ task }) => task.slug === slug);
+  const records = taskFiles(cwd);
+  const found = records.find(({ task }) => task.slug === slug);
   if (!found) throw new Error(`Task "${slug}" not found`);
-  unlinkSync(found.file);
-  rewriteSummary(cwd);
+  persistTaskRecords(cwd, records.filter(record => record.task.slug !== slug));
 }
