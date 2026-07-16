@@ -11,6 +11,7 @@ import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
 import {makeTestGitRepo} from "./test-git-repo.ts";
 import {createChildTaskTools} from "../child-task-tools.ts";
 import {makeTaskDelegateDefinition} from "../task-delegate-tool.ts";
+import {askSenseiViaUi} from "../ask-sensei.ts";
 import {fauxAssistantMessage, fauxToolCall, registerFauxProvider} from "./faux-provider.ts";
 
 function fauxSetup(name: string) {
@@ -236,6 +237,36 @@ describe("registered task tools", () => {
 
     assert.equal(result.content[0].text, "5");
     assert.equal(result.details.answer, "5");
+  });
+
+  it("proxied child ask_sensei in tui mode keeps the questionnaire replacement flow", async () => {
+    const calls: string[] = [];
+
+    const answer = await askSenseiViaUi(
+      {question: "Pick or revise", options: ["A", "B"]},
+      {
+        mode: "tui",
+        ui: {
+          __unfoldingProxy: true,
+          __unfoldingRootMode: "tui",
+          async custom() {
+            calls.push("custom");
+            return "C";
+          },
+          async select() {
+            calls.push("select");
+            return "A";
+          },
+          async editor() {
+            calls.push("editor");
+            return "C";
+          },
+        },
+      } as any,
+    );
+
+    assert.equal(answer, "C");
+    assert.deepEqual(calls, ["custom"]);
   });
 
   it("root ask_sensei treats dialog cancellation as a normal abort", async () => {

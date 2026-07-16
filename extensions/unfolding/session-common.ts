@@ -93,7 +93,8 @@ function createChildUiContext(pi: ExtensionAPI, _role: string, bus: ChildUiBus, 
     getToolsExpanded: () => interactiveUi?.getToolsExpanded?.() ?? false,
     setToolsExpanded: (expanded) => interactiveUi?.setToolsExpanded?.(expanded),
     __unfoldingProxy: true,
-  } as ExtensionUIContext & { __unfoldingProxy?: true };
+    __unfoldingRootMode: rootUi?.mode,
+  } as ExtensionUIContext & { __unfoldingProxy?: true; __unfoldingRootMode?: string };
 }
 
 function filterActiveToolsForWorkspace(cwd: string, toolNames: string[]): string[] {

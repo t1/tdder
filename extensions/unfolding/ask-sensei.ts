@@ -32,7 +32,8 @@ export async function askSenseiViaUi(
   }
 
   const proxiedChildUi = (ctx.ui as any)?.__unfoldingProxy === true;
-  if (ctx.mode === "tui" && !proxiedChildUi) return askSenseiViaQuestionnaire(prompt, options, ctx);
+  const proxiedRootMode = (ctx.ui as any)?.__unfoldingRootMode;
+  if (ctx.mode === "tui" && (!proxiedChildUi || proxiedRootMode === "tui")) return askSenseiViaQuestionnaire(prompt, options, ctx);
   return askSenseiViaDialogs(prompt, options, ctx);
 }
 
