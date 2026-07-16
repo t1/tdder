@@ -65,7 +65,7 @@ describe("restoreChildSession", () => {
     let shutdown: (() => Promise<void>) | undefined;
     try {
       const sessionFile = join(cwd, "session.jsonl");
-      writeFileSync(sessionFile, JSON.stringify({version: 1, cwd}) + "\n");
+      writeFileSync(sessionFile, JSON.stringify({type: "session", version: 3, id: "sess-resume", timestamp: "2026-06-22T00:00:00.000Z", cwd}) + "\n");
       createTask(cwd, {
         slug: "arch-add-todo",
         from: "po",

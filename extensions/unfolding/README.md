@@ -264,8 +264,11 @@ authority; roles must not bypass that chain.
 
 For Architect → PO escalation: the PO may answer only PO-scope business questions. The PO must not read or interpret
 ADRs and must never answer technical questions. If a technical question arrives, the PO sends it back and tells the
-Architect to ask the Sensei directly. If a question is mixed, the PO sends it back and requires the Architect to remove
-its technical aspects, ask those directly, and bring back only any remaining PO-scope business question.
+Architect to ask the Sensei directly. This includes technical implementation problems during execution, not just formal
+architectural decisions. The Architect should describe such problems briefly to the Sensei with the relevant local
+context and constraints; only if the answer changes a durable architectural rule should the Architect then write or
+update an ADR. If a question is mixed, the PO sends it back and requires the Architect to remove its technical aspects,
+ask those directly, and bring back only any remaining PO-scope business question.
 
 For PO → Architect handoff: the PO may pass product intent, scope, business rules, user-visible behavior, delivery
 channel, and externally visible product contract. Product-scope terms such as `webapp`, `mobile app`, `CLI`, or `API`

@@ -1,11 +1,11 @@
-// Use the same pi-ai module instance that @earendil-works/pi-coding-agent resolves at runtime.
-// Importing @earendil-works/pi-ai directly from the repo root can hit a different module instance,
-// which makes faux provider registrations invisible to createAgentSession().
+// Use the same nested pi-ai/compat module instance that @earendil-works/pi-coding-agent resolves at runtime.
+// Importing @earendil-works/pi-ai or @earendil-works/pi-ai/compat directly from the repo root can hit a different
+// module instance, which makes faux provider registrations invisible to createAgentSession().
 import {
   fauxAssistantMessage,
   fauxToolCall,
   registerFauxProvider,
-} from "../../../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/index.js";
+} from "../../../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/compat.js";
 
 export {
   fauxAssistantMessage,

@@ -138,6 +138,7 @@ function summarizeRetryError(errorMessage: string | undefined): string {
 const INTENTIONALLY_SKIPPED_EVENT_TYPES = new Set([
   "agent_start",
   "agent_end",
+  "agent_settled",
   "turn_start",
   "message_start",
   "queue_update",

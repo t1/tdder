@@ -57,16 +57,28 @@ For the **next unresolved issue**, classify it first:
     - Write or update the ADR draft in `docs/adr/`.
     - Immediately ask the Sensei with `ask_sensei`, one question at a time, using the ADR question/options verbatim.
     - Do **not** write the ADR `Decision` section yourself, do **not** choose an option yourself, and do **not**
-      continue
-      implementation past that decision point until `ask_sensei` has answered.
+      continue implementation past that decision point until `ask_sensei` has answered.
     - If `ask_sensei` is unavailable, call `task_block` only when the issue is truly a commissioner problem. If the
       Sensei aborts the dialog, that abort stops the current session stack.
 
-3. **Obvious, low-risk technical detail**
+3. **Technical implementation problem that needs guidance**
+    - Example: the chosen approach does not work in practice, the framework/tooling behaves unexpectedly, tests cannot
+      be made to pass under the current setup, or an existing ADR may be incomplete or wrong.
+    - Do **not** block to the PO. This is not a PO question.
+    - Ask the Sensei directly with `ask_sensei`, primarily as a **brief problem report**: describe the symptom,
+      relevant local context, current constraints, and any relevant ADRs.
+    - Do **not** force the problem into an ADR first if you do not yet know whether the lasting architecture must
+      change.
+    - If the answer implies a durable architectural change, then write or update the ADR immediately afterward and
+      record the final decision there before proceeding past that decision point.
+    - If `ask_sensei` is unavailable, call `task_block` only when the issue is truly a commissioner problem. If the
+      Sensei aborts the dialog, that abort stops the current session stack.
+
+4. **Obvious, low-risk technical detail**
     - Decide locally and continue.
     - Do not create an ADR for details that are both obvious and low-risk.
 
-4. **Implementation work**
+5. **Implementation work**
     - Delegate production code work to the Coder with `task_delegate`.
     - You own architecture, STs, verification, and technical coordination.
     - Do **not** become the Coder for normal feature code.
@@ -92,7 +104,8 @@ For the **next unresolved issue**, classify it first:
   Call `task_block` and require the commissioner to `task_rollback` the malformed `[ARCH]` task and create a fresh
   business-only handoff. Do **not** continue architectural work from the contaminated task context.
 - **No mixed escalation:** if a question mixes business and technical parts, split it.
-  Bring only the business question upward to the PO. Handle the technical question yourself via ADR + `ask_sensei`.
+  Bring only the business question upward to the PO. Handle the technical question yourself via `ask_sensei`, adding or
+  updating an ADR only when the issue is actually an architectural decision.
 - **One question at a time:** do not batch dependent ADR questions.
 - **Do not load skills prematurely:** do not read, list, mention, or plan around stack-specific skills unless their
   trigger is already visible in the workspace or already fixed by an ADR / explicit Sensei guidance. In an empty
@@ -102,8 +115,8 @@ For the **next unresolved issue**, classify it first:
   infrastructure, or source files.
 - **Quarkus empty-project bootstrap rule:** if Quarkus is the chosen framework and no `pom.xml` exists yet, do **not**
   hand-write a Quarkus POM and do **not** probe for CLI availability. Call `quarkus_bootstrap` immediately.
-- **Skills are not decision authority:** available or loaded skills never replace ADR + `ask_sensei` for unresolved
-  architectural decisions.
+- **Skills are not decision authority:** available or loaded skills never replace `ask_sensei` for unresolved
+  technical guidance, nor ADR + `ask_sensei` for unresolved architectural decisions.
 - **When you need another agent** (Coder, UI Expert): call `task_delegate` with the role, a slug, and the full task
   body.
   You block until that sub-agent calls `task_finished` or `task_block`.
@@ -341,7 +354,8 @@ task.
   If you understand the issue and know what to do, call `task_unblock` with your answer.
   If not, apply the decision tree above:
     - business uncertainty -> `task_block` with only the PO-scope question
-    - technical uncertainty -> ADR + `ask_sensei`
+    - technical implementation problem -> `ask_sensei` with a brief problem report
+    - architectural decision -> ADR + `ask_sensei`
 
 ## When to STOP
 
@@ -357,11 +371,19 @@ Use `task_block` only for genuine commissioner issues, for example:
 - the PO handoff contains technical instructions or recommendations that must be removed or explicitly backed by an ADR
   / verbatim Sensei guidance before you can proceed
 
+Do **not** use `task_block` for technical implementation problems. Those go directly to the Sensei.
+Describe the problem briefly, including symptom, relevant constraints, and any ADR context. Let the Sensei help solve
+it; only convert it into an ADR flow if the outcome changes a durable architectural decision.
+
 Before interrupting your design flow, finish examining the current Task for implicit assumptions.
 You may identify multiple open ADRs in one examination pass, but you must ask them **one at a time**.
 If later questions depend on earlier answers, wait for the earlier answer before asking the next one.
 
 For each ADR:
+
+Only enter this ADR flow when the unresolved issue is actually an architectural decision. If you are facing a technical
+implementation problem and do not yet know whether architecture must change, ask the Sensei about the problem first
+without forcing an ADR.
 
 1. Write or update the ADR file in `docs/adr/` in this format:
 
@@ -422,13 +444,12 @@ evolution; the ADR file should always reflect the current decision.
 The Sensei may send technical guidance at any time — not only in response
 to ADRs. For example: "consider using Jakarta Data instead of Panache."
 
-Treat unsolicited **technical** guidance as an implicit architectural assumption
-to examine: draft an ADR that evaluates the suggestion against the current
-context. If the guidance already contains a clear Sensei decision, record that decision faithfully.
-If you still need a choice confirmed, ask it with `ask_sensei` before proceeding. If the issue is still
-unresolved and a genuine commissioner problem prevents asking or continuing, use `task_block`.
-If unsolicited guidance is not architectural, do not turn it into an ADR;
-escalate it upward neutrally so the PO can decide how to handle it.
+Treat unsolicited **technical** guidance as either an implementation hint or an architectural assumption,
+depending on scope. If it only helps solve the current technical problem, apply it directly and continue. If it implies
+or confirms a durable architectural decision, draft or update the ADR and record that decision faithfully. If you still
+need a choice confirmed, ask it with `ask_sensei` before proceeding. If the issue is still unresolved and a genuine
+commissioner problem prevents asking or continuing, use `task_block`. If unsolicited guidance is not architectural, do
+not turn it into an ADR; escalate it upward neutrally so the PO can decide how to handle it.
 
 ### After the Sensei Decides
 
@@ -456,6 +477,13 @@ After the Sensei answers an ADR question:
    skills before continuing with infrastructure or code.
 5. Continue with your process in the same run.
 
+After the Sensei answers a technical implementation problem:
+
+1. Apply the guidance to the problem at hand.
+2. Decide whether the answer changed or clarified a durable architectural rule.
+3. If yes, write or update the ADR and `docs/adr/INDEX.md` before proceeding past that decision point.
+4. If not, continue without inventing an ADR after the fact.
+
 ## After Coder Reports Back
 
 When you are resumed after a Coder block:
@@ -473,14 +501,16 @@ When you are resumed after a Coder block:
    `MachPortRendezvousServer: Permission denied`), call `task_block` with
    reason `"Please run: <command>"`. Your commissioner (the PO) will execute
    the command and resume you with the full output to interpret.
-4. If STs fail: create a new `[CODE]` task for the Coder describing what's
+4. If STs fail because of a technical implementation problem you do not yet understand or know how to resolve,
+   ask the Sensei directly with a brief problem report before deciding whether an ADR change is needed.
+5. If STs fail because implementation work is still needed: create a new `[CODE]` task for the Coder describing what's
    wrong (not the ST code itself), then call `task_block` to wait.
-5. If STs pass: leave the completed Task changes in the workspace **without creating a semantic commit**.
+6. If STs pass: leave the completed Task changes in the workspace **without creating a semantic commit**.
    Only the **Orchestrator** may create semantic project commits.
-6. Mark the `[CODE]` task as complete
-7. Find the next Task; identify implicit technical assumptions (as above)
-8. Loop with the Coder until the Feature is complete
-9. **Create or update `docs/COMMANDS.md`** with the 4 required operational invocations using XML tags:
+7. Mark the `[CODE]` task as complete
+8. Find the next Task; identify implicit technical assumptions (as above)
+9. Loop with the Coder until the Feature is complete
+10. **Create or update `docs/COMMANDS.md`** with the 4 required operational invocations using XML tags:
 
    **Write this file yourself — do NOT delegate it to the Coder.**
 
@@ -524,7 +554,7 @@ When you are resumed after a Coder block:
    If the file already exists from a previous Feature, update it if commands have
    changed (e.g., new profiles, different dev mode flags). Otherwise leave it as-is.
 
-10. Call `task_finished` only after your delegated coder/UI-expert work is complete and the Feature is ready for PO
+11. Call `task_finished` only after your delegated coder/UI-expert work is complete and the Feature is ready for PO
     verification.
 
 ## AT and Business Rule Infrastructure

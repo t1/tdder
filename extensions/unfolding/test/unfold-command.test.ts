@@ -79,6 +79,14 @@ describe("parseFrontmatterTools", () => {
     assert.match(architectMd, /Call `quarkus_bootstrap` immediately/);
     assert.doesNotMatch(architectMd, /task_block` with `recreate\.resume_message`/);
   });
+
+  it("architect role sends technical implementation problems to ask_sensei instead of blocking to the PO", () => {
+    assert.match(architectMd, /Technical implementation problem that needs guidance/);
+    assert.match(architectMd, /Do \*\*not\*\* block to the PO\. This is not a PO question\./);
+    assert.match(architectMd, /Ask the Sensei directly with `ask_sensei`, primarily as a \*\*brief problem report\*\*/);
+    assert.match(architectMd, /Do \*\*not\*\* force the problem into an ADR first/);
+    assert.match(architectMd, /Do \*\*not\*\* use `task_block` for technical implementation problems\./);
+  });
   it("coder.md declares the expected tool allowlist", () => {
     const tools = parseFrontmatterTools(coderMd);
     assert.deepEqual(tools, [
@@ -525,6 +533,10 @@ describe("structural invariants", () => {
     assert.ok(
       extensionReadme.includes("## Task tools"),
       "extension README must document unfolding task tools",
+    );
+    assert.ok(
+      extensionReadme.includes("This includes technical implementation problems during execution, not just formal\narchitectural decisions."),
+      "extension README must state that technical implementation problems also go directly to the Sensei",
     );
     assert.ok(
       extensionReadme.includes("UNFOLDING_TEST_MODEL=provider/modelId npm --prefix extensions/unfolding run test:real-integration"),
