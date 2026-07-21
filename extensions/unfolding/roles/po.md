@@ -531,11 +531,16 @@ exactly that tool invocation. If the content between `<business-rules>` tags is
 `maven_run(action="test", testScope="surefire", profiles=["rules"])`,
 call exactly that tool invocation.
 
-**Playwright sandbox fallback:** If test execution fails because
-Playwright/Chromium cannot launch (e.g., `MachPortRendezvousServer:
-Permission denied`), call `task_block` with reason
-`"Please run: <command>"`. Your commissioner will execute the command and
-resume you with the full output to interpret.
+**Test tooling cannot launch:** If test execution fails because the
+test tooling cannot run (e.g., Playwright/Chromium cannot launch with
+`MachPortRendezvousServer: Permission denied` or `SIGSEGV`, or the app
+fails to start), this is an **infrastructure problem the Architect owns**
+— not something your commissioner can or should run for you. Do **not** call
+`task_block` asking your commissioner to run the command. Instead, create
+an `[ARCH]` task reporting the infrastructure failure in business terms
+(what you tried to run, what happened), then call `task_block` to wait
+for the Architect to fix the test infrastructure. When the Architect
+reports the infrastructure is fixed, re-run the tests yourself.
 
 **Before running**, predict the outcome: which tests will pass, which will
 fail, and why. If the actual result contradicts your prediction, stop and

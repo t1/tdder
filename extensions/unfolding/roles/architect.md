@@ -496,11 +496,19 @@ When you are resumed after a Coder block:
 2. **Before running STs**, predict the outcome: which will pass, which will
    fail, and why. If the actual result contradicts your prediction, investigate
    — a wrong prediction means the Task wasn't fully understood.
-3. Run the STs — do they pass? **Playwright sandbox fallback:** If STs
-   fail because Playwright/Chromium cannot launch (e.g.,
-   `MachPortRendezvousServer: Permission denied`), call `task_block` with
-   reason `"Please run: <command>"`. Your commissioner (the PO) will execute
-   the command and resume you with the full output to interpret.
+3. Run the STs — do they pass? **Making STs run is your job** — that includes
+   the test environment, not just the test code. If STs fail because the
+   browser or test tooling cannot launch (e.g., Playwright/Chromium crashes
+   with `SIGSEGV`, `MachPortRendezvousServer: Permission denied`, or sandbox
+   denials), treat it as a **technical/environmental problem**. Do **not** call
+   `task_block` to ask the PO to run the STs — the PO can only help with
+   business/product questions and cannot run or debug your STs. Ask the Sensei
+   directly with `ask_sensei` as a brief problem report: symptom, what you
+   tried, the relevant constraints (e.g., sandbox), and any ADR context. Only
+   call `task_block` if, after the Sensei answers, a genuine commissioner-level
+   environmental action is still required that you cannot take yourself — and
+   then describe the environmental blocker and what is needed, never "run my
+   tests and report back the output."
 4. If STs fail because of a technical implementation problem you do not yet understand or know how to resolve,
    ask the Sensei directly with a brief problem report before deciding whether an ADR change is needed.
 5. If STs fail because implementation work is still needed: create a new `[CODE]` task for the Coder describing what's
