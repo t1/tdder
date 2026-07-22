@@ -34,6 +34,11 @@ tmux new-window -n <slug> "pi --session <session-file>"
 This gives you a real interactive pi session with the full conversation history of that role,
 so you can talk to it directly without the orchestrator in the loop.
 
+**Warning:** `/connect-session` starts a fresh `pi --session` process. It does **not** currently
+guarantee the same extension set or the same nono sandbox as the session you launched it from.
+If you rely on extension-provided tools/widgets or nono confinement, verify them again in the
+connected session.
+
 When you are done, close the tmux window and use `/resume` in the root session to pick up where
 you left off, or start a new `/unfold` run.
 

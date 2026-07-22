@@ -119,6 +119,9 @@ because their output is analytical rather than a simple pass/fail signal.
 Implements the **Unfolding Specs** workflow: the orchestrator owns the top-level PO task, while
 specialist roles delegate work through runtime-managed live tasks and explicit checkpoints.
 
+**Warning:** `/connect-session` opens a fresh `pi --session` process. It does **not** currently
+guarantee the same extension set or the same nono sandbox as the session you launched it from.
+
 For command usage, task tools, coordination protocol, recovery behavior, rollback mechanics,
 role/commissioner rules, and extension-specific test instructions, see:
 

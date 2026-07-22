@@ -1346,6 +1346,7 @@ describe("/connect-session command", () => {
       assert.match(selectCalls[0][selectCalls[0].length - 1], /Stay here/);
       assert.equal(execCalls.length, 0, "no tmux call expected outside tmux");
       assert.ok(notifyCalls.some(m => m.includes(poSessionFile)), "fallback notify should include chosen session file");
+      assert.ok(notifyCalls.some(m => m.includes("does not currently guarantee the same extension set or nono sandbox")), "fallback notify should warn about extension/sandbox inheritance");
     } finally {
       cleanupTestTempDir(cwd);
     }

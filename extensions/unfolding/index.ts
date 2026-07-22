@@ -74,6 +74,7 @@ function inferInheritedExtensionPaths(pi: ExtensionAPI): string[] {
 // ---------------------------------------------------------------------------
 
 const UNFOLDING_CHILD_OUTPUT_TYPE = "unfolding-child-output";
+const CONNECT_SESSION_WARNING = "Warning: /connect-session starts a fresh `pi --session` process. It does not currently guarantee the same extension set or nono sandbox as the current session.";
 
 function makePostOutput(pi: ExtensionAPI) {
   return (line: string) =>
@@ -224,9 +225,9 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
         return;
       }
       if (result.launched) {
-        ctx.ui.notify(`Opened [${option.slug}] in a new tmux window.`, "info");
+        ctx.ui.notify(`Opened [${option.slug}] in a new tmux window.\n${CONNECT_SESSION_WARNING}`, "warning");
       } else {
-        ctx.ui.notify(`Not inside tmux. Run manually:\n${result.fallbackCommand}`, "warning");
+        ctx.ui.notify(`Not inside tmux. Run manually:\n${result.fallbackCommand}\n\n${CONNECT_SESSION_WARNING}`, "warning");
       }
     },
   });
