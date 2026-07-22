@@ -33,7 +33,11 @@ import {filterDisplayOnlyMessages} from "./vendor/context-filter.ts";
 import {buildProjectTree, findProjectRoot, type ProjectNode} from "./vendor/maven-project-tree.ts";
 import {fetchMetadata, selectVersion} from "./vendor/maven-version-lookup.ts";
 import {renderBootstrapPom} from "./bootstrap.ts";
-import { isQuarkusProject } from "../shared/quarkus-project.ts";
+import {
+  detectQuarkusVersionFromProject,
+  fetchLatestSupportedJdkForQuarkusVersion,
+} from "./supported-jdk.ts";
+import {isQuarkusProject} from "../shared/quarkus-project.ts";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -228,6 +232,11 @@ const TOOL_GUIDELINES: Record<string, string[]> = {
     "quarkus_saveSkill materialises a composed skill into the project's .agent/skills/ directory so the user can inspect, edit, and version-control it.",
     "It will NOT overwrite an existing local skill file — safe to call even if the user has already customised it.",
     "Use this before quarkus_updateSkill when the user wants project-scoped (not global) skill customisation.",
+  ],
+  quarkus_latest_supported_jdk: [
+    "Use quarkus_latest_supported_jdk to get the latest supported JDK for the current Quarkus version.",
+    "If no Quarkus version is passed explicitly, it detects the Quarkus version from the current project's pom.xml or build.gradle(.kts) first.",
+    "The answer comes from jobs.maven-tests.strategy.matrix.java.*.java-version in the Quarkus ci-actions-incremental.yml branch for that Quarkus major.minor series.",
   ],
 };
 
@@ -792,7 +801,57 @@ export default async function (pi: ExtensionAPI) {
     });
   }
 
+  function registerLatestSupportedJdkTool(): void {
+    if (state.registeredToolNames.has("quarkus_latest_supported_jdk")) return;
+    state.registeredToolNames.add("quarkus_latest_supported_jdk");
+    pi.registerTool({
+      name: "quarkus_latest_supported_jdk",
+      label: "quarkus latest supported jdk",
+      description: "Get the latest JDK version supported by the current Quarkus version.",
+      promptSnippet: "Get the latest supported JDK for this Quarkus version",
+      promptGuidelines: TOOL_GUIDELINES.quarkus_latest_supported_jdk,
+      parameters: Type.Object({
+        quarkusVersion: Type.Optional(Type.String({description: "Explicit Quarkus version to inspect. Defaults to the version detected from the current project's pom.xml or build.gradle(.kts)."})),
+      }),
+      async execute(_toolCallId, params, signal, onUpdate, ctx) {
+        const explicitVersion = typeof params.quarkusVersion === "string" && params.quarkusVersion.trim().length > 0
+          ? params.quarkusVersion.trim()
+          : undefined;
+        const detected = explicitVersion ? null : detectQuarkusVersionFromProject(resolve(ctx.cwd));
+        const quarkusVersion = explicitVersion ?? detected?.quarkusVersion;
+
+        if (!quarkusVersion) {
+          throw new Error("Couldn't detect the Quarkus version from pom.xml or build.gradle(.kts). Pass quarkusVersion explicitly.");
+        }
+
+        onUpdate?.({
+          content: [{
+            type: "text",
+            text: explicitVersion
+              ? `Looking up the latest supported JDK for Quarkus ${quarkusVersion}…`
+              : `Detected Quarkus ${quarkusVersion} from ${detected?.detectedFrom}; looking up the latest supported JDK…`,
+          }],
+        });
+
+        const supported = await fetchLatestSupportedJdkForQuarkusVersion(quarkusVersion, signal);
+        const supportedJdksText = supported.supportedJdkVersions.join(", ");
+
+        return {
+          content: [{
+            type: "text",
+            text: `Quarkus ${supported.quarkusVersion} (series ${supported.quarkusSeries}) supports JDKs ${supportedJdksText}; latest supported JDK: ${supported.latestSupportedJdk}.`,
+          }],
+          details: {
+            ...supported,
+            ...(detected?.detectedFrom ? {detectedFrom: detected.detectedFrom} : {}),
+          },
+        };
+      },
+    });
+  }
+
   registerBootstrapTool();
+  registerLatestSupportedJdkTool();
 
   async function ensureClient(cwd: string): Promise<McpClient> {
     if (!state.client) {
