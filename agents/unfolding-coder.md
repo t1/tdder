@@ -3,7 +3,7 @@ name: unfolding-coder
 description: >
   Coder role in the Unfolding Specs process. Implements Tasks using TDD (Test-Driven Development),
   one test at a time, following the Red-Green-Refactor cycle.
-tools: Read, Write, Edit, Glob, Grep, Bash, Skill, WebFetch, Agent
+tools: Read, Write, Edit, Glob, Grep, Skill, WebFetch, Agent
 model: sonnet
 ---
 

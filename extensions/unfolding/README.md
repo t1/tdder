@@ -259,6 +259,21 @@ frontmatter following the schema above. Add tests in
 `tools:`, `delegates-to:`, and `path-restrictions:` entries — the test suite enforces that every
 role file declares them explicitly.
 
+### Platform differences: pi vs Claude/OpenCode
+
+The pi-native role files in `extensions/unfolding/roles/` are **runtime-enforced**:
+`tools:` is an actual allowlist, `delegates-to:` is validated by `task_delegate`,
+and `path-restrictions:` is enforced on `read`/`write`/`edit` calls.
+
+The Claude/OpenCode role files in `agents/unfolding-*.md` mirror the same workflow
+and behavioral rules, but they do **not** have an equivalent runtime path-restriction
+mechanism. There, the constraints are prompt-level guidance plus whatever the agent
+platform enforces through its own tool header.
+
+So keep the two variants aligned in **policy** (for example, no unfolding agent should
+be told to rely on ad-hoc shell workarounds, and the Claude unfolding agents should
+not expose `Bash`), but do not assume they are mechanically enforced in the same way.
+
 **Decision escalation:** normal ADR/DMD questioning is direct.
 The Architect asks ADR questions, and the PO asks DMD questions. The Orchestrator is no longer the normal relay path
 for those decisions.

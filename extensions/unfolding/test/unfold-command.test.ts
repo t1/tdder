@@ -4,7 +4,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 // ---------------------------------------------------------------------------
 // Helpers extracted for testing — import directly from the module under test
@@ -21,6 +21,10 @@ import {
   isPathAllowed,
 } from "../unfold-helpers.ts";
 
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 // ---------------------------------------------------------------------------
 // parseFrontmatterTools
 // ---------------------------------------------------------------------------
@@ -32,6 +36,11 @@ describe("parseFrontmatterTools", () => {
   const uxDesignerMd = readFileSync(new URL("../roles/ux-designer.md", import.meta.url).pathname, "utf8");
   const apiDesignerMd = readFileSync(new URL("../roles/api-designer.md", import.meta.url).pathname, "utf8");
   const uiExpertMd = readFileSync(new URL("../roles/ui-expert.md", import.meta.url).pathname, "utf8");
+
+  const claudeAgentDir = new URL("../../../agents/", import.meta.url);
+  const claudeUnfoldingAgents = readdirSync(claudeAgentDir)
+    .filter(name => name.startsWith("unfolding-") && name.endsWith(".md"))
+    .map(name => ({ name, content: readFileSync(new URL(`../../../agents/${name}`, import.meta.url).pathname, "utf8") }));
 
   it("po.md declares the expected tool allowlist", () => {
     const tools = parseFrontmatterTools(poMd);
@@ -99,6 +108,21 @@ describe("parseFrontmatterTools", () => {
     assert.match(architectMd, /If any of that proof is missing, treat the handoff as malformed technical steering/);
     assert.match(architectMd, /UX specs, customer-facing integration-contract specs, and clearly labeled/);
   });
+
+  it("po+architect roles forbid tool-specific workaround instructions in ARCH handoffs", () => {
+    const normalizedPoMd = normalizeWhitespace(poMd);
+    const normalizedArchitectMd = normalizeWhitespace(architectMd);
+
+    assert.match(normalizedPoMd, /Tool- or workflow-specific workaround instructions/);
+    assert.match(normalizedPoMd, /`use bash`/);
+    assert.match(normalizedPoMd, /`cat > file`/);
+    assert.match(normalizedPoMd, /`do not use write`/);
+
+    assert.match(normalizedArchitectMd, /Tool- or workflow-specific workaround instructions/);
+    assert.match(normalizedArchitectMd, /`use bash`/);
+    assert.match(normalizedArchitectMd, /`cat > file`/);
+    assert.match(normalizedArchitectMd, /`do not use write`/);
+  });
   it("coder.md declares the expected tool allowlist", () => {
     const tools = parseFrontmatterTools(coderMd);
     assert.deepEqual(tools, [
@@ -153,6 +177,12 @@ describe("parseFrontmatterTools", () => {
       "task_block",
     ]);
   });
+
+  it("Claude unfolding agents do not expose Bash", () => {
+    for (const { name, content } of claudeUnfoldingAgents) {
+      assert.doesNotMatch(content, /^tools:.*\bBash\b.*$/m, `${name} must not expose Bash`);
+    }
+  });
 });
 
 describe("parseFrontmatterDelegatesTo", () => {
@@ -202,12 +232,13 @@ describe("parseFrontmatterPathRestrictions (role files)", () => {
     assert.equal(isPathAllowed("write", "docs/product.md", rules!), true, "write is not restricted by read rules");
   });
 
-  it("architect.md blocks docs/ats/*.feature reads and restricts test writes to acceptance+system", () => {
+  it("architect.md blocks docs/ats/*.feature reads and restricts test writes to rules+acceptance+system", () => {
     const rules = parseFrontmatterPathRestrictions(architectMd);
     assert.ok(rules, "Architect must declare path restrictions");
     assert.equal(isPathAllowed("read", "docs/ats/register-owner.feature", rules!), false, "Architect must not read AT feature files");
     assert.equal(isPathAllowed("read", "docs/ats/INDEX.md", rules!), true, "Architect may read other docs/ats/ files");
     assert.equal(isPathAllowed("read", "src/Main.java", rules!), true, "Architect may read source files");
+    assert.equal(isPathAllowed("write", "src/test/java/test/rules/RegisterOwnerRules.java", rules!), true, "Architect may write business-rule tests");
     assert.equal(isPathAllowed("write", "src/test/java/test/acceptance/RegisterOwnerAT.java", rules!), true, "Architect may write acceptance tests");
     assert.equal(isPathAllowed("write", "src/test/java/test/system/RegisterOwnerST.java", rules!), true, "Architect may write system tests");
     assert.equal(isPathAllowed("write", "src/test/java/test/unit/RegisterOwnerTest.java", rules!), false, "Architect must not write unit tests");

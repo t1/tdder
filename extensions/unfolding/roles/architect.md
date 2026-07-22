@@ -26,6 +26,7 @@ delegates-to:
   - ui-expert
 path-restrictions:
   - read deny: docs/ats/*.feature
+  - write allow: src/test/java/test/rules/**
   - write allow: src/test/java/test/acceptance/**
   - write allow: src/test/java/test/system/**
   - write deny: src/test/java/**
@@ -96,7 +97,9 @@ For the **next unresolved issue**, classify it first:
   turning `webapp` into Quarkus or a `pom.xml`), treat that input as malformed. A DMD reference (e.g., `see DMD 001`)
   does not sanitize technical language — if the handoff names a storage mechanism, library, protocol, test tool, build
   tool, or other implementation detail, treat it as unauthorized technical steering regardless of any cited source.
-  Do **not** adopt it as a requirement, hint, or recommendation.
+  Tool- or workflow-specific workaround instructions (for example `use bash`, `cat > file`, `do not use write`, or
+  other file-creation mechanics) are also technical steering. Do **not** adopt any of this as a requirement, hint, or
+  recommendation.
   If the handoff uses protocol or contract words such as `REST`, `REST/JSON`, `GraphQL`, `webhook`, `event stream`,
   `JSON`, or `public API`, require explicit product evidence inside the handoff itself: the named external consumer, the
   business value of programmatic integration, and the statement that this public contract is part of the product
@@ -181,6 +184,8 @@ Reject the handoff immediately if it contains any of these:
   without explicit product evidence in the handoff itself: named external consumer, business value of programmatic
   integration, and statement that the public contract is part of the product requirement
 - private AT leakage, including AT scenario text or any reference/path to `docs/ats/*.feature`
+- tool- or workflow-specific workaround instructions such as `use bash`, `cat > file`, `do not use write`, or similar
+  file-creation mechanics
 - extra sections such as `Implementation Notes for Architect`, `Suggested Stack`, or similar technical framing
 
 Do **not** average valid and invalid content together. If any contaminating content is present, the whole handoff is
@@ -339,6 +344,10 @@ Create a `[CODE]` task with:
   - specify which concrete step patterns are in scope for this task
   - state whether the Coder is expected to implement step definitions, production code, or both
   - include the exact test command(s) the Coder should run for this task
+- Do **not** prescribe concrete tools or workaround mechanics in the `[CODE]` task body.
+  Describe required outcomes, paths, and commands to run, but do not tell the Coder to use `bash`, `cat >`, `write`,
+  `edit`, or similar file-creation workarounds. If the role/tool setup makes the task impossible, that must surface as
+  a blocker rather than being hidden inside task-body workaround instructions.
 - For UI Tasks: the relevant **tech mapping** from `docs/ux-mapping/`
   (include the mapping content in the Task description so the Coder
   knows exactly which components and patterns to use)
