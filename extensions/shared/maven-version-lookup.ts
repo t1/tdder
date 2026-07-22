@@ -171,10 +171,40 @@ export interface VersionSelection {
   prereleaseFiltered: boolean;
 }
 
-const PRERELEASE_PATTERN = /[-.]?(SNAPSHOT|alpha|beta|RC\d*|M\d*|milestone)/i;
+// Mirrors Maven's ComparableVersion qualifier semantics (case-insensitive):
+// prerelease qualifiers are alpha/beta/milestone/rc/snapshot (ranked strictly below
+// release). Single-letter a/b/m expand to alpha/beta/milestone ONLY when immediately
+// followed by a digit (e.g. "1.0.0-a1"), matching Maven's StringItem(followedByDigit).
+// Aliases cr->rc, ga/final/release->"" (release). Unknown qualifiers (dev, ea, preview,
+// pre, nightly, ...) rank ABOVE release and are therefore NOT prereleases.
+const PRERELEASE_QUALIFIERS = new Set(["alpha", "beta", "milestone", "rc", "snapshot"]);
+const QUALIFIER_ALIASES: Record<string, string> = {
+  cr: "rc",
+  ga: "",
+  final: "",
+  release: "",
+};
+const SINGLE_LETTER_QUALIFIERS: Record<string, string> = {
+  a: "alpha",
+  b: "beta",
+  m: "milestone",
+};
 
-function isPrerelease(version: string): boolean {
-  return PRERELEASE_PATTERN.test(version);
+function resolveQualifier(token: string, followedByDigit: boolean): string {
+  if (token.length === 1 && followedByDigit) {
+    return SINGLE_LETTER_QUALIFIERS[token] ?? token;
+  }
+  return QUALIFIER_ALIASES[token] ?? token;
+}
+
+export function isPrerelease(version: string): boolean {
+  const lower = version.toLowerCase();
+  for (const match of lower.matchAll(/[a-z]+/g)) {
+    const token = match[0];
+    const followedByDigit = /\d/.test(lower.charAt((match.index ?? 0) + token.length));
+    if (PRERELEASE_QUALIFIERS.has(resolveQualifier(token, followedByDigit))) return true;
+  }
+  return false;
 }
 
 export function selectVersion(

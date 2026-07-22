@@ -2,6 +2,7 @@ export {
   buildMetadataUrl,
   fetchMetadata,
   formatVersionLookupError,
+  isPrerelease,
   parseMetadata,
   selectVersion,
   VersionLookupError,

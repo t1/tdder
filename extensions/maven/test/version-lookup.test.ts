@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   buildMetadataUrl,
   fetchMetadata,
+  isPrerelease,
   parseMetadata,
   selectVersion,
   VersionLookupError,
@@ -123,6 +124,64 @@ describe("fetchMetadata", () => {
   });
 });
 
+describe("isPrerelease", () => {
+  const assertPre = (v: string) =>
+    assert.equal(isPrerelease(v), true, `expected prerelease: ${v}`);
+  const assertStable = (v: string) =>
+    assert.equal(isPrerelease(v), false, `expected stable: ${v}`);
+
+  it("matches alpha, beta, milestone, rc, and snapshot qualifiers", () => {
+    for (const v of [
+      "1.0.0-alpha", "1.0.0-alpha1", "1.0.0-alpha-1",
+      "1.0.0-beta", "1.0.0-beta2",
+      "1.0.0-milestone", "1.0.0.milestone", "1.0.0-milestone1",
+      "1.0.0-rc", "1.0.0-rc1",
+      "1.0.0-snapshot", "1.0.0-SNAPSHOT",
+      "1.0alpha1", "1.0.0alpha1",
+    ]) assertPre(v);
+  });
+
+  it("treats cr as an alias for rc", () => {
+    for (const v of ["1.0.0.CR1", "1.0.0-CR1", "1.0.0.cr", "3.38.0.CR1"]) assertPre(v);
+  });
+
+  it("matches single-letter a/b/m only when followed by a digit", () => {
+    for (const v of ["1.0.0-a1", "1.0.0-b1", "1.0.0.A1", "1.0.0.B2", "1.0.0.M1", "1.0.0.m1"]) assertPre(v);
+  });
+
+  it("does not treat bare single-letter qualifiers as prerelease (Maven ranks them above release)", () => {
+    for (const v of ["1.0.0.m", "1.0.0-M", "1.0.0-a", "1.0.0-b", "1.0.0.a", "1.0.0-b"]) assertStable(v);
+  });
+
+  it("does not filter release-equivalent qualifiers (ga, final, release)", () => {
+    for (const v of ["1.0.0", "1.0.0.Final", "1.0.0-ga", "1.0.0-release", "1.0.0.GA", "1.0.0.RELEASE"]) assertStable(v);
+  });
+
+  it("does not filter post-release service packs (sp)", () => {
+    for (const v of ["1.0.0-sp1", "1.0.0.SP1", "1.0.0-sp", "1.0.0-SP2"]) assertStable(v);
+  });
+
+  it("does not filter unknown qualifiers (Maven ranks them above release)", () => {
+    for (const v of [
+      "1.0.0-dev", "1.0.0-dev.3", "1.0.0-ea", "21-ea", "17.0.0-ea",
+      "1.0.0-preview", "1.0.0-preview1", "1.0.0-pre", "1.0.0-pre1", "1.0.0-nightly",
+    ]) assertStable(v);
+  });
+
+  it("does not match qualifiers as substrings of longer tokens", () => {
+    for (const v of ["1.0.0.alphabetical", "1.0.0.amd64", "1.0.0.Predicate", "1.0.0.Device", "1.0.0.jre8", "1.0.0.Linux"]) assertStable(v);
+  });
+
+  it("is case-insensitive", () => {
+    for (const v of ["1.0.0-Alpha", "1.0.0.ALPHA", "1.0.0-Beta", "1.0.0-Milestone", "1.0.0.RC1"]) assertPre(v);
+  });
+
+  it("treats the reported 3.38.0.CR1 as prerelease and 3.37.3 as stable", () => {
+    assertPre("3.38.0.CR1");
+    assertStable("3.37.3");
+  });
+});
+
 describe("selectVersion", () => {
   it("returns latestVersion as selectedVersion when it is stable", () => {
     const result = selectVersion("3.27.3", ["3.26.0", "3.27.0", "3.27.3"], false);
@@ -134,6 +193,13 @@ describe("selectVersion", () => {
     const versions = ["1.9.0", "2.0.0.M1", "2.0.0.RC1", "2.0.0.RC2"];
     const result = selectVersion("2.0.0.RC2", versions, false);
     assert.equal(result.selectedVersion, "1.9.0");
+    assert.equal(result.prereleaseFiltered, true);
+  });
+
+  it("filters out the CR latestVersion and selects the last stable version", () => {
+    const versions = ["3.37.3", "3.38.0.CR1"];
+    const result = selectVersion("3.38.0.CR1", versions, false);
+    assert.equal(result.selectedVersion, "3.37.3");
     assert.equal(result.prereleaseFiltered, true);
   });
 
