@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {execFileSync} from "node:child_process";
 import {existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync} from "node:fs";
 import {join} from "node:path";
-import {AuthStorage, ModelRegistry} from "@earendil-works/pi-coding-agent";
+import {ModelRegistry, ModelRuntime} from "@earendil-works/pi-coding-agent";
+import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import initUnfolding from "../index.ts";
 import {createTask, readTask, updateTaskStatus} from "../task-store.ts";
 import {createSnapshotCommit} from "../git-task-state.ts";
@@ -12,15 +13,17 @@ import {makeTestGitRepo} from "./test-git-repo.ts";
 import {createChildTaskTools} from "../child-task-tools.ts";
 import {makeTaskDelegateDefinition} from "../task-delegate-tool.ts";
 import {askSenseiViaUi} from "../ask-sensei.ts";
-import {fauxAssistantMessage, fauxToolCall, registerFauxProvider} from "./faux-provider.ts";
+import {fauxAssistantMessage, fauxToolCall, registerFauxModelsInRegistry, registerFauxProvider} from "./faux-provider.ts";
 
-function fauxSetup(name: string) {
+async function fauxSetup(name: string) {
   const provider = `${name}-${Date.now()}`;
   const faux = registerFauxProvider({provider, models: [{id: "test-model"}]});
-  const authStorage = AuthStorage.inMemory();
-  authStorage.setRuntimeApiKey(provider, "test-key");
-  const modelRegistry = ModelRegistry.inMemory(authStorage);
-  return {faux, authStorage, modelRegistry};
+  const credentials = new InMemoryCredentialStore();
+  const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
+  return {faux, modelRegistry};
 }
 
 function listExportFiles(cwd: string): string[] {
@@ -765,7 +768,7 @@ describe("registered task tools", () => {
 
   it("task_delegate includes blocked_reason for blocked children", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
-    const {faux, authStorage, modelRegistry} = fauxSetup("index-tools-blocked-child");
+    const {faux, modelRegistry} = await fauxSetup("index-tools-blocked-child");
     try {
       faux.setResponses([
         fauxAssistantMessage([fauxToolCall("task_block", {blocked_reason: "need architecture decision"})], {stopReason: "toolUse"}),
@@ -782,7 +785,7 @@ describe("registered task tools", () => {
         body: "Do work"
       }, AbortSignal.timeout(3000), (update: any) => {
         updates.push(update);
-      }, {cwd, model: faux.getModel(), authStorage, modelRegistry});
+      }, {cwd, model: faux.getModel(), modelRegistry});
 
       assert.match(result.content[0].text, /Outcome: blocked/);
       assert.match(result.content[0].text, /blocked_reason: need architecture decision/);
@@ -888,7 +891,7 @@ describe("registered task tools", () => {
 
   it("task_delegate returns final child output details for finished children", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
-    const {faux, authStorage, modelRegistry} = fauxSetup("index-tools-finished-child");
+    const {faux, modelRegistry} = await fauxSetup("index-tools-finished-child");
     try {
       faux.setResponses([
         fauxAssistantMessage([fauxToolCall("task_finished", {})], {stopReason: "toolUse"}),
@@ -905,7 +908,7 @@ describe("registered task tools", () => {
         body: "Do work"
       }, AbortSignal.timeout(3000), (update: any) => {
         updates.push(update);
-      }, {cwd, model: faux.getModel(), authStorage, modelRegistry});
+      }, {cwd, model: faux.getModel(), modelRegistry});
 
       assert.match(result.content[0].text, /Outcome: finished/);
       assert.ok(updates.length > 0, "expected streamed child output updates for finished child");
@@ -1026,7 +1029,7 @@ describe("registered task tools", () => {
 
   it("task_delegate returns an aborted result when its signal aborts during nested delegation", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
-    const {faux, authStorage, modelRegistry} = fauxSetup("index-tools-late-abort");
+    const {faux, modelRegistry} = await fauxSetup("index-tools-late-abort");
     try {
       faux.setResponses([
         fauxAssistantMessage([], {stopReason: "aborted", errorMessage: "Request was aborted."} as any),
@@ -1042,7 +1045,7 @@ describe("registered task tools", () => {
         role: "po",
         slug: "late-aborted-child",
         body: "Do work"
-      }, controller.signal, undefined, {cwd, model: faux.getModel(), authStorage, modelRegistry, abort() {
+      }, controller.signal, undefined, {cwd, model: faux.getModel(), modelRegistry, abort() {
       }});
 
       queueMicrotask(() => controller.abort());
@@ -1059,7 +1062,7 @@ describe("registered task tools", () => {
 
   it("task_delegate also treats ctx.signal abort as a user abort during nested delegation", async () => {
     const {cwd} = makeTestGitRepo("index-tools");
-    const {faux, authStorage, modelRegistry} = fauxSetup("index-tools-ctx-signal-abort");
+    const {faux, modelRegistry} = await fauxSetup("index-tools-ctx-signal-abort");
     try {
       faux.setResponses([
         fauxAssistantMessage([], {stopReason: "aborted", errorMessage: "Request was aborted."} as any),
@@ -1074,8 +1077,7 @@ describe("registered task tools", () => {
       const ctx: any = {
         cwd,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
         abort() {
         },
         get signal() {

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import type { Model } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, AgentSession, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { readTask } from "./task-store.ts";
 import { createChildAgentSession, createChildUiBus, type NestedDelegateToolFactory } from "./session-common.ts";
@@ -14,7 +14,6 @@ export async function restoreChildSession(
   postOutput: (lines: string) => void,
   nestedDelegateToolFactory: NestedDelegateToolFactory,
   model?: Model<any>,
-  authStorage?: AuthStorage,
   modelRegistry?: ModelRegistry,
   costLedger?: CostLedger,
 ): Promise<{ session: AgentSession; shutdown: () => Promise<void> } | null> {
@@ -32,7 +31,6 @@ export async function restoreChildSession(
     postOutput,
     nestedDelegateToolFactory,
     model,
-    authStorage,
     modelRegistry,
     costLedger,
     childUiBus,

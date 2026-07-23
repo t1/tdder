@@ -1,5 +1,5 @@
 import type { Model } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, AgentSession, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
 import { createSnapshotCommit, ensureGitRepoWithHead, isWorkspaceDirty } from "./git-task-state.ts";
@@ -37,7 +37,6 @@ export interface StartChildSessionParams {
   parentSignal?: AbortSignal;
   onUpdate?: any;
   model?: Model<any>;
-  authStorage?: AuthStorage;
   modelRegistry?: ModelRegistry;
   costLedger?: CostLedger;
 }
@@ -57,7 +56,6 @@ export async function startChildSession({
   parentSignal,
   onUpdate,
   model,
-  authStorage,
   modelRegistry,
   costLedger,
 }: StartChildSessionParams): Promise<ChildSessionRunResult> {
@@ -77,7 +75,6 @@ export async function startChildSession({
     parentSignal,
     onUpdate,
     model,
-    authStorage,
     modelRegistry,
     costLedger,
     existing,
@@ -99,7 +96,6 @@ async function startChildSessionAttempt({
   parentSignal,
   onUpdate,
   model,
-  authStorage,
   modelRegistry,
   costLedger,
   existing,
@@ -125,7 +121,6 @@ async function startChildSessionAttempt({
     postOutput,
     nestedDelegateToolFactory,
     model,
-    authStorage,
     modelRegistry,
     costLedger,
     childUiBus,
@@ -237,7 +232,6 @@ async function startChildSessionAttempt({
           parentSignal,
           onUpdate,
           model,
-          authStorage,
           modelRegistry,
           costLedger,
           previousSession: session,
@@ -262,7 +256,6 @@ async function startChildSessionAttempt({
         parentSignal,
         onUpdate,
         model,
-        authStorage,
         modelRegistry,
         costLedger,
         previousSession: session,
@@ -306,11 +299,10 @@ async function recreateChildSession({
   parentSignal,
   onUpdate,
   model,
-  authStorage,
   modelRegistry,
   costLedger,
   previousSession,
-}: Pick<StartChildSessionParams, "cwd" | "activeSessions" | "pi" | "postOutput" | "nestedDelegateToolFactory" | "signal" | "parentSignal" | "onUpdate" | "model" | "authStorage" | "modelRegistry" | "costLedger"> & {
+}: Pick<StartChildSessionParams, "cwd" | "activeSessions" | "pi" | "postOutput" | "nestedDelegateToolFactory" | "signal" | "parentSignal" | "onUpdate" | "model" | "modelRegistry" | "costLedger"> & {
   slug: string;
   body: string;
   previousSession: AgentSession;
@@ -338,7 +330,6 @@ async function recreateChildSession({
     parentSignal,
     onUpdate,
     model,
-    authStorage,
     modelRegistry,
     costLedger,
     existing: readTask(cwd, slug),

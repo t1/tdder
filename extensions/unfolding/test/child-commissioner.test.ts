@@ -5,8 +5,9 @@
 
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
-import { fauxAssistantMessage, fauxToolCall, registerFauxProvider } from "./faux-provider.ts";
+import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
+import { fauxAssistantMessage, fauxToolCall, registerFauxModelsInRegistry, registerFauxProvider } from "./faux-provider.ts";
 import { startChildSession } from "../session-factory.ts";
 import { makeTaskDelegateDefinition } from "../task-delegate-tool.ts";
 import { makeTestGitRepo } from "./test-git-repo.ts";
@@ -26,13 +27,15 @@ function listExportFiles(cwd: string): string[] {
   return existsSync(dir) ? readdirSync(dir) : [];
 }
 
-function sharedFauxSetup(name: string) {
+async function sharedFauxSetup(name: string) {
   const provider = `${name}-${Date.now()}`;
   const faux = registerFauxProvider({ provider, models: [{ id: "test-model" }] });
-  const auth = AuthStorage.inMemory();
-  auth.setRuntimeApiKey(provider, "test-key");
-  const modelRegistry = ModelRegistry.inMemory(auth);
-  return { faux, auth, modelRegistry };
+  const credentials = new InMemoryCredentialStore();
+  const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
+  return { faux, modelRegistry };
 }
 
 async function cleanupActiveSessions(activeSessions: Map<string, any>): Promise<void> {
@@ -78,7 +81,7 @@ afterEach(async () => {
 describe("child commissioner tools", () => {
   it("child can call task_accept on a finished grandchild", async () => {
     const { cwd } = makeTestGitRepo("child-commissioner");
-    const { faux, auth, modelRegistry } = sharedFauxSetup("accept");
+    const { faux, modelRegistry } = await sharedFauxSetup("accept");
     try {
       // Call order: child:task_delegate → grandchild:task_finished → child:task_accept → child:task_finished
       faux.setResponses([
@@ -101,8 +104,7 @@ describe("child commissioner tools", () => {
         nestedDelegateToolFactory: (shortRole, commissionerSlug) =>
           makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
         model: faux.getModel(),
-        authStorage: auth,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "finished");
@@ -114,7 +116,7 @@ describe("child commissioner tools", () => {
 
   it("child delegation persists the commissioner slug as parent_slug", async () => {
     const { cwd } = makeTestGitRepo("child-commissioner");
-    const { faux, auth, modelRegistry } = sharedFauxSetup("parent-slug");
+    const { faux, modelRegistry } = await sharedFauxSetup("parent-slug");
     try {
       faux.setResponses([
         fauxAssistantMessage([fauxToolCall("task_delegate", { role: "architect", slug: "gc-parent", body: "do something" })], { stopReason: "toolUse" }),
@@ -133,8 +135,7 @@ describe("child commissioner tools", () => {
         nestedDelegateToolFactory: (shortRole, commissionerSlug) =>
           makeTaskDelegateDefinition(shortRole, activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
         model: faux.getModel(),
-        authStorage: auth,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "blocked");
@@ -151,8 +152,8 @@ describe("child commissioner tools", () => {
 
   it("child can call task_reopen on a finished grandchild, and accept it after grandchild finishes again", async () => {
     const { cwd } = makeTestGitRepo("child-commissioner");
-    const { faux: childFaux, auth: childAuth, modelRegistry: childRegistry } = sharedFauxSetup("reopen-child");
-    const { faux: gcFaux, auth: gcAuth, modelRegistry: gcRegistry } = sharedFauxSetup("reopen-gc");
+    const { faux: childFaux, modelRegistry: childRegistry } = await sharedFauxSetup("reopen-child");
+    const { faux: gcFaux, modelRegistry: gcRegistry } = await sharedFauxSetup("reopen-gc");
     try {
       childFaux.setResponses([
         fauxAssistantMessage([fauxToolCall("task_delegate", { role: "architect", slug: "gc-reopen", body: "do something" })], { stopReason: "toolUse" }),
@@ -193,16 +194,14 @@ describe("child commissioner tools", () => {
               postOutput: () => {},
               nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
               model: gcFaux.getModel(),
-              authStorage: gcAuth,
-              modelRegistry: gcRegistry,
+                            modelRegistry: gcRegistry,
             });
             activeSessions.set(params.slug, session);
             return { content: [{ type: "text", text: `Outcome: ${outcome}` }], details: {} };
           },
         }),
         model: childFaux.getModel(),
-        authStorage: childAuth,
-        modelRegistry: childRegistry,
+                modelRegistry: childRegistry,
       });
 
       assert.equal(result.outcome, "finished");
@@ -215,8 +214,8 @@ describe("child commissioner tools", () => {
 
   it("child can call task_unblock on a blocked grandchild, and accept it after grandchild finishes", async () => {
     const { cwd } = makeTestGitRepo("child-commissioner");
-    const { faux: childFaux, auth: childAuth, modelRegistry: childRegistry } = sharedFauxSetup("unblock-child");
-    const { faux: gcFaux, auth: gcAuth, modelRegistry: gcRegistry } = sharedFauxSetup("unblock-gc");
+    const { faux: childFaux, modelRegistry: childRegistry } = await sharedFauxSetup("unblock-child");
+    const { faux: gcFaux, modelRegistry: gcRegistry } = await sharedFauxSetup("unblock-gc");
     try {
       childFaux.setResponses([
         fauxAssistantMessage([fauxToolCall("task_delegate", { role: "architect", slug: "gc-unblock", body: "do something" })], { stopReason: "toolUse" }),
@@ -256,16 +255,14 @@ describe("child commissioner tools", () => {
               postOutput: () => {},
               nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
               model: gcFaux.getModel(),
-              authStorage: gcAuth,
-              modelRegistry: gcRegistry,
+                            modelRegistry: gcRegistry,
             });
             activeSessions.set(params.slug, session);
             return { content: [{ type: "text", text: `Outcome: ${outcome}` }], details: {} };
           },
         }),
         model: childFaux.getModel(),
-        authStorage: childAuth,
-        modelRegistry: childRegistry,
+                modelRegistry: childRegistry,
       });
 
       assert.equal(result.outcome, "finished");
@@ -277,8 +274,8 @@ describe("child commissioner tools", () => {
   });
   it("child can call task_rollback on a finished grandchild without losing its own task", async () => {
     const { cwd } = makeTestGitRepo("child-commissioner");
-    const { faux: childFaux, auth: childAuth, modelRegistry: childRegistry } = sharedFauxSetup("rollback-child");
-    const { faux: gcFaux, auth: gcAuth, modelRegistry: gcRegistry } = sharedFauxSetup("rollback-gc");
+    const { faux: childFaux, modelRegistry: childRegistry } = await sharedFauxSetup("rollback-child");
+    const { faux: gcFaux, modelRegistry: gcRegistry } = await sharedFauxSetup("rollback-gc");
     try {
       childFaux.setResponses([
         fauxAssistantMessage([fauxToolCall("task_delegate", { role: "architect", slug: "gc-rollback", body: "do something" })], { stopReason: "toolUse" }),
@@ -317,16 +314,14 @@ describe("child commissioner tools", () => {
               postOutput: () => {},
               nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
               model: gcFaux.getModel(),
-              authStorage: gcAuth,
-              modelRegistry: gcRegistry,
+                            modelRegistry: gcRegistry,
             });
             activeSessions.set(params.slug, session);
             return { content: [{ type: "text", text: `Outcome: ${outcome}` }], details: {} };
           },
         }),
         model: childFaux.getModel(),
-        authStorage: childAuth,
-        modelRegistry: childRegistry,
+                modelRegistry: childRegistry,
       });
 
       assert.equal(result.outcome, "finished");
@@ -339,7 +334,7 @@ describe("child commissioner tools", () => {
 
   it("child delegate result includes blocked_reason for blocked grandchild", async () => {
     const { cwd } = makeTestGitRepo("child-commissioner");
-    const { faux, auth, modelRegistry } = sharedFauxSetup("blocked-reason");
+    const { faux, modelRegistry } = await sharedFauxSetup("blocked-reason");
     try {
       faux.setResponses([
         fauxAssistantMessage([fauxToolCall("task_delegate", { role: "architect", slug: "gc-blocked", body: "do something" })], { stopReason: "toolUse" }),
@@ -357,8 +352,7 @@ describe("child commissioner tools", () => {
         {
           cwd,
           model: faux.getModel(),
-          authStorage: auth,
-          modelRegistry,
+                    modelRegistry,
           abort() {},
         },
       );
@@ -374,7 +368,7 @@ describe("child commissioner tools", () => {
 
   it("child commissioner debug mode exports commissioner html on handover", async () => {
     const { cwd } = makeTestGitRepo("child-commissioner");
-    const { faux, auth, modelRegistry } = sharedFauxSetup("child-debug-export");
+    const { faux, modelRegistry } = await sharedFauxSetup("child-debug-export");
     const commissionerSessionFile = join(cwd, "child-commissioner-session.jsonl");
     const pi = {
       __unfoldingDebugExportsEnabled: true,
@@ -402,8 +396,7 @@ describe("child commissioner tools", () => {
         nestedDelegateToolFactory: (shortRole) =>
           makeTaskDelegateDefinition(shortRole, activeSessions, pi, () => {}),
         model: faux.getModel(),
-        authStorage: auth,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "finished");
@@ -416,7 +409,7 @@ describe("child commissioner tools", () => {
 
   it("nested child prompts route to the captured root UI with role labeling", async () => {
     const { cwd } = makeTestGitRepo("child-commissioner");
-    const { faux, auth, modelRegistry } = sharedFauxSetup("nested-root-ui");
+    const { faux, modelRegistry } = await sharedFauxSetup("nested-root-ui");
     const prompts: string[] = [];
     const pi = {
       __unfoldingRootUi: {
@@ -453,8 +446,7 @@ describe("child commissioner tools", () => {
           hasUI: false,
           ui: {},
           model: faux.getModel(),
-          authStorage: auth,
-          modelRegistry,
+                    modelRegistry,
           abort() {},
         },
       );
@@ -470,8 +462,8 @@ describe("child commissioner tools", () => {
 
   it("child session should abort when its propagated signal aborts during nested delegation", async () => {
     const { cwd } = makeTestGitRepo("child-commissioner");
-    const { faux: childFaux, auth: childAuth, modelRegistry: childRegistry } = sharedFauxSetup("signal-abort-child");
-    const { faux: gcFaux, auth: gcAuth, modelRegistry: gcRegistry } = sharedFauxSetup("signal-abort-gc");
+    const { faux: childFaux, modelRegistry: childRegistry } = await sharedFauxSetup("signal-abort-child");
+    const { faux: gcFaux, modelRegistry: gcRegistry } = await sharedFauxSetup("signal-abort-gc");
     const activeSessions = trackActiveSessions();
     try {
       childFaux.setResponses([
@@ -509,16 +501,14 @@ describe("child commissioner tools", () => {
               signal: controller.signal,
               nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
               model: gcFaux.getModel(),
-              authStorage: gcAuth,
-              modelRegistry: gcRegistry,
+                            modelRegistry: gcRegistry,
             });
             activeSessions.set(params.slug, result.session);
             return { content: [{ type: "text", text: `Outcome: ${result.outcome}` }], details: {} };
           },
         }),
         model: childFaux.getModel(),
-        authStorage: childAuth,
-        modelRegistry: childRegistry,
+                modelRegistry: childRegistry,
       });
 
       const result = await resultPromise;
@@ -533,8 +523,8 @@ describe("child commissioner tools", () => {
 
   it("child session should treat an unknown grandchild aborted result as a technical block", async () => {
     const { cwd } = makeTestGitRepo("child-commissioner");
-    const { faux: childFaux, auth: childAuth, modelRegistry: childRegistry } = sharedFauxSetup("abort-child");
-    const { faux: gcFaux, auth: gcAuth, modelRegistry: gcRegistry } = sharedFauxSetup("abort-gc");
+    const { faux: childFaux, modelRegistry: childRegistry } = await sharedFauxSetup("abort-child");
+    const { faux: gcFaux, modelRegistry: gcRegistry } = await sharedFauxSetup("abort-gc");
     const activeSessions = trackActiveSessions();
     try {
       childFaux.setResponses([
@@ -570,16 +560,14 @@ describe("child commissioner tools", () => {
               postOutput: () => {},
               nestedDelegateToolFactory: () => makeTaskDelegateDefinition("coder", activeSessions, {} as any, () => {}, undefined, undefined, commissionerSlug),
               model: gcFaux.getModel(),
-              authStorage: gcAuth,
-              modelRegistry: gcRegistry,
+                            modelRegistry: gcRegistry,
             });
             activeSessions.set(params.slug, result.session);
             return { content: [{ type: "text", text: `Outcome: ${result.outcome}` }], details: {} };
           },
         }),
         model: childFaux.getModel(),
-        authStorage: childAuth,
-        modelRegistry: childRegistry,
+                modelRegistry: childRegistry,
       });
 
       const result = await resultPromise;

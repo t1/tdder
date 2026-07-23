@@ -2,8 +2,9 @@ import {describe, it} from "node:test";
 import {readFileSync, writeFileSync} from "node:fs";
 import assert from "node:assert/strict";
 import {join} from "node:path";
-import {fauxAssistantMessage, fauxToolCall, registerFauxProvider} from "./faux-provider.ts";
-import {AuthStorage, ModelRegistry} from "@earendil-works/pi-coding-agent";
+import {fauxAssistantMessage, fauxToolCall, registerFauxModelsInRegistry, registerFauxProvider} from "./faux-provider.ts";
+import {ModelRegistry, ModelRuntime} from "@earendil-works/pi-coding-agent";
+import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import {createTask, readTask} from "../task-store.ts";
 import {taskBlock, taskFinished, taskReopen, taskUnblock} from "../task-tools.ts";
 import {resumeDelegatedTask} from "../task-resume.ts";
@@ -165,9 +166,11 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         fauxToolCall("task_finished", {}),
       ], {stopReason: "toolUse"}),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+        const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+    registerFauxModelsInRegistry(modelRegistry, faux);
 
     try {
       const activeSessions = new Map() as any;
@@ -183,8 +186,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(started.outcome, "blocked");
@@ -201,8 +203,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         mutateTask: taskUnblock,
         pi: {} as any,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(outcome, "finished");
@@ -233,9 +234,11 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         fauxToolCall("task_finished", {}),
       ], {stopReason: "toolUse"}),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+        const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+    registerFauxModelsInRegistry(modelRegistry, faux);
     const asks: any[] = [];
 
     try {
@@ -263,8 +266,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(started.outcome, "blocked");
@@ -292,8 +294,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
           },
         } as any,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(outcome, "finished");
@@ -324,9 +325,11 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         fauxToolCall("task_finished", {}),
       ], {stopReason: "toolUse"}),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+        const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+    registerFauxModelsInRegistry(modelRegistry, faux);
 
     try {
       const activeSessions = new Map() as any;
@@ -342,8 +345,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(started.outcome, "blocked");
@@ -360,8 +362,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         mutateTask: taskUnblock,
         pi: {} as any,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(outcome, "finished");
@@ -388,9 +389,11 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         fauxToolCall("task_finished", {}),
       ], {stopReason: "toolUse"}),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+        const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+    registerFauxModelsInRegistry(modelRegistry, faux);
 
     try {
       const activeSessions = new Map() as any;
@@ -406,8 +409,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(started.outcome, "blocked");
@@ -424,8 +426,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         mutateTask: taskUnblock,
         pi: {} as any,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(outcome, "finished");
@@ -449,9 +450,11 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       fauxAssistantMessage("forgot checkpoint once"),
       fauxAssistantMessage("forgot checkpoint twice"),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+        const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+    registerFauxModelsInRegistry(modelRegistry, faux);
 
     try {
       const activeSessions = new Map() as any;
@@ -467,8 +470,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(started.outcome, "blocked");
@@ -485,8 +487,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         mutateTask: taskUnblock,
         pi: {} as any,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(outcome, "blocked");
@@ -513,9 +514,11 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       fauxAssistantMessage("ok"),
       fauxAssistantMessage("transport failed", {stopReason: "error", errorMessage: "Permission denied."} as any),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+        const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+    registerFauxModelsInRegistry(modelRegistry, faux);
 
     try {
       const activeSessions = new Map() as any;
@@ -531,8 +534,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(started.outcome, "blocked");
@@ -549,8 +551,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         mutateTask: taskUnblock,
         pi: {} as any,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(outcome, "blocked");
@@ -580,9 +581,11 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       fauxAssistantMessage("first resumed truncation", {stopReason: "length"}),
       fauxAssistantMessage("second resumed truncation", {stopReason: "length"}),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+        const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+    registerFauxModelsInRegistry(modelRegistry, faux);
 
     try {
       const activeSessions = new Map() as any;
@@ -598,8 +601,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(started.outcome, "blocked");
@@ -616,8 +618,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         mutateTask: taskUnblock,
         pi: {} as any,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(outcome, "blocked");
@@ -648,9 +649,11 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
       fauxAssistantMessage("first reopened truncation", {stopReason: "length"}),
       fauxAssistantMessage("second reopened truncation", {stopReason: "length"}),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+        const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+    registerFauxModelsInRegistry(modelRegistry, faux);
 
     try {
       const activeSessions = new Map() as any;
@@ -666,8 +669,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(started.outcome, "finished");
@@ -684,8 +686,7 @@ describe("resumeDelegatedTask restore and fallback behavior", () => {
         mutateTask: taskReopen,
         pi: {} as any,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(outcome, "blocked");

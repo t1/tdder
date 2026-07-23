@@ -1,5 +1,5 @@
 import type { Model } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, AgentSession, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, AgentSession, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { taskFinished, taskBlock, taskAccept, taskReopen, taskUnblock, taskRollback } from "./task-tools.ts";
 import { CHILD_FIXED_INSTRUCTION } from "./task-delegate.ts";
@@ -15,7 +15,6 @@ export interface ChildCommissionerContext {
   pi: ExtensionAPI;
   role?: string;
   model?: Model<any>;
-  authStorage?: AuthStorage;
   modelRegistry?: ModelRegistry;
   debugExportsEnabled?: boolean;
   costLedger?: CostLedger;
@@ -118,7 +117,6 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
           mutateTask: (cwd, slug, reason) => taskReopen(cwd, slug, reason ?? params.reason),
           pi: commissionerCtx.pi,
           model: commissionerCtx.model,
-          authStorage: commissionerCtx.authStorage,
           modelRegistry: commissionerCtx.modelRegistry,
           exportDebugHtml: commissionerCtx.debugExportsEnabled
             ? (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, true)
@@ -164,7 +162,6 @@ export function createChildTaskTools(cwd: string, slug: string, nestedDelegateTo
           mutateTask: (cwd, slug, reason) => taskUnblock(cwd, slug, reason),
           pi: commissionerCtx.pi,
           model: commissionerCtx.model,
-          authStorage: commissionerCtx.authStorage,
           modelRegistry: commissionerCtx.modelRegistry,
           exportDebugHtml: commissionerCtx.debugExportsEnabled
             ? (cwd, slug) => exportTaskDebugHtmlIfEnabled(cwd, slug, true)

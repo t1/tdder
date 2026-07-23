@@ -3,13 +3,14 @@ import assert from "node:assert/strict";
 import {mkdirSync, readFileSync, writeFileSync} from "node:fs";
 import {execFileSync} from "node:child_process";
 import {join, resolve} from "node:path";
-import {AuthStorage, ModelRegistry} from "@earendil-works/pi-coding-agent";
+import {ModelRegistry, ModelRuntime} from "@earendil-works/pi-coding-agent";
+import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import {readTaskSnapshot, startChildSession} from "../session-factory.ts";
 import { CHILD_SESSION_FAILURE_BLOCKED_REASON, MISSING_CHECKPOINT_BLOCKED_REASON } from "../task-delegate.ts";
 import {restoreChildSession} from "../session-restore.ts";
 import {cleanupTestTempDir, makeTestTempDir} from "./test-temp.ts";
 import {makeTestGitRepo} from "./test-git-repo.ts";
-import {expectLastToolResult, fauxAssistantMessage, fauxToolCall, registerFauxProvider} from "./faux-provider.ts";
+import {expectLastToolResult, fauxAssistantMessage, fauxToolCall, registerFauxModelsInRegistry, registerFauxProvider} from "./faux-provider.ts";
 
 function nestedDelegateToolFactory(_shortRole: string, _currentCommissionerSlug: string) {
   return {
@@ -23,17 +24,19 @@ function nestedDelegateToolFactory(_shortRole: string, _currentCommissionerSlug:
   };
 }
 
-function fauxSetup(name: string, responses: any[]) {
+async function fauxSetup(name: string, responses: any[]) {
   const provider = `${name}-${Date.now()}`;
   const faux = registerFauxProvider({
     provider,
     models: [{id: "test-model"}],
   });
   faux.setResponses(responses);
-  const authStorage = AuthStorage.inMemory();
-  authStorage.setRuntimeApiKey(provider, "test-key");
-  const modelRegistry = ModelRegistry.inMemory(authStorage);
-  return {faux, authStorage, modelRegistry};
+  const credentials = new InMemoryCredentialStore();
+  const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
+  return {faux, modelRegistry};
 }
 
 function blockedTaskFauxResponses() {
@@ -45,7 +48,7 @@ function blockedTaskFauxResponses() {
   ];
 }
 
-function fauxSessionSetup(name: string) {
+async function fauxSessionSetup(name: string) {
   return fauxSetup(name, blockedTaskFauxResponses());
 }
 
@@ -95,9 +98,11 @@ describe("startChildSession groundwork", () => {
         fauxToolCall("task_finished", {}),
       ], {stopReason: "toolUse"}),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+      const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
     try {
       const result = await startChildSession({
         cwd,
@@ -110,8 +115,7 @@ describe("startChildSession groundwork", () => {
         postOutput: () => {},
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
       assert.equal(result.outcome, "finished");
       assert.equal(readTaskSnapshot(cwd, "recreate-child")?.status, "finished");
@@ -125,7 +129,7 @@ describe("startChildSession groundwork", () => {
 
   it("creates a task with session_file and base_sha persisted", async () => {
     const {cwd, head} = makeTestGitRepo("session-factory");
-    const {faux, authStorage, modelRegistry} = fauxSetup("session-factory", blockedTaskFauxResponses());
+    const {faux, modelRegistry} = await fauxSetup("session-factory", blockedTaskFauxResponses());
     try {
       const resultPromise = startChildSession({
         cwd,
@@ -139,8 +143,7 @@ describe("startChildSession groundwork", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       const deadline = Date.now() + 10000;
@@ -166,7 +169,7 @@ describe("startChildSession groundwork", () => {
 
   it("initializes a git repo before persisting base_sha when the workspace has none", async () => {
     const cwd = makeTestTempDir("session-factory");
-    const {faux, authStorage, modelRegistry} = fauxSessionSetup("session-init-git");
+    const {faux, modelRegistry} = await fauxSessionSetup("session-init-git");
     try {
       mkdirSync(join(cwd, "docs"), {recursive: true});
       writeFileSync(join(cwd, "docs", "README.md"), "seed\n");
@@ -185,8 +188,7 @@ describe("startChildSession groundwork", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       const deadline = Date.now() + 10000;
@@ -224,7 +226,7 @@ describe("startChildSession groundwork", () => {
 
   it("keeps snapshot_sha unset when the workspace is clean", async () => {
     const {cwd, head: baseHead} = makeTestGitRepo("session-factory");
-    const {faux, authStorage, modelRegistry} = fauxSessionSetup("session-clean");
+    const {faux, modelRegistry} = await fauxSessionSetup("session-clean");
     try {
       const resultPromise = startChildSession({
         cwd,
@@ -238,8 +240,7 @@ describe("startChildSession groundwork", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       const deadline = Date.now() + 10000;
@@ -269,7 +270,7 @@ describe("startChildSession groundwork", () => {
 
   it("creates and persists snapshot_sha when the workspace is dirty", async () => {
     const {cwd, head: baseHead} = makeTestGitRepo("session-factory");
-    const {faux, authStorage, modelRegistry} = fauxSessionSetup("session-snapshot");
+    const {faux, modelRegistry} = await fauxSessionSetup("session-snapshot");
     try {
       writeFileSync(join(cwd, "docs", "README.md"), "seed\nchanged before delegate\n");
       writeFileSync(join(cwd, "notes.txt"), "untracked before delegate\n");
@@ -286,8 +287,7 @@ describe("startChildSession groundwork", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       const deadline = Date.now() + 10000;
@@ -331,9 +331,11 @@ describe("startChildSession groundwork", () => {
         fauxToolCall("task_finished", {}),
       ], {stopReason: "toolUse"}),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+      const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
     try {
       const result = await startChildSession({
         cwd,
@@ -347,8 +349,7 @@ describe("startChildSession groundwork", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "finished");
@@ -372,9 +373,11 @@ describe("startChildSession groundwork", () => {
         fauxToolCall("task_finished", {}),
       ], {stopReason: "toolUse"}),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+      const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
     try {
       const result = await startChildSession({
         cwd,
@@ -388,8 +391,7 @@ describe("startChildSession groundwork", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "finished");
@@ -410,9 +412,11 @@ describe("startChildSession groundwork", () => {
       fauxAssistantMessage("still forgot the checkpoint"),
       fauxAssistantMessage("forgot again"),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+      const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
     try {
       const result = await startChildSession({
         cwd,
@@ -426,8 +430,7 @@ describe("startChildSession groundwork", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "blocked");
@@ -450,9 +453,11 @@ describe("startChildSession groundwork", () => {
     faux.setResponses([
       fauxAssistantMessage("transport failed", {stopReason: "error", errorMessage: "Permission denied."} as any),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+      const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
     try {
       const result = await startChildSession({
         cwd,
@@ -466,8 +471,7 @@ describe("startChildSession groundwork", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "blocked");
@@ -492,9 +496,11 @@ describe("startChildSession groundwork", () => {
     faux.setResponses([
       fauxAssistantMessage("transport aborted", {stopReason: "aborted", errorMessage: "Request was aborted."} as any),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+      const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
     try {
       const result = await startChildSession({
         cwd,
@@ -508,8 +514,7 @@ describe("startChildSession groundwork", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "blocked");
@@ -533,9 +538,11 @@ describe("startChildSession groundwork", () => {
     faux.setResponses([
       fauxAssistantMessage("transport aborted", {stopReason: "aborted", errorMessage: "Request was aborted."} as any),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+      const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
     try {
       const controller = new AbortController();
       queueMicrotask(() => controller.abort());
@@ -553,8 +560,7 @@ describe("startChildSession groundwork", () => {
         signal: controller.signal,
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "aborted");
@@ -577,9 +583,11 @@ describe("startChildSession groundwork", () => {
     faux.setResponses([
       fauxAssistantMessage("waiting", {stopReason: "aborted", errorMessage: "aborted"} as any),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+      const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
     try {
       const controller = new AbortController();
       queueMicrotask(() => controller.abort());
@@ -597,8 +605,7 @@ describe("startChildSession groundwork", () => {
         signal: controller.signal,
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "aborted");
@@ -621,9 +628,11 @@ describe("startChildSession groundwork", () => {
     faux.setResponses([
       fauxAssistantMessage("waiting", {stopReason: "aborted", errorMessage: "aborted"} as any),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+      const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
     try {
       const controller = new AbortController();
       queueMicrotask(() => controller.abort());
@@ -641,8 +650,7 @@ describe("startChildSession groundwork", () => {
         parentSignal: controller.signal,
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "aborted");
@@ -666,9 +674,11 @@ describe("startChildSession groundwork", () => {
       fauxAssistantMessage("first truncated response", {stopReason: "length"}),
       fauxAssistantMessage("second truncated response", {stopReason: "length"}),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+      const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
     try {
       const result = await startChildSession({
         cwd,
@@ -682,8 +692,7 @@ describe("startChildSession groundwork", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "blocked");
@@ -701,7 +710,7 @@ describe("startChildSession groundwork", () => {
 
   it("restores from the real persisted session_file created by startChildSession", async () => {
     const {cwd} = makeTestGitRepo("session-factory");
-    const {faux, authStorage, modelRegistry} = fauxSessionSetup("session-restore");
+    const {faux, modelRegistry} = await fauxSessionSetup("session-restore");
     let restoredShutdown: (() => Promise<void>) | undefined;
     try {
       const activeSessions = new Map() as any;
@@ -717,8 +726,7 @@ describe("startChildSession groundwork", () => {
         },
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(outcome, "blocked");
@@ -742,7 +750,7 @@ describe("startChildSession groundwork", () => {
 
   it("child sessions exclude root-only task tools, keep ask_sensei, and load sibling pi extensions", async () => {
     const { cwd } = makeTestGitRepo("session-factory");
-    const { faux, authStorage, modelRegistry } = fauxSessionSetup("session-tools");
+    const { faux, modelRegistry } = await fauxSessionSetup("session-tools");
     try {
       const activeSessions = new Map() as any;
       const { session } = await startChildSession({
@@ -762,8 +770,7 @@ describe("startChildSession groundwork", () => {
         postOutput: () => {},
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       const tools = (session.agent.state.tools ?? []).map((t: any) => t.name);
@@ -782,7 +789,7 @@ describe("startChildSession groundwork", () => {
 
   it("child sessions also load bundled sibling extensions even when inherited extension paths were not captured", async () => {
     const { cwd } = makeTestGitRepo("session-factory");
-    const { faux, authStorage, modelRegistry } = fauxSessionSetup("session-tools-fallback");
+    const { faux, modelRegistry } = await fauxSessionSetup("session-tools-fallback");
     try {
       const activeSessions = new Map() as any;
       const { session } = await startChildSession({
@@ -798,8 +805,7 @@ describe("startChildSession groundwork", () => {
         postOutput: () => {},
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       const tools = (session.agent.state.tools ?? []).map((t: any) => t.name);
@@ -825,7 +831,7 @@ describe("startChildSession groundwork", () => {
   </build>
 </project>
 `);
-    const { faux, authStorage, modelRegistry } = fauxSessionSetup("session-tools-hide-bootstrap");
+    const { faux, modelRegistry } = await fauxSessionSetup("session-tools-hide-bootstrap");
     try {
       const activeSessions = new Map() as any;
       const { session } = await startChildSession({
@@ -841,8 +847,7 @@ describe("startChildSession groundwork", () => {
         postOutput: () => {},
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       const tools = (session.agent.state.tools ?? []).map((t: any) => t.name);
@@ -857,7 +862,7 @@ describe("startChildSession groundwork", () => {
   it("fresh architect child sessions can call quarkus tools registered asynchronously during session_start", async () => {
     const {cwd} = makeTestGitRepo("session-factory");
     const delayedExtension = createDelayedQuarkusProbeExtension(cwd, "fake-delayed-quarkus-probe");
-    const {faux, authStorage, modelRegistry} = fauxSetup("session-fresh-delayed-quarkus-probe", [
+    const {faux, modelRegistry} = await fauxSetup("session-fresh-delayed-quarkus-probe", [
       fauxAssistantMessage([
         fauxToolCall("quarkus_delayed_probe", {}),
       ], {stopReason: "toolUse"}),
@@ -883,8 +888,7 @@ describe("startChildSession groundwork", () => {
         postOutput: () => {},
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "finished");
@@ -908,9 +912,11 @@ describe("startChildSession groundwork", () => {
         fauxToolCall("task_finished", {}),
       ], { stopReason: "toolUse" }),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+      const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
     const asks: any[] = [];
 
     try {
@@ -938,8 +944,7 @@ describe("startChildSession groundwork", () => {
         postOutput: () => {},
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "finished");
@@ -966,9 +971,11 @@ describe("startChildSession groundwork", () => {
         fauxToolCall("task_finished", {}),
       ], { stopReason: "toolUse" }),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+      const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
     const asks: any[] = [];
 
     try {
@@ -992,8 +999,7 @@ describe("startChildSession groundwork", () => {
         postOutput: () => {},
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       assert.equal(result.outcome, "finished");
@@ -1006,7 +1012,7 @@ describe("startChildSession groundwork", () => {
 
   it("PO session uses the tool allowlist declared in roles/po.md", async () => {
     const { cwd } = makeTestGitRepo("session-factory");
-    const { faux, authStorage, modelRegistry } = fauxSessionSetup("session-po-tools");
+    const { faux, modelRegistry } = await fauxSessionSetup("session-po-tools");
     try {
       const activeSessions = new Map() as any;
       const { session } = await startChildSession({
@@ -1020,8 +1026,7 @@ describe("startChildSession groundwork", () => {
         postOutput: () => {},
         nestedDelegateToolFactory,
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       const tools = (session.agent.state.tools ?? []).map((t: any) => t.name);
@@ -1046,9 +1051,11 @@ describe("startChildSession groundwork", () => {
       ], {stopReason: "toolUse"}),
       fauxAssistantMessage("done"),
     ]);
-    const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(provider, "test-key");
-    const modelRegistry = ModelRegistry.inMemory(authStorage);
+    const credentials = new InMemoryCredentialStore();
+      const modelRuntime = await ModelRuntime.create({ credentials });
+  await modelRuntime.setRuntimeApiKey(provider, "test-key");
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  registerFauxModelsInRegistry(modelRegistry, faux);
     const onUpdateCalls: string[] = [];
     try {
       await startChildSession({
@@ -1063,8 +1070,7 @@ describe("startChildSession groundwork", () => {
         nestedDelegateToolFactory,
         onUpdate: (u: any) => onUpdateCalls.push(u.content[0].text),
         model: faux.getModel(),
-        authStorage,
-        modelRegistry,
+                modelRegistry,
       });
 
       // Every onUpdate payload containing the finished checkpoint row

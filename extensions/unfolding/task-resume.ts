@@ -1,5 +1,5 @@
 import type { Model } from "@earendil-works/pi-ai";
-import type { AgentSession, AgentToolUpdateCallback, ExtensionAPI, AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import type { AgentSession, AgentToolUpdateCallback, ExtensionAPI, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { readTask, updateTaskStatus } from "./task-store.ts";
 import {
   childSessionFailureBlockedReason,
@@ -26,7 +26,6 @@ export interface ResumeDelegatedTaskParams {
   mutateTask: (cwd: string, slug: string, reason?: string) => void;
   pi: ExtensionAPI;
   model?: Model<any>;
-  authStorage?: AuthStorage;
   modelRegistry?: ModelRegistry;
   exportDebugHtml?: (cwd: string, slug: string) => Promise<void> | void;
   costLedger?: CostLedger;
@@ -53,7 +52,6 @@ export async function resumeDelegatedTask({
   mutateTask,
   pi,
   model,
-  authStorage,
   modelRegistry,
   exportDebugHtml,
   costLedger,
@@ -69,7 +67,6 @@ export async function resumeDelegatedTask({
       postOutput,
       (shortRole: string) => makeTaskDelegateDefinition(shortRole, activeSessions, pi, postOutput, undefined, exportDebugHtml, undefined, costLedger),
       model,
-      authStorage,
       modelRegistry,
       costLedger,
     );

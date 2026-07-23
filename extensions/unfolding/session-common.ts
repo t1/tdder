@@ -1,7 +1,7 @@
 import {existsSync, readdirSync} from "node:fs";
 import {basename, dirname, join, resolve} from "node:path";
 import type {Model} from "@earendil-works/pi-ai";
-import type {AgentSession, AuthStorage, ExtensionAPI, ExtensionUIContext, ModelRegistry} from "@earendil-works/pi-coding-agent";
+import type {AgentSession, ExtensionAPI, ExtensionUIContext, ModelRegistry, ModelRuntime} from "@earendil-works/pi-coding-agent";
 import {createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager} from "@earendil-works/pi-coding-agent";
 import {CHILD_FIXED_INSTRUCTION, loadAgentRoleConfig} from "./task-delegate.ts";
 import {createChildTaskTools} from "./child-task-tools.ts";
@@ -24,7 +24,6 @@ export interface ChildSessionBuildParams {
   postOutput: (lines: string) => void;
   nestedDelegateToolFactory: NestedDelegateToolFactory;
   model?: Model<any>;
-  authStorage?: AuthStorage;
   modelRegistry?: ModelRegistry;
   costLedger?: CostLedger;
   childUiBus?: ChildUiBus;
@@ -102,6 +101,10 @@ function filterActiveToolsForWorkspace(cwd: string, toolNames: string[]): string
   return toolNames.filter((toolName) => toolName !== "quarkus_bootstrap");
 }
 
+function resolveModelRuntime(modelRegistry?: ModelRegistry): ModelRuntime | undefined {
+  return (modelRegistry as any)?.runtime as ModelRuntime | undefined;
+}
+
 function bundledSiblingExtensionPaths(): string[] {
   const currentExtensionDir = dirname(new URL(import.meta.url).pathname);
   const currentExtensionName = basename(currentExtensionDir);
@@ -144,7 +147,6 @@ export async function createChildAgentSession({
                                                 postOutput,
                                                 nestedDelegateToolFactory,
                                                 model,
-                                                authStorage,
                                                 modelRegistry,
                                                 costLedger,
                                                 childUiBus,
@@ -184,8 +186,7 @@ export async function createChildAgentSession({
     sessionManager,
     resourceLoader: loader,
     model: selectedModel,
-    authStorage,
-    modelRegistry,
+    modelRuntime: resolveModelRuntime(modelRegistry),
     tools: resolvedTools,
     excludeTools: ["task_list", "task_read"],
     customTools: createChildTaskTools(cwd, slug, nestedDelegateToolFactory(shortRole, slug), makeTaskContinueDefinition(shortRole, activeSessions, pi, postOutput, undefined, undefined, slug, costLedger), {

@@ -1,3 +1,5 @@
+import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
+
 // Use the same nested pi-ai/compat module instance that @earendil-works/pi-coding-agent resolves at runtime.
 // Importing @earendil-works/pi-ai or @earendil-works/pi-ai/compat directly from the repo root can hit a different
 // module instance, which makes faux provider registrations invisible to createAgentSession().
@@ -12,6 +14,28 @@ export {
   fauxToolCall,
   registerFauxProvider,
 };
+
+export function registerFauxModelsInRegistry(modelRegistry: ModelRegistry, faux: any): void {
+  const model = faux.getModel();
+  modelRegistry.registerProvider(model.provider, {
+    api: faux.api,
+    authHeader: true,
+    models: faux.models.map((entry: any) => ({
+      id: entry.id,
+      name: entry.name,
+      api: entry.api,
+      baseUrl: entry.baseUrl,
+      reasoning: entry.reasoning,
+      thinkingLevelMap: entry.thinkingLevelMap,
+      input: entry.input,
+      cost: entry.cost,
+      contextWindow: entry.contextWindow,
+      maxTokens: entry.maxTokens,
+      headers: entry.headers,
+      compat: entry.compat,
+    })),
+  });
+}
 
 export function toolResultText(message: any): string {
   return (message?.content ?? [])
