@@ -46,6 +46,16 @@ immediately before continuing.
 If you change any extension's `scripts.sync`, re-run and verify `npm run sync-extensions`
 from the repo root, not just the extension-local sync command.
 
+An extension must be self-contained: its imports must resolve without a `node_modules` tree
+alongside it, because the consumer's `node_modules` is not guaranteed reachable (nono
+sandboxes may deny it; published packages are installed under `~/.pi`, not the consumer's
+project). So an extension may only bare-import `node:*` builtins and pi-bundled packages
+(`@earendil-works/*`, `typebox` — declared as `peerDependencies`). Any other runtime npm
+dependency must be vendored: extend the extension's `sync` script to copy the package into
+`vendor/`, import it from there, and declare it as a `devDependencies` entry so `sync` can
+find it in `node_modules`. Never add a bare `import ... from "<pkg>"` for a package that
+is only reachable through `node_modules` walk-up.
+
 When a test restores a child session via `restoreChildSession(...)`, always call the returned
 `shutdown()` in test cleanup. Restored child sessions bind sibling extensions (including `idea`),
 and skipping `shutdown()` leaks extension resources such as IDEA MCP sockets/timers and makes
