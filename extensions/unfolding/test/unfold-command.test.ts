@@ -36,6 +36,7 @@ describe("parseFrontmatterTools", () => {
   const uxDesignerMd = readFileSync(new URL("../roles/ux-designer.md", import.meta.url).pathname, "utf8");
   const apiDesignerMd = readFileSync(new URL("../roles/api-designer.md", import.meta.url).pathname, "utf8");
   const uiExpertMd = readFileSync(new URL("../roles/ui-expert.md", import.meta.url).pathname, "utf8");
+  const cleanCodeReviewerMd = readFileSync(new URL("../roles/clean-code-reviewer.md", import.meta.url).pathname, "utf8");
 
   const claudeAgentDir = new URL("../../../agents/", import.meta.url);
   const claudeUnfoldingAgents = readdirSync(claudeAgentDir)
@@ -173,6 +174,15 @@ describe("parseFrontmatterTools", () => {
       "write",
       "edit",
       "ask_sensei",
+      "task_finished",
+      "task_block",
+    ]);
+  });
+
+  it("clean-code-reviewer.md declares the expected tool allowlist", () => {
+    const tools = parseFrontmatterTools(cleanCodeReviewerMd);
+    assert.deepEqual(tools, [
+      "read",
       "task_finished",
       "task_block",
     ]);
