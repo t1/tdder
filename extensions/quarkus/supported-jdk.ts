@@ -1,6 +1,6 @@
 import {existsSync, readFileSync} from "node:fs";
 import {dirname, join, resolve} from "node:path";
-import {parse} from "yaml";
+import {parse} from "./vendor/yaml/dist/index.js";
 
 const QUARKUS_CI_WORKFLOW_PATH = ".github/workflows/ci-actions-incremental.yml";
 

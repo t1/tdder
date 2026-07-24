@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "sync": "mkdir -p vendor && cp ../shared/jsonrpc-session.ts ../shared/mcp-client.ts ../shared/context-filter.ts ../shared/spawn-safe.ts ../shared/maven-project-tree.ts ../shared/maven-version-lookup.ts vendor/",
+    "sync": "mkdir -p vendor && rm -rf vendor/yaml && mkdir -p vendor/yaml && cp ../shared/jsonrpc-session.ts ../shared/mcp-client.ts ../shared/context-filter.ts ../shared/spawn-safe.ts ../shared/maven-project-tree.ts ../shared/maven-version-lookup.ts vendor/ && cp -R ../../node_modules/yaml/dist vendor/yaml/dist && cp ../../node_modules/yaml/package.json vendor/yaml/package.json",
     "test": "tsx --test test/*.test.ts"
   },
   "peerDependencies": {
@@ -14,7 +14,7 @@
     "@earendil-works/pi-tui": "*",
     "typebox": "*"
   },
-  "dependencies": {
+  "devDependencies": {
     "yaml": "2.9.0"
   },
   "pi": {
