@@ -168,6 +168,9 @@ interface QuarkusState {
   hasObservedStates: boolean;
   /** Monotonic token used to ignore late async startup completions after shutdown. */
   sessionEpoch: number;
+  /** Captured output from the last quarkus_start call, keyed by project dir. Used as a
+   * fallback in onCrashed when DevUI diagnostics are empty (dev mode failed to start). */
+  lastStartOutput: Map<string, {output: string; outcome: "running" | "crashed"; timestamp: number}>;
 }
 
 /**
@@ -644,6 +647,7 @@ export default async function (pi: ExtensionAPI) {
     suppressedLifecycleChanges: new Map(),
     hasObservedStates: false,
     sessionEpoch: 0,
+    lastStartOutput: new Map(),
   };
 
   // -------------------------------------------------------------------------
@@ -1642,6 +1646,17 @@ export default async function (pi: ExtensionAPI) {
           exceptionOutput = text || exceptionOutput;
         }),
     ]);
+    // Dev mode failed to start — DevUI is unreachable, so the live diagnostics
+    // above are empty. Surface the captured startup output instead.
+    const startOutput = state.lastStartOutput.get(cwd);
+    const devUiUnreachable = logOutput === "(log unavailable)" && exceptionOutput === "(unavailable)";
+    if (startOutput && devUiUnreachable) {
+      pi.sendUserMessage(
+        `Quarkus dev mode failed to start.\n\n**Startup output:**\n\`\`\`\n${startOutput.output}\n\`\`\`\n\nWhat went wrong and how should I fix it?`,
+        {deliverAs: "followUp"},
+      );
+      return;
+    }
     pi.sendUserMessage(
       `Quarkus dev mode has crashed.\n\n**Last exception:**\n\`\`\`\n${exceptionOutput}\n\`\`\`\n\n**Recent logs:**\n\`\`\`\n${logOutput}\n\`\`\`\n\nWhat went wrong and how should I fix it?`,
       {deliverAs: "followUp"},
@@ -2218,6 +2233,31 @@ export default async function (pi: ExtensionAPI) {
     }
   });
 
+  // Correlate quarkus_start toolCallId → projectDir so tool_execution_end can
+  // capture the startup output (which onCrashed needs when DevUI is unreachable).
+  const pendingStartProjects = new Map<string, string>();
+  pi.on("tool_execution_start", (event) => {
+    if (event.toolName !== "quarkus_start") return;
+    const project = typeof (event.args as { projectDir?: unknown })?.projectDir === "string"
+      ? (event.args as { projectDir: string }).projectDir
+      : undefined;
+    if (project) pendingStartProjects.set(event.toolCallId, project);
+  });
+
+  pi.on("tool_execution_end", async (event) => {
+    if (event.toolName !== "quarkus_start") return;
+    const project = pendingStartProjects.get(event.toolCallId);
+    pendingStartProjects.delete(event.toolCallId);
+    if (!project) return;
+    const output = event.result?.content ? extractText(event.result) : "";
+    if (!output) return;
+    state.lastStartOutput.set(project, {
+      output,
+      outcome: output.includes("running") ? "running" : "crashed",
+      timestamp: Date.now(),
+    });
+  });
+
   pi.on("before_agent_start", async (event) => {
     const alreadyLoaded = event.systemPromptOptions.skills?.some(
       (s) => s.name === "quarkus",
@@ -2304,6 +2344,7 @@ export default async function (pi: ExtensionAPI) {
     state.instanceStates.clear();
     state.pendingLifecycleChanges.clear();
     state.suppressedLifecycleChanges.clear();
+    state.lastStartOutput.clear();
     state.hasObservedStates = false;
     state.appLogEnabled = false;
   });
