@@ -685,7 +685,17 @@ export function installCheckpointRecovery(
     };
   }
 
-  const unsubscribe = session.subscribe((event) => {
+  const queueRecoveryPrompt = async (prompt: string, label: string) => {
+    session.clearQueue();
+    try {
+      await session.prompt(prompt, {streamingBehavior: "followUp"});
+    } catch (err: unknown) {
+      const stack = err instanceof Error ? err.stack : String(err);
+      console.error(`[unfolding] ${label} for task "${slug}" failed:`, stack);
+    }
+  };
+
+  const unsubscribe = session.subscribe(async (event) => {
     if (event.type === "message_end") {
       if (event.message.role !== "assistant") return;
       assistantStopReasonThisTurn = event.message.stopReason;
@@ -732,15 +742,13 @@ export function installCheckpointRecovery(
       if (!truncationRecoveryAttempted) {
         truncationRecoveryAttempted = true;
         onRecoveryNote?.("  ⚠ child response was truncated before a checkpoint; prompting it to continue or block");
-        session.prompt(TRUNCATION_RECOVERY_PROMPT, {streamingBehavior: "followUp"}).catch((err: unknown) => {
-          const stack = err instanceof Error ? err.stack : String(err);
-          console.error(`[unfolding] truncation recovery prompt for task "${slug}" failed:`, stack);
-        });
+        await queueRecoveryPrompt(TRUNCATION_RECOVERY_PROMPT, "truncation recovery prompt");
         return;
       }
 
       onRecoveryNote?.("  ⚠ automatic recovery failed after repeated truncation; blocking the child task");
       updateTaskStatus(cwd, slug, "blocked", TRUNCATION_BLOCKED_REASON);
+      session.clearQueue();
       return;
     }
 
@@ -758,15 +766,13 @@ export function installCheckpointRecovery(
     if (!missingCheckpointRecoveryAttempted) {
       missingCheckpointRecoveryAttempted = true;
       onRecoveryNote?.("  ⚠ child ended a turn without a checkpoint; prompting it to call task_finished or task_block");
-      session.prompt(MISSING_CHECKPOINT_RECOVERY_PROMPT, {streamingBehavior: "followUp"}).catch((err: unknown) => {
-        const stack = err instanceof Error ? err.stack : String(err);
-        console.error(`[unfolding] missing-checkpoint recovery prompt for task "${slug}" failed:`, stack);
-      });
+      await queueRecoveryPrompt(MISSING_CHECKPOINT_RECOVERY_PROMPT, "missing-checkpoint recovery prompt");
       return;
     }
 
     onRecoveryNote?.("  ⚠ automatic recovery failed after repeated missing checkpoints; blocking the child task");
     updateTaskStatus(cwd, slug, "blocked", MISSING_CHECKPOINT_BLOCKED_REASON);
+    session.clearQueue();
   });
 
   return {
