@@ -88,6 +88,14 @@ If any answer is "no", do not unfold.
 - [ ] Are cascading failures a real risk (not hypothetical)?
 - [ ] Must the system degrade gracefully under partial failure?
 
+### Design Patterns
+
+- [ ] Is there a concrete comprehension or evolution problem the pattern addresses (not a hypothetical one)?
+- [ ] Have pros and cons been weighed for this concrete situation, including at least one rejected alternative?
+- [ ] Is the reasoning documented briefly (code comment, commit message, or ADR)?
+- [ ] After a trial implementation: did code quality actually improve? If not, roll back.
+- [ ] Is an existing pattern still pulling its weight? If it has become sub-optimal, remove or replace it.
+
 ## Post-Unfolding Checks
 
 After unfolding, verify:

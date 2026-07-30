@@ -5,6 +5,7 @@ description: >
   "add an abstraction", "introduce an interface", "separate concerns", "add a repository",
   "use hexagonal architecture", "add domain events", "split into layers", "add ports and adapters",
   "decouple this", "add an anti-corruption layer", "review package structure",
+  "apply a design pattern", "which design pattern fits", "introduce a factory/strategy/builder",
   or when considering architectural changes during a TDD refactor phase.
   It also contains guides when starting a new project.
 version: 0.1.0
@@ -17,6 +18,10 @@ Progressive architectural decisions: start simple, add complexity only when it r
 Architecture is not a blueprint drawn before construction. It unfolds from working code under concrete
 pressure. Each dimension of architecture starts at its simplest form (Level 0) and only moves to a
 higher level when a specific, demonstrable problem forces the change.
+
+**Central creed: code quality = maintaining long-term speed of development.** Every architectural
+decision — unfolding a dimension, applying a design pattern, or removing one — is judged by whether
+it keeps the code easy to understand and change tomorrow.
 
 ## Default Starting Point
 
@@ -180,6 +185,43 @@ incremental unfoldings, not a single architectural decision.
 - The language/framework has strong exception conventions that result types would fight
 - There is no external dependency that warrants resilience patterns
 
+## Design Patterns
+
+The dimensions above describe *where* a system can grow; design patterns describe *how* to structure
+the code at a specific spot. As complexity grows and code becomes harder to understand or evolve,
+evaluate whether a known pattern would help. Many patterns are simply the concrete shape of a
+dimension's level — e.g. Adapter is what Level 1 indirection often looks like, and domain events are
+the Observer pattern applied across components.
+
+Examples to consider, grouped by origin:
+
+- **GoF classics**: Strategy, Factory Method, Builder, Observer, Composite, Adapter, Decorator,
+  Template Method, State
+- **Domain & persistence** (Fowler's PoEAA, DDD): Repository, Specification, Unit of Work, Data
+  Mapper vs Active Record, Transaction Script vs Domain Model, Entity, Value Object, Aggregate,
+  Domain Service
+- **Functional & general**: Dependency Injection, Null Object, Pipeline, Railway-Oriented
+  Programming, Retry/Backoff, Saga
+- **Tech-stack specific**: every stack has its own idiomatic patterns — e.g. Java/CDI (Quarkus,
+  Spring): producer methods, interceptors, CDI events; JPA: entity graphs, optimistic locking;
+  TypeScript/React: custom hooks, render props, container/presentational. Prefer the stack's
+  idiomatic pattern over a framework-agnostic one that fights the platform.
+- **Testing patterns**: Test Data Builder, Object Mother, Test Doubles (fake, stub, spy, mock),
+  Nested Fixtures (see the `nested-fixture-pattern` skill), Given-When-Then, Parameterized Tests,
+  Approval/Golden Master tests, Contract Tests, Page Objects
+
+Applying a pattern is an unfolding step like any other:
+
+1. **Evaluate pros and cons for this concrete situation** — not in the abstract. A pattern that adds
+   indirection without removing a concrete pain is speculative architecture.
+2. **Document the reasoning briefly** when a pattern is picked: one or two sentences on why this
+   pattern, why now, and which alternative was rejected (code comment, commit message, or ADR).
+3. **Trial implementations are allowed**: implement the pattern, then judge whether code quality
+   actually improved (readability, testability, APP mass). If it didn't, roll it back.
+4. **Patterns are reversible**: if a pattern proves sub-optimal as the code evolves, remove it again
+   or replace it with a pattern that is more appropriate in the new light. A pattern is a means to
+   maintain development speed, not a commitment.
+
 ## Naming Conventions
 
 - A companion class / repository / DAO to a domain entity should be the plural of the
@@ -220,6 +262,11 @@ but Level 0 communication. Each dimension is independent.
 
 Copying the architecture of a different system or a reference application. Architecture must
 emerge from the specific pressures of this system.
+
+### Pattern Collecting
+
+Applying design patterns because they are well-known or "standard", not because a concrete pressure
+demands them. A pattern without a problem it solves is just indirection.
 
 ### Premature DOP
 
