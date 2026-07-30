@@ -1,5 +1,6 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
+import { homedir } from "node:os";
 import { buildMavenArgs, buildMavenCommand, buildMavenEnv } from "../maven-run.ts";
 
 describe("buildMavenCommand", () => {
@@ -87,18 +88,38 @@ describe("buildMavenEnv", () => {
 
   it("sets MAVEN_OPTS with java.io.tmpdir and user.home when no prior MAVEN_OPTS", () => {
     const env = buildMavenEnv("/my/project", {});
-    assert.equal(env.MAVEN_OPTS, "-Djava.io.tmpdir=/my/project/target -Duser.home=/my/project/target");
+    assert.equal(
+      env.MAVEN_OPTS,
+      `-Djava.io.tmpdir=/my/project/target -Duser.home=/my/project/target -Dmaven.repo.local=${homedir()}/.m2/repository`,
+    );
   });
 
   it("appends java.io.tmpdir and user.home to existing MAVEN_OPTS", () => {
     const env = buildMavenEnv("/my/project", { MAVEN_OPTS: "-Xmx512m" });
-    assert.equal(env.MAVEN_OPTS, "-Xmx512m -Djava.io.tmpdir=/my/project/target -Duser.home=/my/project/target");
+    assert.equal(
+      env.MAVEN_OPTS,
+      `-Xmx512m -Djava.io.tmpdir=/my/project/target -Duser.home=/my/project/target -Dmaven.repo.local=${homedir()}/.m2/repository`,
+    );
   });
 
   it("preserves other env vars", () => {
     const env = buildMavenEnv("/my/project", { HOME: "/home/user", PATH: "/usr/bin" });
     assert.equal(env.HOME, "/home/user");
     assert.equal(env.PATH, "/usr/bin");
+  });
+
+  it("pins maven.repo.local to the real home so the local repo is not redirected into target", () => {
+    const env = buildMavenEnv("/my/project", { HOME: "/home/user" });
+    assert.equal(
+      env.MAVEN_OPTS,
+      "-Djava.io.tmpdir=/my/project/target -Duser.home=/my/project/target -Dmaven.repo.local=/home/user/.m2/repository",
+    );
+  });
+
+  it("falls back to os.homedir for maven.repo.local when HOME is unset", () => {
+    const env = buildMavenEnv("/my/project", {});
+    assert.match(env.MAVEN_OPTS!, /-Dmaven\.repo\.local=\S+\/\.m2\/repository$/);
+    assert.ok(!env.MAVEN_OPTS!.includes("-Dmaven.repo.local=/my/project/target"));
   });
 });
 

@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+
 export type MavenAction = "test" | "package";
 export type TestScope = "surefire" | "failsafe" | "all";
 
@@ -64,6 +66,11 @@ export function buildMavenArgs(opts: MavenCommandOptions): string[] {
  * `user.home` in `MAVEN_OPTS` is propagated to the daemon JVM because Kotlin
  * copies parent JVM options when starting the daemon with `inheritMemoryLimits`.
  *
+ * Maven derives its default local repository from `user.home`, so without a
+ * countermeasure the redirect would silently relocate the repo to
+ * `<projectRoot>/target/.m2` and re-download every dependency on each run.
+ * `-Dmaven.repo.local` pins the repo back to the real home directory.
+ *
  * @param projectRoot  Absolute path to the Maven project root.
  * @param baseEnv      Environment to inherit (defaults to process.env).
  */
@@ -72,8 +79,9 @@ export function buildMavenEnv(
   baseEnv: Record<string, string | undefined> = process.env,
 ): Record<string, string | undefined> {
   const tmpdir = `${projectRoot}/target`;
+  const repoLocal = `${baseEnv.HOME ?? homedir()}/.m2/repository`;
   const existingOpts = baseEnv.MAVEN_OPTS ?? "";
-  const tmpProps = `-Djava.io.tmpdir=${tmpdir} -Duser.home=${tmpdir}`;
+  const tmpProps = `-Djava.io.tmpdir=${tmpdir} -Duser.home=${tmpdir} -Dmaven.repo.local=${repoLocal}`;
   const mavenOpts = existingOpts ? `${existingOpts} ${tmpProps}` : tmpProps;
   return { ...baseEnv, TMPDIR: tmpdir, MAVEN_OPTS: mavenOpts };
 }
