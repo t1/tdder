@@ -19,6 +19,7 @@ import {
   parsePathRestrictions,
   parseFrontmatterPathRestrictions,
   isPathAllowed,
+  isToolPathAllowed,
 } from "../unfold-helpers.ts";
 
 function normalizeWhitespace(value: string): string {
@@ -287,6 +288,31 @@ describe("parseFrontmatterPathRestrictions (role files)", () => {
     assert.ok(rules, "API Designer must declare path restrictions");
     assert.equal(isPathAllowed("read", "docs/rules/pricing.feature", rules!), false, "API Designer must not read rules");
     assert.equal(isPathAllowed("read", "docs/api/INDEX.md", rules!), true, "API Designer may read docs/api/");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isToolPathAllowed — absolute paths are made cwd-relative before matching
+// ---------------------------------------------------------------------------
+
+describe("isToolPathAllowed", () => {
+  const cwd = "/workspace/demo";
+  const poRules = parsePathRestrictions(["read deny: docs/adr/**", "read allow: docs/**", "read deny: **"]);
+
+  it("matches absolute paths against the relative globs", () => {
+    assert.equal(isToolPathAllowed("read", `${cwd}/docs/ats/INDEX.md`, poRules, cwd), true, "absolute path under an allowed glob must pass");
+    assert.equal(isToolPathAllowed("read", `${cwd}/docs/adr/INDEX.md`, poRules, cwd), false, "absolute path under a denied glob must be blocked");
+    assert.equal(isToolPathAllowed("read", `${cwd}/src/Main.java`, poRules, cwd), false, "absolute path outside any allow must hit the catch-all deny");
+  });
+
+  it("passes relative paths through unchanged", () => {
+    assert.equal(isToolPathAllowed("read", "docs/ats/INDEX.md", poRules, cwd), true);
+    assert.equal(isToolPathAllowed("read", "src/Main.java", poRules, cwd), false);
+  });
+
+  it("denies paths escaping the cwd", () => {
+    assert.equal(isToolPathAllowed("read", "/etc/passwd", poRules, cwd), false, "absolute path outside the cwd must be denied");
+    assert.equal(isToolPathAllowed("read", "../other-project/docs/product.md", poRules, cwd), false, "relative path escaping the cwd must be denied");
   });
 });
 

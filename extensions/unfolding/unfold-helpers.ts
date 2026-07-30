@@ -1,4 +1,4 @@
-import {matchesGlob} from "path";
+import {isAbsolute, matchesGlob, relative, sep} from "path";
 
 /**
  * Pure helper functions for the /unfold command.
@@ -67,6 +67,20 @@ export function isPathAllowed(tool: string, path: string, rules: PathRestriction
     if (matchesGlob(path, rule.glob)) return rule.action === "allow";
   }
   return true;
+}
+
+/**
+ * Normalize a tool-call path for restriction matching and decide whether it is allowed.
+ *
+ * LLMs typically pass absolute paths, but restriction globs are project-relative —
+ * an absolute path would never match an allow glob like `docs/**` and would fall
+ * through to a catch-all `**` deny. So absolute paths are first made relative to
+ * the session cwd. Paths escaping the cwd (starting with `..`) are always denied.
+ */
+export function isToolPathAllowed(tool: string, rawPath: string, rules: PathRestrictionRule[], cwd: string): boolean {
+  const path = isAbsolute(rawPath) ? relative(cwd, rawPath) : rawPath;
+  if (path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path)) return false;
+  return isPathAllowed(tool, path, rules);
 }
 
 

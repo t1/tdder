@@ -6,7 +6,7 @@ import {createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager} 
 import {CHILD_FIXED_INSTRUCTION, loadAgentRoleConfig} from "./task-delegate.ts";
 import {createChildTaskTools} from "./child-task-tools.ts";
 import { makeTaskContinueDefinition } from "./task-delegate-tool.ts";
-import {resolveToolAllowlist, isPathAllowed} from "./unfold-helpers.ts";
+import {resolveToolAllowlist, isToolPathAllowed} from "./unfold-helpers.ts";
 import { isQuarkusProject } from "../shared/quarkus-project.ts";
 import type { CostLedger } from "./cost-ledger.ts";
 import type { ChildUiEvent } from "./task-delegate.ts";
@@ -226,7 +226,7 @@ export async function createChildAgentSession({
         const toolName = event.toolName as string;
         const path = event.input?.path as string | undefined;
         if (path && (toolName === "read" || toolName === "write" || toolName === "edit")) {
-          if (!isPathAllowed(toolName, path, restrictions)) {
+          if (!isToolPathAllowed(toolName, path, restrictions, cwd)) {
             return { block: true, reason: `Path '${path}' is not allowed for the ${toolName} tool in the ${shortRole} role. Call task_block immediately with a description of what your task asked you to do.` };
           }
         }

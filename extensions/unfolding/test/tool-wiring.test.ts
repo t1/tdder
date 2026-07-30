@@ -244,7 +244,7 @@ describe("task_delegate wiring", () => {
 
   it("monkey-patches emitToolCall to enforce path restrictions after session creation", () => {
     assert.ok(commonSrc.includes("emitToolCall"), "session-common must patch emitToolCall for path restrictions");
-    assert.ok(commonSrc.includes("isPathAllowed"), "session-common must call isPathAllowed");
+    assert.ok(commonSrc.includes("isToolPathAllowed"), "session-common must call isToolPathAllowed");
     assert.ok(commonSrc.includes("pathRestrictions"), "session-common must read pathRestrictions from roleConfig");
   });
 });
