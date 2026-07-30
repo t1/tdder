@@ -2,6 +2,8 @@
 
 Read `README.md` before starting any task — it has project overview, architecture, and conventions.
 
+**Before any code change, state which skills match** (bug fixes and features → `tdd`, any work in this repo → `project-hygiene`) and read those skill files first. "Small fix" is not an exemption.
+
 Do **NOT** read the `TODO.md`, unless instructed to.
 
 **VERY IMPORTANT** Be very critical and honest to what I say. And when I ask a question,
@@ -26,10 +28,10 @@ approaches.
 
 ## Development
 
-Most content is Markdown or JSON with no build step. However, the `extensions/maven/`
-subdirectory is a TypeScript project with a test suite — see its own README for details.
+Most content is Markdown or JSON with no build step. However, some `extensions/*/` subdirectories
+(e.g. `maven/`, `unfolding/`) are TypeScript projects with test suites — see their READMEs for details.
 
-When doing TDD on the maven extension, load and follow the `tdd` skill.
+When doing TDD on any extension, load and follow the `tdd` skill.
 
 Root dependency sections in `package.json` (`dependencies`, `devDependencies`,
 `peerDependencies`, `optionalDependencies`) are generated from the union of the same
