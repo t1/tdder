@@ -173,12 +173,15 @@ exit 1
 
 describe("loadJarSkills (integration)", { timeout: 20000 }, () => {
   let fixtureDir: string;
-  let localRepo: string;
+  // Persistent local repo under the project's gitignored target/ dir: the
+  // fixture install below resolves the whole Maven plugin toolchain, which
+  // exceeds the hook timeout on a cold repo and on slow networks.
+  const localRepo = join(import.meta.dirname, "..", "target", "jar-skills-local-repo");
 
-  before(() => {
-    localRepo = mkdtempSync(join(tmpdir(), "jar-skills-local-repo-"));
-    const artifact = buildFixtureJarArtifact(localRepo);
-    fixtureDir = mkdtempSync(join(tmpdir(), "jar-skills-fixture-"));
+  before(
+    () => {
+      const artifact = buildFixtureJarArtifact(localRepo);
+      fixtureDir = mkdtempSync(join(tmpdir(), "jar-skills-fixture-"));
     mkdirSync(join(fixtureDir, ".mvn"), { recursive: true });
     writeFileSync(join(fixtureDir, ".mvn", "maven.config"), `-Dmaven.repo.local=${localRepo}\n`, "utf8");
     writeFileSync(
@@ -200,12 +203,13 @@ describe("loadJarSkills (integration)", { timeout: 20000 }, () => {
   </dependencies>
 </project>`,
       "utf8",
-    );
-  });
+      );
+    },
+    60000,
+  );
 
   after(() => {
     rmSync(fixtureDir, { recursive: true, force: true });
-    rmSync(localRepo, { recursive: true, force: true });
   });
 
   it("returns a temp dir containing bulma-java.md", { timeout: 15000 }, async () => {
