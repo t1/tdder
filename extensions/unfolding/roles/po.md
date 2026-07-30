@@ -8,6 +8,7 @@ tools:
   - read
   - write
   - edit
+  - delete
   - ask_sensei
   - task_delegate
   - task_continue

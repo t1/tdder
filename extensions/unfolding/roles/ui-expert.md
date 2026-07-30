@@ -9,6 +9,7 @@ tools:
   - read
   - write
   - edit
+  - delete
   - ask_sensei
   - task_finished
   - task_block

@@ -60,6 +60,7 @@ Used by the orchestrator and delegate sub-sessions to coordinate work:
 | `task_unblock`  | orchestrator                        | Unblock a blocked task, optionally with context; child resumes                  |
 | `task_rollback` | orchestrator                        | Restore the workspace to its pre-delegation state and delete task               |
 | `ask_sensei`    | orchestrator, delegate              | Ask the human a single question via pi UI and return the answer                 |
+| `delete`        | delegate (roles with write access)  | Delete a file; restricted by the same path rules as the `write` tool            |
 | `task_finished` | delegate                            | Mark own task finished; blocks until orchestrator accepts/reopens               |
 | `task_block`    | delegate                            | Mark own task blocked with reason, or request automatic child-session recreation | 
 
@@ -224,7 +225,8 @@ The tool rejects any role not listed there, and task-tree validation also fails 
 Use `delegates-to: []` for roles that must never delegate.
 
 **`path-restrictions:`** applies fine-grained path-level restrictions to `read`,
-`write`, and `edit` calls. Each rule has the form:
+`write`, and `edit` calls. The `delete` tool is governed by the role's `write`
+rules: a role may only delete what it may write. Each rule has the form:
 
 ```
 <tools> <action>: <glob>

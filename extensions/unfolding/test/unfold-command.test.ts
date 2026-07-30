@@ -50,6 +50,7 @@ describe("parseFrontmatterTools", () => {
       "read",
       "write",
       "edit",
+      "delete",
       "ask_sensei",
       "task_delegate",
       "task_continue",
@@ -69,6 +70,7 @@ describe("parseFrontmatterTools", () => {
       "read",
       "write",
       "edit",
+      "delete",
       "ask_sensei",
       "maven_*",
       "idea_*",
@@ -131,6 +133,7 @@ describe("parseFrontmatterTools", () => {
       "read",
       "write",
       "edit",
+      "delete",
       "ask_sensei",
       "maven_*",
       "idea_*",
@@ -149,6 +152,7 @@ describe("parseFrontmatterTools", () => {
       "read",
       "write",
       "edit",
+      "delete",
       "ask_sensei",
       "browser_*",
       "task_finished",
@@ -162,6 +166,7 @@ describe("parseFrontmatterTools", () => {
       "read",
       "write",
       "edit",
+      "delete",
       "ask_sensei",
       "task_finished",
       "task_block",
@@ -174,6 +179,7 @@ describe("parseFrontmatterTools", () => {
       "read",
       "write",
       "edit",
+      "delete",
       "ask_sensei",
       "task_finished",
       "task_block",
@@ -612,6 +618,10 @@ describe("structural invariants", () => {
     assert.ok(
       extensionReadme.includes("## Task tools"),
       "extension README must document unfolding task tools",
+    );
+    assert.ok(
+      extensionReadme.includes("`delete`"),
+      "extension README must document the delete tool",
     );
     assert.ok(
       extensionReadme.includes("This includes technical implementation problems during execution, not just formal\narchitectural decisions."),

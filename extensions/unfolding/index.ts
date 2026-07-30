@@ -7,7 +7,7 @@
  * Placement: extensions/unfolding/index.ts  (part of the t1/tdder pi package)
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentSession } from "@earendil-works/pi-coding-agent";
@@ -229,6 +229,20 @@ export default function (pi: ExtensionAPI, options?: { activeSessions?: Map<stri
       } else {
         ctx.ui.notify(`Not inside tmux. Run manually:\n${result.fallbackCommand}\n\n${CONNECT_SESSION_WARNING}`, "warning");
       }
+    },
+  });
+
+  pi.registerTool({
+    name: "delete",
+    label: "Delete",
+    description: "Delete a file. Restricted by the same path rules as the write tool.",
+    parameters: Type.Object({
+      path: Type.String({ description: "Path to the file to delete (relative to the project root or absolute)." }),
+    }),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      const target = resolve(ctx.cwd, params.path);
+      unlinkSync(target);
+      return { content: [{ type: "text", text: `Deleted ${params.path}` }], details: {} };
     },
   });
 

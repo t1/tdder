@@ -14,6 +14,12 @@ function loadSrc() { return loadIndexSrc(); }
 // ---------------------------------------------------------------------------
 
 describe("structural wiring", () => {
+  it("delete tool is registered and unlinks the given path", () => {
+    const block = toolBlock(loadSrc(), 'name: "delete"');
+    assert.ok(block.includes("unlinkSync"), "delete tool must remove the file via unlinkSync");
+    assert.ok(block.includes("path"), "delete tool must take a path parameter");
+  });
+
   it("ask_sensei tool is registered", () => {
     const block = toolBlock(loadSrc(), 'name: "ask_sensei"');
     assert.ok(block.includes("createAskSenseiFn"), "root ask_sensei should capture a reusable UI callback for child sessions");
@@ -246,5 +252,10 @@ describe("task_delegate wiring", () => {
     assert.ok(commonSrc.includes("emitToolCall"), "session-common must patch emitToolCall for path restrictions");
     assert.ok(commonSrc.includes("isToolPathAllowed"), "session-common must call isToolPathAllowed");
     assert.ok(commonSrc.includes("pathRestrictions"), "session-common must read pathRestrictions from roleConfig");
+  });
+
+  it("delete tool calls are restricted by the role's write rules", () => {
+    assert.ok(commonSrc.includes('"delete"'), "session-common must intercept delete tool calls");
+    assert.ok(commonSrc.includes('toolName === "delete" ? "write"'), "delete must be checked against the write path restrictions");
   });
 });

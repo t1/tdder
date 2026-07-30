@@ -225,8 +225,10 @@ export async function createChildAgentSession({
       runner.emitToolCall = async (event: any) => {
         const toolName = event.toolName as string;
         const path = event.input?.path as string | undefined;
-        if (path && (toolName === "read" || toolName === "write" || toolName === "edit")) {
-          if (!isToolPathAllowed(toolName, path, restrictions, cwd)) {
+        // delete is governed by the role's write rules: a role may only delete what it may write.
+        const restrictedTool = toolName === "delete" ? "write" : toolName;
+        if (path && (restrictedTool === "read" || restrictedTool === "write" || restrictedTool === "edit")) {
+          if (!isToolPathAllowed(restrictedTool, path, restrictions, cwd)) {
             return { block: true, reason: `Path '${path}' is not allowed for the ${toolName} tool in the ${shortRole} role. Call task_block immediately with a description of what your task asked you to do.` };
           }
         }

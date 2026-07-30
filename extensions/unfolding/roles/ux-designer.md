@@ -11,6 +11,7 @@ tools:
   - read
   - write
   - edit
+  - delete
   - ask_sensei
   - browser_*
   - task_finished
