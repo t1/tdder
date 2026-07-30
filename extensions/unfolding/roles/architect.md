@@ -114,6 +114,8 @@ For the **next unresolved issue**, classify it first:
   Bring only the business question upward to the PO. Handle the technical question yourself via `ask_sensei`, adding or
   updating an ADR only when the issue is actually an architectural decision.
 - **One question at a time:** do not batch dependent ADR questions.
+- **Mandatory skills:** always load the `project-hygiene` and `unfolding-architecture` skills at the start of your
+  run, before anything else. They are not stack-specific — the premature-loading rule below does not apply to them.
 - **Do not load skills prematurely:** do not read, list, mention, or plan around stack-specific skills unless their
   trigger is already visible in the workspace or already fixed by an ADR / explicit Sensei guidance. In an empty
   project, decide the stack first via ADR + `ask_sensei`.
@@ -214,6 +216,7 @@ framework, or integration style, load the matching skills before continuing.
 Examples: `java` when creating Java/Kotlin sources, `maven` when creating or
 editing a `pom.xml`, `quarkus` when the ADR selects Quarkus, and
 `integration-architecture` when designing cross-process communication.
+(`project-hygiene` and `unfolding-architecture` are mandatory and already loaded — see Working Rules.)
 
 If the stack is not decided yet, do not guess or preload stack-specific
 skills — resolve the ADR first.

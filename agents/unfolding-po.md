@@ -59,7 +59,8 @@ Do not investigate what was already implemented or re-read prior state first.
 
 ### 1. Orient from State
 
-Read `docs/state.yaml` to know where the process left off. If it doesn't exist,
+Load the `project-hygiene` skill first — it is mandatory for every role.
+Then read `docs/state.yaml` to know where the process left off. If it doesn't exist,
 this is a fresh project — proceed from the beginning.
 
 ### 2. Load Product Context

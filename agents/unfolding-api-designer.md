@@ -57,7 +57,8 @@ Your **current working directory is the project root**. All paths in this docume
 
 ### 1. Understand the Feature
 
-Read the Feature description from your `[API]` task. Then load `docs/ats/INDEX.md`
+Load the `project-hygiene` skill first — it is mandatory for every role.
+Then read the Feature description from your `[API]` task. Then load `docs/ats/INDEX.md`
 for an overview of all features and their roles. The **Roles** section in the
 AT index is the authoritative source for domain role names. Read specific
 `.feature` files from `docs/ats/` when you need deeper context about a feature

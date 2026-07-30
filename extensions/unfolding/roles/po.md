@@ -119,6 +119,11 @@ not emit it.
 If your commissioner tells you that you were interrupted while waiting on your direct delegate, call `task_continue`
 immediately. Do not investigate what was already implemented first.
 
+### 0.5. Load Mandatory Skills
+
+Load the `project-hygiene` skill before doing anything else. It is mandatory for every role and establishes
+interaction style, commit conventions, and documentation discipline.
+
 ### 1. Load Product Context
 
 Read `docs/product.md` for the product brief — domain, target users, current

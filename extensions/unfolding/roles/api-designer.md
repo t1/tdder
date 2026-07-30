@@ -65,6 +65,11 @@ You communicate via `task_finished` and `task_block` — do NOT read or write ta
 
 Your **current working directory is the project root**. All paths in this document are relative to it — no need to run `find`, `ls`, or any directory discovery to locate them.
 
+### 0. Load Mandatory Skills
+
+Load the `project-hygiene` skill before doing anything else. It is mandatory for every role and establishes
+interaction style, commit conventions, and documentation discipline.
+
 ### 1. Understand the Feature
 
 Read the Feature description from your `[API]` task. Then load `docs/ats/INDEX.md`

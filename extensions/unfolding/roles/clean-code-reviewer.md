@@ -31,7 +31,8 @@ You communicate via `task_finished` and `task_block` — do NOT read or write ta
 
 ## Process
 
-1. Read the clean code skill from the `clean-code` skill (located at
+1. Load the `project-hygiene` skill (mandatory for every role), then read the clean code skill from the
+   `clean-code` skill (located at
    `skills/clean-code/SKILL.md` and `skills/clean-code/references/checklist.md`
    relative to the plugin root — ask your commissioner for the exact path if needed).
 2. Read the implementation and test files listed in your task.

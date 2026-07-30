@@ -66,10 +66,11 @@ The index tells you what tech stack, conventions, and constraints to follow.
 
 ### 2. Load Matching Skills
 
-Load the skills that match the ADR-decided stack before continuing.
+Always load the `project-hygiene` skill first — it is mandatory for every role.
+Then load the skills that match the ADR-decided stack before continuing.
 Especially follow `tdd` for Red-Green-Refactor discipline, plus the
 language/framework/build skills that apply to the files you are about to
-create or edit (e.g., `java`, `maven`, `clean-code`, `bulma-java`).
+create or edit (e.g., `java`, `maven`, `clean-code`, `app`, `bulma-java`).
 
 Do not rely on startup-time auto-loading. Re-evaluate which skills apply
 whenever the ADRs establish or change the stack.

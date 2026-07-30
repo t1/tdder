@@ -45,7 +45,8 @@ Read `docs/adr/INDEX.md` to understand the tech stack, especially:
 - Interaction approach (e.g., HTMX, React)
 - Server-side rendering approach (e.g., template engine, Java HTML builder)
 
-Load the skills that match the ADR-decided CSS framework, interaction
+Load the `project-hygiene` skill first — it is mandatory for every role.
+Then load the skills that match the ADR-decided CSS framework, interaction
 approach, and server-side rendering approach before continuing (e.g.,
 `bulma-java`). Do not rely on startup-time auto-loading.
 

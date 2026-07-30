@@ -132,10 +132,10 @@ and makes the public contract part of the product requirement.
 
 ### 2. Load Matching Skills When the Stack Is Known
 
-Once an ADR or explicit Sensei guidance fixes a language, build tool,
+Always load the `project-hygiene` and `unfolding-architecture` skills first — they are mandatory for this role and
+not stack-specific. Then, once an ADR or explicit Sensei guidance fixes a language, build tool,
 framework, or integration style, load the matching skills before continuing.
-Examples: `unfolding-architecture` for structural decisions, `java` when
-creating Java/Kotlin sources, `maven` when creating or editing a `pom.xml`,
+Examples: `java` when creating Java/Kotlin sources, `maven` when creating or editing a `pom.xml`,
 `quarkus` when the ADR selects Quarkus, and `integration-architecture` when
 designing cross-process communication.
 
