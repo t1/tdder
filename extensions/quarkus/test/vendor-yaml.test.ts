@@ -7,6 +7,12 @@ import {resolve} from "node:path";
 const extensionDir = resolve(import.meta.dirname, "..");
 
 describe("vendored yaml", () => {
+  it("yaml is a runtime dependency so install-time sync works under npm install --omit=dev", () => {
+    const pkg = JSON.parse(readFileSync(resolve(extensionDir, "package.json"), "utf8"));
+    assert.ok(pkg.dependencies?.yaml, "yaml must be in dependencies, not devDependencies");
+    assert.equal(pkg.devDependencies?.yaml, undefined);
+  });
+
   it("sync script resolves yaml via require.resolve instead of a hardcoded node_modules path", () => {
     const pkg = JSON.parse(readFileSync(resolve(extensionDir, "package.json"), "utf8"));
     assert.match(pkg.scripts.sync, /require\.resolve/);

@@ -286,10 +286,11 @@ immediately so development, tests, and packaging all see the same files.
 
 External runtime npm dependencies must be vendored the same way: extend the extension's
 `sync` script to copy the package into `vendor/`, import it from there, and declare it as
-a `devDependencies` entry. An extension may only bare-import `node:*` builtins and
-pi-bundled packages (`@earendil-works/*`, `typebox`); the consumer's `node_modules` is
-not guaranteed reachable (e.g. under nono sandboxes, or when the extension is installed
-under `~/.pi`).
+a `dependencies` entry (not `devDependencies` — `pi update` installs with `--omit=dev`,
+and install-time `sync` must still find the package in `node_modules`). An extension may
+only bare-import `node:*` builtins and pi-bundled packages (`@earendil-works/*`,
+`typebox`); the consumer's `node_modules` is not guaranteed reachable (e.g. under nono
+sandboxes, or when the extension is installed under `~/.pi`).
 
 ## Updating
 

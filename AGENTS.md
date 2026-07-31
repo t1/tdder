@@ -54,9 +54,11 @@ sandboxes may deny it; published packages are installed under `~/.pi`, not the c
 project). So an extension may only bare-import `node:*` builtins and pi-bundled packages
 (`@earendil-works/*`, `typebox` — declared as `peerDependencies`). Any other runtime npm
 dependency must be vendored: extend the extension's `sync` script to copy the package into
-`vendor/`, import it from there, and declare it as a `devDependencies` entry so `sync` can
-find it in `node_modules`. Never add a bare `import ... from "<pkg>"` for a package that
-is only reachable through `node_modules` walk-up.
+`vendor/`, import it from there, and declare it as a `dependencies` entry (not
+`devDependencies`!) so `sync` can find it in `node_modules` — `pi update` installs with
+`--omit=dev`, so devDependencies are absent when the install-time `sync` runs. Never add a
+bare `import ... from "<pkg>"` for a package that is only reachable through `node_modules`
+walk-up.
 
 When a test restores a child session via `restoreChildSession(...)`, always call the returned
 `shutdown()` in test cleanup. Restored child sessions bind sibling extensions (including `idea`),
