@@ -1,6 +1,23 @@
 # pi-mlx
 
-pi extension for MLX-backed local providers that injects a small, repetition-focused request preset before provider calls are sent.
+pi extension for MLX-backed local providers that injects a small, repetition-focused request preset before provider calls are sent, and auto-recovers when the local model stalls mid-task.
+
+## Stall recovery
+
+Quantized local models (e.g. Qwen via `mlx-lm`) sometimes lose tool-call format discipline: the model emits the tool call as raw XML (`<tool_call>…<parameter=…>…</parameter>…</tool_call>`) **inside its thinking output** instead of as a real tool call. The harness then sees a thinking-only assistant turn with `stopReason: "stop"` and nothing happens — the session silently waits for the user to type `continue`.
+
+The extension detects exactly this pattern on `message_end`:
+
+- **xml-confidence stall** — thinking-only, `stop`, and tool-call markup fragments in the thinking content
+- **bare stall** — thinking-only, `stop`, no markup (could be legitimate, but mid-task it almost never is)
+
+On each stall it shows a notification (`warning`; `error` when giving up) and sends the model a nudge via `pi.sendUserMessage`:
+
+> It looks like you tried to call a tool, but the call ended up as raw XML inside your thinking output and was never executed. If that's the case, do it properly now: emit the tool call as an actual tool call, not inside thinking. Otherwise, continue with your task.
+
+Auto-recovery is capped at **2 consecutive stalls**; the counter resets on any healthy assistant message. After the cap, an `error` notification asks the user to take over.
+
+This recovery is provider-agnostic in principle and **could live in a separate extension** (nothing about it is MLX-specific — it's gated on `mlx-lm` only because that's where the failure mode has been observed). It lives here for now to keep the number of extensions small.
 
 ## Why this uses a hook
 
