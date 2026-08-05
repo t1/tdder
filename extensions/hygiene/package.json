@@ -1,12 +1,13 @@
 {
   "name": "pi-hygiene",
   "version": "0.1.0",
-  "description": "Hygiene extension for pi — reminds the agent to load applicable skills based on project structure",
-  "keywords": ["pi-package"],
+  "description": "Hygiene extension for pi \u2014 reminds the agent to load applicable skills based on project structure",
+  "keywords": [
+    "pi-package"
+  ],
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "sync": "echo 'no vendored files'",
     "test": "vitest run test/*.test.ts"
   },
   "peerDependencies": {
@@ -16,6 +17,8 @@
     "vitest": "^4.1.7"
   },
   "pi": {
-    "extensions": ["."]
+    "extensions": [
+      "."
+    ]
   }
 }

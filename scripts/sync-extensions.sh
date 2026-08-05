@@ -13,7 +13,7 @@ for dir in extensions/*/; do
   " 2>/dev/null || continue
   found=1
   echo "==> syncing $(basename "$dir")"
-  npm run --prefix "$dir" sync
+  npm run --silent --prefix "$dir" sync
 done
 
 if [ "$found" -eq 0 ]; then

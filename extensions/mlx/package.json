@@ -1,16 +1,16 @@
 {
   "name": "pi-mlx",
   "version": "0.1.0",
-  "description": "MLX extension for pi — repetition-focused request defaults for mlx_lm.server providers",
-  "keywords": ["pi-package"],
+  "description": "MLX extension for pi \u2014 repetition-focused request defaults for mlx_lm.server providers",
+  "keywords": [
+    "pi-package"
+  ],
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "sync": "echo 'no vendored files'",
-    "pretest": "npm run sync && tsc",
+    "pretest": "tsc",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "prepack": "npm run sync"
+    "test:watch": "vitest"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
@@ -21,6 +21,8 @@
     "vitest": "^4.1.7"
   },
   "pi": {
-    "extensions": ["."]
+    "extensions": [
+      "."
+    ]
   }
 }
