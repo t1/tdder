@@ -22,15 +22,19 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import type { AgentSession, Extension } from "@earendil-works/pi-coding-agent";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 
 // ---------------------------------------------------------------------------
-// Minimal ExtensionContext stub — only what execute() needs for these tests
+// Minimal ExtensionToolContext stub — only what execute() needs for these tests
 // ---------------------------------------------------------------------------
 
-function makeCtx(cwd: string): ExtensionContext {
+function makeCtx(cwd: string): ExtensionToolContext {
   return {
     cwd,
+    tools: [],
+    executeTool: async () => {
+      throw new Error("Unexpected nested tool execution");
+    },
     ui: {
       notify: () => {},
       setStatus: () => {},
@@ -39,7 +43,7 @@ function makeCtx(cwd: string): ExtensionContext {
       select: async () => undefined,
       input: async () => undefined,
     },
-  } as unknown as ExtensionContext;
+  } as unknown as ExtensionToolContext;
 }
 
 interface WidgetCall {
@@ -47,10 +51,14 @@ interface WidgetCall {
   lines: string[] | undefined;
 }
 
-function makeRecordingCtx(cwd: string): { ctx: ExtensionContext; widgetCalls: WidgetCall[] } {
+function makeRecordingCtx(cwd: string): { ctx: ExtensionToolContext; widgetCalls: WidgetCall[] } {
   const widgetCalls: WidgetCall[] = [];
-  const ctx: ExtensionContext = {
+  const ctx: ExtensionToolContext = {
     cwd,
+    tools: [],
+    executeTool: async () => {
+      throw new Error("Unexpected nested tool execution");
+    },
     ui: {
       notify: () => {},
       setStatus: () => {},
@@ -59,7 +67,7 @@ function makeRecordingCtx(cwd: string): { ctx: ExtensionContext; widgetCalls: Wi
       select: async () => undefined,
       input: async () => undefined,
     },
-  } as unknown as ExtensionContext;
+  } as unknown as ExtensionToolContext;
   return { ctx, widgetCalls };
 }
 
