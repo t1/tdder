@@ -61,6 +61,29 @@ Use `maven_run` with `action="test"` if available.
 If not, use `tdder-maven test --scope --profiles`.
 Only if neither is available, use raw `mvn`.
 
+## User Properties
+
+Pass arbitrary Maven user properties (`-Dkey=value`) when the project's build needs extra flags
+(e.g. `quarkus.test.tags`, `native.enabled`, `skipTests`):
+
+- `maven_run` tool: `properties={'quarkus.test.tags': 'slow'}`
+- CLI: `tdder-maven test --scope surefire -Dquarkus.test.tags=slow` (Maven-native syntax)
+  or repeatable `--property key=value`
+
+Properties are appended after the tool's own flags, so they deliberately override them —
+Maven's last `-D` wins. Don't include the `-D` prefix in the `properties` record keys.
+
+## Offline Mode
+
+Run Maven offline from the local repository only (no network):
+
+- `maven_run` tool: `maven_run(action='test', testScope='surefire', offline=true)`
+- CLI: `tdder-maven test --scope surefire --offline`
+
+Use offline mode when the environment blocks network access but all dependencies are already
+cached locally. It maps to Maven's `-o`/`--offline`. Offline is mutually exclusive with
+`--update-snapshots`; the tool rejects the combination.
+
 ## Testcontainers (Claude Code Sandbox)
 
 Maven with Testcontainers (Docker-based tests) requires sandbox configuration. Three problems

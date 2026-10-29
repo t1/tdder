@@ -1,6 +1,6 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { checkUnknownFlags, parseArgs } from "../cli.ts";
+import { checkUnknownFlags, parseArgs, parseRunFlags } from "../cli.ts";
 
 // ---------------------------------------------------------------------------
 // parseArgs
@@ -35,6 +35,65 @@ describe("parseArgs", () => {
   it("parses --update-snapshots as boolean true", () => {
     const { args } = parseArgs(["test", "--update-snapshots"]);
     assert.equal(args["update-snapshots"], true);
+  });
+
+  it("parses --offline as boolean true", () => {
+    const { args } = parseArgs(["test", "--offline"]);
+    assert.equal(args.offline, true);
+  });
+
+  it("collects -Dkey=value tokens into a property array", () => {
+    const { args } = parseArgs(["test", "--scope", "surefire", "-Dfoo=1", "-Dbar=2"]);
+    assert.deepEqual((args.property as string[]), ["foo=1", "bar=2"]);
+  });
+
+  it("collects repeated --property flags into an array", () => {
+    const { args } = parseArgs(["test", "--property", "a=1", "--property", "b=2"]);
+    assert.deepEqual((args.property as string[]), ["a=1", "b=2"]);
+  });
+
+  it("mixes -D tokens and --property flags; flag values may still start with -D", () => {
+    const { args } = parseArgs(["test", "--selector", "-Dnot-a-property", "-Dreal=1"]);
+    assert.equal(args.selector, "-Dnot-a-property");
+    assert.deepEqual((args.property as string[]), ["real=1"]);
+  });
+
+  it("keeps -D tokens out of the positional arguments", () => {
+    const { args, command } = parseArgs(["lookup-version", "org.assertj", "-DskipTests"]);
+    assert.equal(command, "lookup-version");
+    assert.equal(args._positional, "org.assertj");
+    assert.deepEqual((args.property as string[]), ["skipTests"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseRunFlags
+// ---------------------------------------------------------------------------
+
+describe("parseRunFlags", () => {
+  it("maps CLI flags to Maven run options", () => {
+    const flags = parseRunFlags(
+      { "update-snapshots": true, offline: true, property: ["foo=1", "bar"], profiles: "at, rules", project: "module-a", selector: "MyTest#x", _positional: "" },
+      "default-module",
+    );
+    assert.deepEqual(flags, {
+      selector: "MyTest#x",
+      project: "module-a",
+      profiles: ["at", "rules"],
+      forceUpdate: true,
+      offline: true,
+      properties: { foo: "1", bar: "" },
+    });
+  });
+
+  it("falls back to the default project when none is given", () => {
+    const flags = parseRunFlags({ _positional: "" }, "default-module");
+    assert.equal(flags.project, "default-module");
+  });
+
+  it("yields no project when no default is given", () => {
+    const flags = parseRunFlags({ _positional: "" }, undefined);
+    assert.equal(flags.project, undefined);
   });
 });
 

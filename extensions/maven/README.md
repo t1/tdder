@@ -39,6 +39,9 @@ tdder-maven test --scope all --profiles at
 tdder-maven test --scope surefire --selector 'MyTest#myMethod'
 tdder-maven test --scope surefire --update-snapshots
 tdder-maven test --scope surefire --limit=none
+tdder-maven test --scope surefire -Dquarkus.test.tags=slow
+tdder-maven package --property native.enabled=true
+tdder-maven test --scope surefire --offline
 tdder-maven package
 tdder-maven package --project module-a --profiles native
 tdder-maven lookup-version org.assertj assertj-core
@@ -48,6 +51,21 @@ tdder-maven help
 ```
 
 All commands output structured JSON to stdout. Non-zero exit code on failure.
+
+### User properties and offline mode
+
+Arbitrary Maven user properties are passed in Maven-native syntax or via a repeatable flag —
+both forms may be mixed and later duplicates win, like Maven's last `-D`:
+
+```
+tdder-maven test --scope surefire -Dquarkus.test.tags=slow -Dnative.enabled=true
+tdder-maven package --property native.enabled=true --property another=2
+```
+
+Properties are appended after the curated flags, so they override them.
+`--offline` runs Maven from the local repository only (no network); it is mutually exclusive
+with `--update-snapshots`. The `maven_run` tool exposes the same via `properties={'key': 'value'}`
+and `offline=true`, and the `/maven` command accepts `-Dkey=value` tokens and `--offline`.
 
 ### Test scopes
 

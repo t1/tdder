@@ -466,3 +466,53 @@ describe("maven_run live progress widget", () => {
       "last setWidget call should clear the widget (lines === undefined)");
   });
 });
+
+// ---------------------------------------------------------------------------
+// maven_run — properties and offline mode
+// ---------------------------------------------------------------------------
+
+describe("maven_run properties and offline", () => {
+  before(setup);
+
+  it("documents properties and offline on the maven_run tool", () => {
+    const tool = mavenExtension.tools.get("maven_run")!;
+    const params = (tool.definition.parameters as { properties?: Record<string, unknown> }).properties;
+    assert.ok(params && "properties" in params, "properties parameter not registered");
+    assert.ok(params && "offline" in params, "offline parameter not registered");
+    assert.ok(tool.definition.promptGuidelines?.some(line => line.includes("properties=")),
+      "maven_run prompt guidelines should show the properties record syntax");
+    assert.ok(tool.definition.promptGuidelines?.some(line => line.includes("offline=true")),
+      "maven_run prompt guidelines should mention offline=true");
+  });
+
+  it("passes properties to Maven and echoes them in the command field", async () => {
+    const tool = mavenExtension.tools.get("maven_run")!;
+    const ctx = makeCtx(singleModuleRoot);
+    const result = await tool.definition.execute(
+      "tc-props",
+      { action: "package", properties: { "pi.maven.test.marker": "props-on" } },
+      undefined,
+      undefined,
+      ctx,
+    );
+    const text = (result.content[0] as { type: string; text: string }).text;
+    const runJson = JSON.parse(text);
+    assert.ok((runJson.command as string).includes("-Dpi.maven.test.marker=props-on"),
+      `command should contain the -D property, got: ${runJson.command}`);
+  });
+
+  it("rejects offline combined with forceUpdate without running Maven", async () => {
+    const tool = mavenExtension.tools.get("maven_run")!;
+    const ctx = makeCtx(singleModuleRoot);
+    await assert.rejects(
+      () => tool.definition.execute(
+        "tc-conflict",
+        { action: "test", testScope: "surefire", offline: true, forceUpdate: true },
+        undefined,
+        undefined,
+        ctx,
+      ),
+      /mutually exclusive/,
+    );
+  });
+});

@@ -1,7 +1,7 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 import { homedir } from "node:os";
-import { buildMavenArgs, buildMavenCommand, buildMavenEnv } from "../maven-run.ts";
+import { buildMavenArgs, buildMavenCommand, buildMavenEnv, parseMavenRunTokens, parsePropertyTokens } from "../maven-run.ts";
 
 describe("buildMavenCommand", () => {
   it("builds a surefire (unit test) command", () => {
@@ -77,6 +77,26 @@ describe("buildMavenCommand", () => {
       forceUpdate: true,
     });
     assert.equal(cmd, "./mvnw --update-snapshots test");
+  });
+
+  it("shows --offline and -Dkey=value properties", () => {
+    const cmd = buildMavenCommand({
+      action: "package",
+      runner: "./mvnw",
+      offline: true,
+      properties: { "quarkus.native.enabled": "true" },
+    });
+    assert.equal(cmd, "./mvnw --offline package -DskipTests -Dquarkus.native.enabled=true");
+  });
+
+  it("quotes a property value containing spaces", () => {
+    const cmd = buildMavenCommand({
+      action: "test",
+      runner: "./mvnw",
+      testScope: "surefire",
+      properties: { "test.tags": "slow and flaky" },
+    });
+    assert.equal(cmd, "./mvnw test '-Dtest.tags=slow and flaky'");
   });
 });
 
@@ -177,5 +197,116 @@ describe("buildMavenArgs", () => {
   it("adds --update-snapshots when forceUpdate is requested", () => {
     const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire", forceUpdate: true });
     assert.deepEqual(args, ["./mvnw", "--update-snapshots", "test"]);
+  });
+});
+
+describe("buildMavenArgs — properties", () => {
+  it("appends a single -Dkey=value property", () => {
+    const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire", properties: { "quarkus.test.tags": "slow" } });
+    assert.deepEqual(args, ["./mvnw", "test", "-Dquarkus.test.tags=slow"]);
+  });
+
+  it("appends multiple -Dkey=value properties in order", () => {
+    const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire", properties: { foo: "1", bar: "2" } });
+    assert.deepEqual(args, ["./mvnw", "test", "-Dfoo=1", "-Dbar=2"]);
+  });
+
+  it("places properties after the selector so they override curated flags (Maven's last -D wins)", () => {
+    const args = buildMavenArgs({
+      action: "test",
+      runner: "./mvnw",
+      testScope: "failsafe",
+      selector: "MyIT",
+      properties: { "it.test": "OtherIT" },
+    });
+    assert.deepEqual(args, ["./mvnw", "verify", "-Dskip.surefire.tests=true", "-DskipITs=false", "-Dit.test=MyIT", "-Dit.test=OtherIT"]);
+  });
+
+  it("rejects a property key containing '='", () => {
+    assert.throws(
+      () => buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire", properties: { "a=b": "1" } }),
+      /Invalid Maven property key/,
+    );
+  });
+
+  it("rejects a property key containing whitespace", () => {
+    assert.throws(
+      () => buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire", properties: { "a b": "1" } }),
+      /Invalid Maven property key/,
+    );
+  });
+
+  it("rejects a property key with a leading -D prefix (double-prefix mistake)", () => {
+    assert.throws(
+      () => buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire", properties: { "-Dfoo": "1" } }),
+      { message: /Invalid Maven property key '-Dfoo'.*no leading/ },
+    );
+  });
+});
+
+describe("buildMavenArgs — offline", () => {
+  it("adds --offline when offline is requested", () => {
+    const args = buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire", offline: true });
+    assert.deepEqual(args, ["./mvnw", "--offline", "test"]);
+  });
+
+  it("adds --offline before properties", () => {
+    const args = buildMavenArgs({ action: "package", runner: "./mvnw", offline: true, properties: { foo: "1" } });
+    assert.deepEqual(args, ["./mvnw", "--offline", "package", "-DskipTests", "-Dfoo=1"]);
+  });
+
+  it("rejects offline combined with forceUpdate", () => {
+    assert.throws(
+      () => buildMavenArgs({ action: "test", runner: "./mvnw", testScope: "surefire", offline: true, forceUpdate: true }),
+      /offline.*mutually exclusive|mutually exclusive.*offline/i,
+    );
+  });
+});
+
+describe("parsePropertyTokens", () => {
+  it("converts key=value tokens to a record", () => {
+    assert.deepEqual(parsePropertyTokens(["foo=1", "bar=2"]), { foo: "1", bar: "2" });
+  });
+
+  it("splits on the first '=' only, so values may contain '='", () => {
+    assert.deepEqual(parsePropertyTokens(["tags=a=b"]), { tags: "a=b" });
+  });
+
+  it("maps a value-less token to the empty string (like -Dflag)", () => {
+    assert.deepEqual(parsePropertyTokens(["skipTests"]), { skipTests: "" });
+  });
+
+  it("lets later duplicates win, like Maven's last -D", () => {
+    assert.deepEqual(parsePropertyTokens(["a=1", "a=2"]), { a: "2" });
+  });
+
+  it("returns an empty record for undefined", () => {
+    assert.deepEqual(parsePropertyTokens(undefined), {});
+  });
+
+  it("accepts a single string token", () => {
+    assert.deepEqual(parsePropertyTokens("foo=1"), { foo: "1" });
+  });
+});
+
+describe("parseMavenRunTokens", () => {
+  it("extracts -D properties and offline flags, leaving the rest", () => {
+    const { properties, offline, rest } = parseMavenRunTokens(["surefire", "-Dfoo=1", "MyTest#x", "--offline", "-Dbar"]);
+    assert.deepEqual(properties, { foo: "1", bar: "" });
+    assert.equal(offline, true);
+    assert.deepEqual(rest, ["surefire", "MyTest#x"]);
+  });
+
+  it("accepts -o as the offline shorthand", () => {
+    const { offline, rest } = parseMavenRunTokens(["package", "-o"]);
+    assert.equal(offline, true);
+    assert.deepEqual(rest, ["package"]);
+  });
+
+  it("returns empty properties, no offline, and all tokens for plain arguments", () => {
+    const { properties, offline, rest } = parseMavenRunTokens(["all", "MyIT"]);
+    assert.deepEqual(properties, {});
+    assert.equal(offline, false);
+    assert.deepEqual(rest, ["all", "MyIT"]);
   });
 });

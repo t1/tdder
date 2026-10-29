@@ -7,8 +7,9 @@
  *
  * Commands:
  *   info                                    – project detection and tree
- *   run test [--scope surefire|failsafe|all] [--profiles <ids>] [--selector <sel>] [--project <p>]
- *   run package [--project <p>] [--profiles <ids>]
+ *   test [--scope surefire|failsafe|all] [--profiles <ids>] [--selector <sel>] [--project <p>]
+ *        [--property <k=v> | -Dk=v ...] [--offline]
+ *   package [--project <p>] [--profiles <ids>] [--property <k=v> | -Dk=v ...] [--offline]
  *   lookup-version <groupId> <artifactId> [--include-prereleases]
  *   available-java-versions                 – Adoptium Java release info
  *
@@ -17,7 +18,7 @@
 
 import {resolve} from "node:path";
 
-import {buildMavenArgs, buildMavenCommand, type MavenAction, type TestScope} from "./maven-run.ts";
+import {buildMavenArgs, buildMavenCommand, parsePropertyTokens, type MavenAction, type TestScope} from "./maven-run.ts";
 import {
   MavenProjectInfo,
   MavenRun,
@@ -34,8 +35,11 @@ import {toMavenRunJson, toProjectInfoJson} from "./tool-types.ts";
 // CLI argument parsing
 // ---------------------------------------------------------------------------
 
+/** Parsed CLI arguments: flags (string or boolean), with `property` as a repeatable string[]. */
+type CliArgs = Record<string, string | boolean | string[]>;
+
 export function checkUnknownFlags(
-  args: Record<string, string | boolean>,
+  args: CliArgs,
   known: string[],
 ): string | null {
   const knownSet = new Set(known);
@@ -44,21 +48,33 @@ export function checkUnknownFlags(
   return `Unknown flag${unknown.length > 1 ? "s" : ""}: ${unknown.map((k) => `--${k}`).join(", ")}`;
 }
 
-export function parseArgs(argv: string[]): { command: string; args: Record<string, string | boolean> } {
+export function parseArgs(argv: string[]): { command: string; args: CliArgs } {
   const [command, ...rest] = argv;
-  const args: Record<string, string | boolean> = {};
+  const args: CliArgs = {};
   const positional: string[] = [];
+  const properties: string[] = [];
 
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
+    // Maven-native -Dkey=value syntax — collected like --property so it can't
+    // get lost in the positional arguments.
+    if (arg.startsWith("-D") && arg.length > 2) {
+      properties.push(arg.slice(2));
+      continue;
+    }
     if (arg.startsWith("--")) {
       const eqIdx = arg.indexOf("=");
       if (eqIdx !== -1) {
-        args[arg.slice(2, eqIdx)] = arg.slice(eqIdx + 1);
+        if (arg.slice(2, eqIdx) === "property") properties.push(arg.slice(eqIdx + 1));
+        else args[arg.slice(2, eqIdx)] = arg.slice(eqIdx + 1);
       } else {
         const key = arg.slice(2);
         const next = rest[i + 1];
-        if (next && !next.startsWith("--")) {
+        if (key === "property" && next && !next.startsWith("--")) {
+          // Repeatable flag: collect every occurrence.
+          properties.push(next);
+          i++;
+        } else if (next && !next.startsWith("--")) {
           args[key] = next;
           i++;
         } else {
@@ -69,15 +85,58 @@ export function parseArgs(argv: string[]): { command: string; args: Record<strin
       positional.push(arg);
     }
   }
+  if (properties.length > 0) args.property = properties;
   args._positional = positional.join(" ");
   return {command: command ?? "", args};
+}
+
+/** True when positional arguments were given (they are unexpected for run commands). */
+function hasPositional(args: CliArgs): boolean {
+  return typeof args._positional === "string" && args._positional.length > 0;
+}
+
+/** Report unexpected positional arguments with a non-zero exit code. */
+function rejectPositional(args: CliArgs): void {
+  const stray = args._positional;
+  if (typeof stray === "string") {
+    console.error(`Unexpected argument${stray.includes(" ") ? "s" : ""}: ${stray}`);
+    process.exitCode = 1;
+  }
+}
+
+/** Flags shared by the `test` and `package` commands. */
+const RUN_FLAGS = ["selector", "project", "profiles", "update-snapshots", "offline", "property"];
+
+/** Parse shared run-command flags into MavenCommandOptions fields. */
+export function parseRunFlags(
+  args: CliArgs,
+  defaultProject: string | undefined,
+): {
+  selector: string | undefined;
+  project: string | undefined;
+  profiles: string[] | undefined;
+  forceUpdate: boolean;
+  offline: boolean;
+  properties: Record<string, string>;
+} {
+  const profiles = typeof args.profiles === "string"
+    ? args.profiles.split(",").map(profile => profile.trim()).filter(Boolean)
+    : undefined;
+  return {
+    selector: args.selector as string | undefined,
+    project: (args.project as string | undefined) ?? defaultProject,
+    profiles,
+    forceUpdate: args["update-snapshots"] === true,
+    offline: args.offline === true,
+    properties: parsePropertyTokens(args.property),
+  };
 }
 
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
 
-async function cmdInfo(args: Record<string, string | boolean>): Promise<void> {
+async function cmdInfo(args: CliArgs): Promise<void> {
   const unknownError = checkUnknownFlags(args, []);
   if (unknownError) {
     console.error(unknownError);
@@ -91,11 +150,15 @@ async function cmdInfo(args: Record<string, string | boolean>): Promise<void> {
   if (!info) process.exitCode = 1;
 }
 
-async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
-  const unknownError = checkUnknownFlags(args, ["scope", "profiles", "selector", "project", "include-timings", "limit", "update-snapshots"]);
+async function cmdTest(args: CliArgs): Promise<void> {
+  const unknownError = checkUnknownFlags(args, [...RUN_FLAGS, "scope", "include-timings", "limit"]);
   if (unknownError) {
     console.error(unknownError);
     process.exitCode = 1;
+    return;
+  }
+  if (hasPositional(args)) {
+    rejectPositional(args);
     return;
   }
 
@@ -114,18 +177,12 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
     return;
   }
 
-  const selector = args.selector as string | undefined;
-  const profiles = typeof args.profiles === "string"
-    ? args.profiles.split(",").map(profile => profile.trim()).filter(Boolean)
-    : undefined;
   const includeTimings = args["include-timings"] === true;
-  const forceUpdate = args["update-snapshots"] === true;
   const rawLimit = args["limit"] as string | boolean | undefined;
   const limit: number | null =
     rawLimit === "none" ? null
       : rawLimit !== undefined && rawLimit !== true ? parseInt(rawLimit as string, 10)
         : 10;
-  const project = (args.project as string | undefined) ?? info.defaultProject();
 
   if (testScope === "failsafe") {
     if (!info.surefireSkipIsConfigured) {
@@ -138,7 +195,8 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
     }
   }
 
-  const opts = {action: "test" as MavenAction, runner: info.runner, selector, project, profiles, forceUpdate, testScope};
+  const base = parseRunFlags(args, info.defaultProject());
+  const opts = { action: "test" as MavenAction, runner: info.runner, ...base, testScope };
   const command = buildMavenCommand(opts);
   const mavenArgs = buildMavenArgs(opts);
 
@@ -151,11 +209,15 @@ async function cmdTest(args: Record<string, string | boolean>): Promise<void> {
   if (!result.success) process.exitCode = 1;
 }
 
-async function cmdPackage(args: Record<string, string | boolean>): Promise<void> {
-  const unknownError = checkUnknownFlags(args, ["project", "profiles", "update-snapshots"]);
+async function cmdPackage(args: CliArgs): Promise<void> {
+  const unknownError = checkUnknownFlags(args, RUN_FLAGS);
   if (unknownError) {
     console.error(unknownError);
     process.exitCode = 1;
+    return;
+  }
+  if (hasPositional(args)) {
+    rejectPositional(args);
     return;
   }
 
@@ -167,13 +229,7 @@ async function cmdPackage(args: Record<string, string | boolean>): Promise<void>
     return;
   }
 
-  const project = (args.project as string | undefined) ?? info.defaultProject();
-  const forceUpdate = args["update-snapshots"] === true;
-  const profiles = typeof args.profiles === "string"
-    ? args.profiles.split(",").map(profile => profile.trim()).filter(Boolean)
-    : undefined;
-
-  const opts = {action: "package" as MavenAction, runner: info.runner, project, profiles, forceUpdate};
+  const opts = { action: "package" as MavenAction, runner: info.runner, ...parseRunFlags(args, info.defaultProject()) };
   const command = buildMavenCommand(opts);
   const mavenArgs = buildMavenArgs(opts);
 
@@ -186,7 +242,7 @@ async function cmdPackage(args: Record<string, string | boolean>): Promise<void>
   if (!result.success) process.exitCode = 1;
 }
 
-async function cmdLookupVersion(args: Record<string, string | boolean>): Promise<void> {
+async function cmdLookupVersion(args: CliArgs): Promise<void> {
   const unknownError = checkUnknownFlags(args, ["include-prereleases"]);
   if (unknownError) {
     console.error(unknownError);
@@ -232,7 +288,7 @@ async function cmdLookupVersion(args: Record<string, string | boolean>): Promise
   }
 }
 
-async function cmdAvailableJavaVersions(args: Record<string, string | boolean>): Promise<void> {
+async function cmdAvailableJavaVersions(args: CliArgs): Promise<void> {
   const unknownError = checkUnknownFlags(args, []);
   if (unknownError) {
     console.error(unknownError);
@@ -283,6 +339,14 @@ Examples:
 
   # Force remote update checks for snapshots and metadata
   tdder-maven test --scope surefire --update-snapshots
+
+  # Pass arbitrary user properties (-D syntax, like Maven itself)
+  tdder-maven test --scope surefire -Dquarkus.test.tags=slow -DskipTests
+  tdder-maven package --property native.enabled=true --property another=2
+
+  # Run offline from the local repository only (no network; mutually exclusive with --update-snapshots)
+  tdder-maven test --scope surefire --offline
+  tdder-maven package --offline -Dnative.enabled
 
   # Unit tests with selector
   tdder-maven test --scope surefire --selector 'MyTest#myMethod'

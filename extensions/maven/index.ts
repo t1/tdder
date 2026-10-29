@@ -19,7 +19,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 
 import { renderMavenMessage, renderMavenRunResult } from "./renderer.ts";
 import { buildSummary as buildCollapsedSummary } from "./run-result-renderer.ts";
-import { buildMavenArgs, buildMavenCommand, type MavenAction, type TestScope } from "./maven-run.ts";
+import { buildMavenArgs, buildMavenCommand, parseMavenRunTokens, type MavenAction, type TestScope } from "./maven-run.ts";
 import { MavenProjectInfo, MavenRun, spawnMavenWithOfflineFallback, type MavenRunOptions, type RawRunOutput } from "./maven-project.ts";
 import { loadJarSkills } from "./jar-skills.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
@@ -176,12 +176,14 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "maven_run",
     label: "Maven Run",
-    description: "Runs a Maven workflow (test, package) with structured output, optional Maven profiles, and structured report parsing. Prefer this over raw bash for Maven tasks.",
+    description: "Runs a Maven workflow (test, package) with structured output, optional Maven profiles, arbitrary user properties (-Dkey=value), offline mode, and structured report parsing. Prefer this over raw bash for Maven tasks.",
     promptSnippet: "Run Maven test or package with structured results",
     promptGuidelines: [
       "Use maven_run instead of bash when running Maven goals. It enforces correct flags, saves raw output to a log file, and returns a compact structured result.",
       "For action=test, testScope is required: 'surefire' (unit tests only), 'failsafe' (ITs only), or 'all' (both).",
       "Use profiles when the project documents required Maven profiles (e.g. profiles=['at'] for -Pat). Profiles describe root-pom profile ids and are passed as -Pprofile1,profile2.",
+      "Pass arbitrary Maven user properties via properties={'key': 'value'} when the project needs extra -D flags, e.g. maven_run(action='test', testScope='surefire', properties={'quarkus.test.tags': 'slow'}). They are appended after the tool's own flags, so they deliberately override them (Maven's last -D wins).",
+      "Use offline=true to run Maven offline from the local repository only (maps to -o/--offline), e.g. when the network is unavailable and all dependencies are already cached. offline is mutually exclusive with forceUpdate.",
       "maven_run examples: unit tests: maven_run(action='test', testScope='surefire'); with selector: maven_run(action='test', testScope='surefire', selector='MyTest#myMethod'); ITs only: maven_run(action='test', testScope='failsafe'); all tests: maven_run(action='test', testScope='all'); AT profile: maven_run(action='test', testScope='all', profiles=['at']); specific module: maven_run(action='test', testScope='all', project='module-a'); package: maven_run(action='package'); package module: maven_run(action='package', project='module-a'); force remote update checks: maven_run(action='test', testScope='surefire', forceUpdate=true); slow test investigation: maven_run(action='test', testScope='surefire', includeTestTimings=true).",
       "If testScope='failsafe' and the tool returns SUREFIRE_SKIP_NOT_CONFIGURED, follow the instructions in the error response.",
       "If the result contains failedTestsLimit, the failedTests list is capped at that number — there may be more failures. Rerun with limit='none' to retrieve all.",
@@ -201,6 +203,8 @@ export default function (pi: ExtensionAPI) {
       includeTestTimings: Type.Optional(Type.Boolean({ description: "Include per-test timing data in the result. Use when investigating slow tests." })),
       limit: Type.Optional(Type.Union([Type.Number(), Type.Literal("none")], { description: "Maximum number of failed tests to include in the result. Defaults to 10. Pass 'none' for all." })),
       forceUpdate: Type.Optional(Type.Boolean({ description: "Force Maven remote update checks for snapshots and cached metadata; maps to Maven -U/--update-snapshots." })),
+      properties: Type.Optional(Type.Record(Type.String(), Type.String(), { description: "Arbitrary Maven user properties, passed as -D<key>=<value>. Appended after the tool's own flags, so they take precedence (Maven's last -D wins)." })),
+      offline: Type.Optional(Type.Boolean({ description: "Run Maven offline from the local repository only (no network); maps to -o/--offline. Mutually exclusive with forceUpdate." })),
     }),
 
     async execute(_toolCallId, params, _signal, onUpdate, ctx) {
@@ -208,7 +212,7 @@ export default function (pi: ExtensionAPI) {
       const info = MavenProjectInfo.create(cwd);
       if (!info) throw new Error("Not a Maven project");
 
-      const { action, selector, testScope, includeTestTimings, limit: rawLimit, profiles, forceUpdate } = params;
+      const { action, selector, testScope, includeTestTimings, limit: rawLimit, profiles, forceUpdate, properties, offline } = params;
       const limit: number | null = rawLimit === "none" ? null : (rawLimit ?? 10);
       const project = params.project ?? info.defaultProject();
 
@@ -224,7 +228,7 @@ export default function (pi: ExtensionAPI) {
         }
       }
 
-      const opts = { action: action as MavenAction, runner: info.runner, selector, project, profiles, forceUpdate, testScope: testScope as TestScope | undefined };
+      const opts = { action: action as MavenAction, runner: info.runner, selector, project, profiles, forceUpdate, properties, offline, testScope: testScope as TestScope | undefined };
       const command = buildMavenCommand(opts);
       const args = buildMavenArgs(opts);
 
@@ -248,10 +252,10 @@ export default function (pi: ExtensionAPI) {
     renderCall(args, theme, context) {
       const text = (context.lastComponent as Text | undefined)
         ?? new Text("", 0, 0);
-      const { action, project, profiles, selector, testScope, forceUpdate } = args as { action: string; project?: string; profiles?: string[]; selector?: string; testScope?: TestScope; forceUpdate?: boolean };
+      const { action, project, profiles, selector, testScope, forceUpdate, properties, offline } = args as { action: string; project?: string; profiles?: string[]; selector?: string; testScope?: TestScope; forceUpdate?: boolean; properties?: Record<string, string>; offline?: boolean };
       const info = MavenProjectInfo.create(resolve(context.cwd));
       const runner = info?.runner ?? "mvn";
-      const command = buildMavenCommand({ action: action as MavenAction, runner, project, profiles, selector, forceUpdate, testScope });
+      const command = buildMavenCommand({ action: action as MavenAction, runner, project, profiles, selector, forceUpdate, properties, offline, testScope });
       // After the result is available, context.state.result is set by renderResult.
       // Switch the pending icon to the final outcome icon so the command appears only once.
       const result = (context.state as { result?: MavenRunJson }).result;
@@ -404,7 +408,7 @@ export default function (pi: ExtensionAPI) {
   type TestScopeArg = (typeof TEST_SCOPES)[number];
 
   pi.registerCommand("maven", {
-    description: "Maven actions: info | test [all|surefire|failsafe] [selector] | package | version <groupId>:<artifactId> | java-versions",
+    description: "Maven actions: info | test [all|surefire|failsafe] [selector] [-Dkey=value …] [--offline] | package | version <groupId>:<artifactId> | java-versions",
 
     getArgumentCompletions: (prefix: string) => {
       const items = SUBCOMMANDS.filter((s) => s.startsWith(prefix)).map((s) => ({
@@ -485,19 +489,20 @@ export default function (pi: ExtensionAPI) {
 
       let testScope: TestScope | undefined;
       let selector: string | undefined;
+      const { properties, offline, rest: tokens } = parseMavenRunTokens(rest);
       if (sub === "test") {
-        const [maybeScope, ...selectorParts] = rest;
+        const [maybeScope, ...selectorParts] = tokens;
         if (TEST_SCOPES.includes(maybeScope as TestScopeArg)) {
           testScope = maybeScope as TestScope;
           selector = selectorParts.join(" ") || undefined;
         } else {
           testScope = "all";
-          selector = rest.join(" ") || undefined;
+          selector = tokens.join(" ") || undefined;
         }
       }
       const action: MavenAction = sub === "package" ? "package" : "test";
       const project = info.defaultProject();
-      const opts = { action, runner: info.runner, selector, project, testScope };
+      const opts = { action, runner: info.runner, selector, project, testScope, properties, offline };
       const command = buildMavenCommand(opts);
       const mavenArgs = buildMavenArgs(opts);
 
