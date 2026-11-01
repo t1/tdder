@@ -27,18 +27,31 @@ must be declared explicitly. **Symptoms:**
 - Tests fail to compile calling `SomeLombokClass.builder()...` while the class itself compiled fine.
 
 **Fix for Maven** — declare the processor explicitly in the compiler plugin (root pom, so all
-modules inherit it):
+modules inherit it). Use a `${lombok.version}` property alongside an explicit property declaration;
+pin the actual value next to it:
 
 ```xml
+<properties>
+    <lombok.version>1.18.48</lombok.version>
+</properties>
+...
+<dependency>
+    <groupId>org.projectlombok</groupId>
+    <artifactId>lombok</artifactId>
+    <version>${lombok.version}</version>
+    <scope>provided</scope>
+</dependency>
+...
 <plugin>
     <groupId>org.apache.maven.plugins</groupId>
     <artifactId>maven-compiler-plugin</artifactId>
     <configuration>
+        <proc>full</proc>
         <annotationProcessorPaths>
             <path>
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
-                <version>1.18.48</version>
+                <version>${lombok.version}</version>
             </path>
         </annotationProcessorPaths>
     </configuration>
