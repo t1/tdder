@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 
-export type MavenAction = "test" | "package";
+export type MavenAction = "clean" | "test" | "package";
 export type TestScope = "surefire" | "failsafe" | "all";
 
 export interface MavenCommandOptions {
@@ -80,6 +80,9 @@ interface PhaseOptions {
 
 /** Maps action + testScope to the Maven goals, flags, and selector flag prefix. */
 function phaseOptions(action: MavenAction, testScope: TestScope | undefined): PhaseOptions {
+  if (action === "clean") {
+    return { goals: ["clean"], flags: [], selectorFlag: "" };
+  }
   if (action === "package") {
     return { goals: ["package"], flags: ["-DskipTests"], selectorFlag: "" };
   }

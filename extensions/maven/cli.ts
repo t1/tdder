@@ -7,6 +7,7 @@
  *
  * Commands:
  *   info                                    – project detection and tree
+ *   clean [--profiles <ids>] [--property <k=v> | -Dk=v ...] [--offline]
  *   test [--scope surefire|failsafe|all] [--profiles <ids>] [--selector <sel>] [--project <p>]
  *        [--property <k=v> | -Dk=v ...] [--offline]
  *   package [--project <p>] [--profiles <ids>] [--property <k=v> | -Dk=v ...] [--offline]
@@ -18,17 +19,16 @@
 
 import {resolve} from "node:path";
 
-import {buildMavenArgs, buildMavenCommand, parsePropertyTokens, type MavenAction, type TestScope} from "./maven-run.ts";
+import {buildMavenArgs, buildMavenCommand, type MavenAction, parsePropertyTokens, type TestScope} from "./maven-run.ts";
+import {MavenProjectInfo, MavenRun, spawnMavenWithOfflineFallback,} from "./maven-project.ts";
+import {buildMetadataUrl, fetchMetadata, selectVersion, VersionLookupError} from "./version-lookup.ts";
 import {
-  MavenProjectInfo,
-  MavenRun,
-  spawnMavenWithOfflineFallback,
-  type MavenRunOptions,
-} from "./maven-project.ts";
-import {buildMetadataUrl, fetchMetadata, formatVersionLookupError, selectVersion, VersionLookupError} from "./version-lookup.ts";
-import {fetchAvailableJavaVersions, fetchJavaReleaseMetadata, ADOPTIUM_AVAILABLE_RELEASES_URL} from "./java-version-lookup.ts";
+  ADOPTIUM_AVAILABLE_RELEASES_URL,
+  fetchAvailableJavaVersions,
+  fetchJavaReleaseMetadata
+} from "./java-version-lookup.ts";
 import {INFO_LAYOUT, SUREFIRE_SKIP_NOT_CONFIGURED_MESSAGE} from "./guidance.ts";
-import type {JavaVersionLookupJson, MavenRunJson, VersionLookupFailureJson, VersionLookupJson} from "./tool-types.ts";
+import type {JavaVersionLookupJson, VersionLookupFailureJson, VersionLookupJson} from "./tool-types.ts";
 import {toMavenRunJson, toProjectInfoJson} from "./tool-types.ts";
 
 // ---------------------------------------------------------------------------
@@ -104,6 +104,9 @@ function rejectPositional(args: CliArgs): void {
   }
 }
 
+/** Flags for the `clean` command (no selector). */
+const CLEAN_FLAGS = ["project", "profiles", "update-snapshots", "offline", "property"];
+
 /** Flags shared by the `test` and `package` commands. */
 const RUN_FLAGS = ["selector", "project", "profiles", "update-snapshots", "offline", "property"];
 
@@ -145,7 +148,7 @@ async function cmdInfo(args: CliArgs): Promise<void> {
   }
   const cwd = resolve(process.cwd());
   const info = MavenProjectInfo.create(cwd);
-  const json = info ? toProjectInfoJson(info) : { isMavenProject: false };
+  const json = info ? toProjectInfoJson(info) : {isMavenProject: false};
   console.log(JSON.stringify(json, null, 2));
   if (!info) process.exitCode = 1;
 }
@@ -196,14 +199,22 @@ async function cmdTest(args: CliArgs): Promise<void> {
   }
 
   const base = parseRunFlags(args, info.defaultProject());
-  const opts = { action: "test" as MavenAction, runner: info.runner, ...base, testScope };
+  const opts = {action: "test" as MavenAction, runner: info.runner, ...base, testScope};
   const command = buildMavenCommand(opts);
   const mavenArgs = buildMavenArgs(opts);
 
   const runStartTime = Date.now();
   const rawRun = await spawnMavenWithOfflineFallback(mavenArgs, info.projectRoot);
 
-  const result = toMavenRunJson(MavenRun.fromRawOutput(rawRun, info, {command, action: "test", cwd, testScope, runStartTime, includeTimings, limit}));
+  const result = toMavenRunJson(MavenRun.fromRawOutput(rawRun, info, {
+    command,
+    action: "test",
+    cwd,
+    testScope,
+    runStartTime,
+    includeTimings,
+    limit
+  }));
 
   console.log(JSON.stringify(result, null, 2));
   if (!result.success) process.exitCode = 1;
@@ -229,14 +240,59 @@ async function cmdPackage(args: CliArgs): Promise<void> {
     return;
   }
 
-  const opts = { action: "package" as MavenAction, runner: info.runner, ...parseRunFlags(args, info.defaultProject()) };
+  const opts = {action: "package" as MavenAction, runner: info.runner, ...parseRunFlags(args, info.defaultProject())};
   const command = buildMavenCommand(opts);
   const mavenArgs = buildMavenArgs(opts);
 
   const runStartTime = Date.now();
   const rawRun = await spawnMavenWithOfflineFallback(mavenArgs, info.projectRoot);
 
-  const result = toMavenRunJson(MavenRun.fromRawOutput(rawRun, info, {command, action: "package", cwd, testScope: undefined, runStartTime}));
+  const result = toMavenRunJson(MavenRun.fromRawOutput(rawRun, info, {
+    command,
+    action: "package",
+    cwd,
+    testScope: undefined,
+    runStartTime
+  }));
+
+  console.log(JSON.stringify(result, null, 2));
+  if (!result.success) process.exitCode = 1;
+}
+
+async function cmdClean(args: CliArgs): Promise<void> {
+  const unknownError = checkUnknownFlags(args, CLEAN_FLAGS);
+  if (unknownError) {
+    console.error(unknownError);
+    process.exitCode = 1;
+    return;
+  }
+  if (hasPositional(args)) {
+    rejectPositional(args);
+    return;
+  }
+
+  const cwd = resolve(process.cwd());
+  const info = MavenProjectInfo.create(cwd);
+  if (!info) {
+    console.error("Not a Maven project");
+    process.exitCode = 1;
+    return;
+  }
+
+  const opts = {action: "clean" as MavenAction, runner: info.runner, ...parseRunFlags(args, info.defaultProject())};
+  const command = buildMavenCommand(opts);
+  const mavenArgs = buildMavenArgs(opts);
+
+  const runStartTime = Date.now();
+  const rawRun = await spawnMavenWithOfflineFallback(mavenArgs, info.projectRoot);
+
+  const result = toMavenRunJson(MavenRun.fromRawOutput(rawRun, info, {
+    command,
+    action: "clean",
+    cwd,
+    testScope: undefined,
+    runStartTime
+  }));
 
   console.log(JSON.stringify(result, null, 2));
   if (!result.success) process.exitCode = 1;
@@ -279,7 +335,7 @@ async function cmdLookupVersion(args: CliArgs): Promise<void> {
     console.log(JSON.stringify(result, null, 2));
   } catch (err) {
     if (err instanceof VersionLookupError) {
-      const failure: VersionLookupFailureJson = { ...err.details };
+      const failure: VersionLookupFailureJson = {...err.details};
       console.error(JSON.stringify(failure, null, 2));
       process.exitCode = 1;
       return;
@@ -325,6 +381,9 @@ Outputs JSON to stdout. Exits non-zero on failure.
 Never cd to a subdirectory — use --project instead.
 
 Examples:
+
+  # Clean the target directory
+  tdder-maven clean
 
   # Project structure and module tree
   tdder-maven info
@@ -416,6 +475,8 @@ async function main(): Promise<void> {
       return cmdLookupVersion(args);
     case "available-java-versions":
       return cmdAvailableJavaVersions(args);
+    case "clean":
+      return cmdClean(args);
     default:
       console.error(USAGE);
       process.exitCode = command ? 1 : 0;

@@ -176,22 +176,22 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "maven_run",
     label: "Maven Run",
-    description: "Runs a Maven workflow (test, package) with structured output, optional Maven profiles, arbitrary user properties (-Dkey=value), offline mode, and structured report parsing. Prefer this over raw bash for Maven tasks.",
-    promptSnippet: "Run Maven test or package with structured results",
+    description: "Runs a Maven workflow (test, package, clean) with structured output, optional Maven profiles, arbitrary user properties (-Dkey=value), offline mode, and structured report parsing. Prefer this over raw bash for Maven tasks.",
+    promptSnippet: "Run Maven test, package, or clean with structured results",
     promptGuidelines: [
       "Use maven_run instead of bash when running Maven goals. It enforces correct flags, saves raw output to a log file, and returns a compact structured result.",
       "For action=test, testScope is required: 'surefire' (unit tests only), 'failsafe' (ITs only), or 'all' (both).",
       "Use profiles when the project documents required Maven profiles (e.g. profiles=['at'] for -Pat). Profiles describe root-pom profile ids and are passed as -Pprofile1,profile2.",
       "Pass arbitrary Maven user properties via properties={'key': 'value'} when the project needs extra -D flags, e.g. maven_run(action='test', testScope='surefire', properties={'quarkus.test.tags': 'slow'}). They are appended after the tool's own flags, so they deliberately override them (Maven's last -D wins).",
       "Use offline=true to run Maven offline from the local repository only (maps to -o/--offline), e.g. when the network is unavailable and all dependencies are already cached. offline is mutually exclusive with forceUpdate.",
-      "maven_run examples: unit tests: maven_run(action='test', testScope='surefire'); with selector: maven_run(action='test', testScope='surefire', selector='MyTest#myMethod'); ITs only: maven_run(action='test', testScope='failsafe'); all tests: maven_run(action='test', testScope='all'); AT profile: maven_run(action='test', testScope='all', profiles=['at']); specific module: maven_run(action='test', testScope='all', project='module-a'); package: maven_run(action='package'); package module: maven_run(action='package', project='module-a'); force remote update checks: maven_run(action='test', testScope='surefire', forceUpdate=true); slow test investigation: maven_run(action='test', testScope='surefire', includeTestTimings=true).",
+      "maven_run action values: 'clean' runs just \"mvn clean\"; 'test' requires testScope; 'package' skips tests. Examples: clean: maven_run(action='clean'); unit tests: maven_run(action='test', testScope='surefire'); with selector: maven_run(action='test', testScope='surefire', selector='MyTest#myMethod'); ITs only: maven_run(action='test', testScope='failsafe'); all tests: maven_run(action='test', testScope='all'); AT profile: maven_run(action='test', testScope='all', profiles=['at']); specific module: maven_run(action='test', testScope='all', project='module-a'); package: maven_run(action='package'); package module: maven_run(action='package', project='module-a'); force remote update checks: maven_run(action='test', testScope='surefire', forceUpdate=true); slow test investigation: maven_run(action='test', testScope='surefire', includeTestTimings=true).",
       "If testScope='failsafe' and the tool returns SUREFIRE_SKIP_NOT_CONFIGURED, follow the instructions in the error response.",
       "If the result contains failedTestsLimit, the failedTests list is capped at that number — there may be more failures. Rerun with limit='none' to retrieve all.",
       "Each entry in failedTests has: kind (failure=assertion, error=unexpected exception), type (exception/assertion class), reportFile (path to the Surefire XML), reportFileOffset (1-based start line), and reportFileLimit (line count of the block). Read reportFile with reportFileOffset and reportFileLimit to get the full stacktrace or assertion diff — prefer this over rawMavenLogPath.",
       "When suggesting next steps that involve running Maven, tell the user to use the /maven command (e.g. '/maven test', '/maven package') rather than raw mvn commands.",
     ],
     parameters: Type.Object({
-      action: StringEnum(["test", "package"] as const, {
+      action: StringEnum(["clean", "test", "package"] as const, {
         description: "Maven workflow to run",
       }),
       testScope: Type.Optional(StringEnum(["surefire", "failsafe", "all"] as const, {
@@ -402,13 +402,13 @@ export default function (pi: ExtensionAPI) {
 
   // ── /maven command ────────────────────────────────────────────────────────
 
-  const SUBCOMMANDS = ["info", "test", "package", "version", "java-versions"] as const;
+  const SUBCOMMANDS = ["info", "clean", "test", "package", "version", "java-versions"] as const;
   type Subcommand = (typeof SUBCOMMANDS)[number];
   const TEST_SCOPES = ["all", "surefire", "failsafe"] as const;
   type TestScopeArg = (typeof TEST_SCOPES)[number];
 
   pi.registerCommand("maven", {
-    description: "Maven actions: info | test [all|surefire|failsafe] [selector] [-Dkey=value …] [--offline] | package | version <groupId>:<artifactId> | java-versions",
+    description: "Maven actions: info | clean | test [all|surefire|failsafe] [selector] [-Dkey=value …] [--offline] | package | version <groupId>:<artifactId> | java-versions",
 
     getArgumentCompletions: (prefix: string) => {
       const items = SUBCOMMANDS.filter((s) => s.startsWith(prefix)).map((s) => ({
@@ -416,6 +416,7 @@ export default function (pi: ExtensionAPI) {
         label: s,
         description: {
           info:    "Show project info",
+          clean:   "Clean the target directory",
           test:    "Run tests (default: all)",
           package: "Package without tests",
           version: "Look up artifact version",
@@ -500,7 +501,7 @@ export default function (pi: ExtensionAPI) {
           selector = tokens.join(" ") || undefined;
         }
       }
-      const action: MavenAction = sub === "package" ? "package" : "test";
+      const action: MavenAction = sub === "package" ? "package" : sub === "clean" ? "clean" : "test";
       const project = info.defaultProject();
       const opts = { action, runner: info.runner, selector, project, testScope, properties, offline };
       const command = buildMavenCommand(opts);

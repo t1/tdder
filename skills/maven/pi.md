@@ -57,6 +57,11 @@ Instead:
 - `maven_run(action='test', testScope='surefire', forceUpdate=true)`
 - `maven_run(action='package', forceUpdate=true)`
 
+Other actions:
+
+- Clean: `maven_run(action='clean')`
+- Package: `maven_run(action='package')`
+
 If you suggest a follow-up Maven action to the user, tell them to use the `/maven` command,
 not raw `mvn`.
 
@@ -89,6 +94,14 @@ Run Maven offline from the local repository only (no network):
 Use offline mode when the environment blocks network access but all dependencies are already
 cached locally. It maps to Maven's `-o`/`--offline`. Offline is mutually exclusive with
 force remote update checks (`forceUpdate` / `--update-snapshots`); the tool rejects the combination.
+
+## Cleaning
+
+Clean the build directory:
+
+- `maven_run` tool: `maven_run(action='clean')`
+- CLI: `tdder-maven clean`
+- Raw Maven: `mvn clean`
 
 ## Building
 

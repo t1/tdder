@@ -122,6 +122,14 @@ Enable this with:
 
 If Docker images are not cached locally, also add `"registry-1.docker.io"` to `allowedDomains`.
 
+## Cleaning
+
+Clean the build directory:
+
+- `maven_run` tool: `maven_run(action='clean')`
+- CLI: `tdder-maven clean`
+- Raw Maven: `mvn clean`
+
 ## Building
 
 Use `maven_run` with `action="package"` if available.
