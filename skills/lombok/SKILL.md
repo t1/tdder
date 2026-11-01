@@ -1,11 +1,14 @@
 ---
 name: lombok
 description: >
-  Always load this skill when a Maven/Gradle project uses Lombok (lombok on the classpath or
-  in the pom), when lombok annotations appear in source code, or when compilation fails with
-  "cannot find symbol" errors for lombok-generated methods (builder(), getters, setters,
-  constructors, etc.). Covers the JDK 21+ annotation-processor gotcha that silently disables
-  Lombok.
+  Always load this skill when you encounter any of these signals:
+  • A build failure with "cannot find symbol" for Lombok-generated members (getX, setX, builder,
+    toString, equals, hashCode, withX)
+  • Source files annotated with @Data, @Getter, @Setter, @Slf4j, @Builder, @Value, @With,
+    @NoArgsConstructor, @AllArgsConstructor, @RequiredArgsConstructor
+  • A Maven or Gradle project that declares lombok as a dependency but fails to compile
+    Lombok-produced symbols
+  Covers the JDK 21+ annotation-processor gotcha that silently disables Lombok.
 version: 0.1.0
 ---
 
