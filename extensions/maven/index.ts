@@ -21,7 +21,6 @@ import { renderMavenMessage, renderMavenRunResult } from "./renderer.ts";
 import { buildSummary as buildCollapsedSummary } from "./run-result-renderer.ts";
 import { buildMavenArgs, buildMavenCommand, parseMavenRunTokens, type MavenAction, type TestScope } from "./maven-run.ts";
 import { MavenProjectInfo, MavenRun, spawnMavenWithOfflineFallback, type MavenRunOptions, type RawRunOutput } from "./maven-project.ts";
-import { loadJarSkills } from "./jar-skills.ts";
 import { parsePhase, formatWidgetLine } from "./progress-widget.ts";
 import { buildMetadataUrl, fetchMetadata, formatVersionLookupError, selectVersion, VersionLookupError } from "./version-lookup.ts";
 import { fetchAvailableJavaVersions, fetchJavaReleaseMetadata, ADOPTIUM_AVAILABLE_RELEASES_URL } from "./java-version-lookup.ts";
@@ -101,13 +100,6 @@ export default function (pi: ExtensionAPI) {
       systemPrompt: event.systemPrompt + "\n\nA `pom.xml` was detected in this project. Load the `maven` skill before proceeding.",
     };
   });
-
-  pi.on("resources_discover", async (event) => {
-    const skills = await loadJarSkills(event.cwd);
-    if (!skills) return {};
-    return { skillPaths: [skills] };
-  });
-
 
   // ── Message renderer ───────────────────────────────────────────────────────
   // All /maven command output goes through here — styled, no LLM involved.
