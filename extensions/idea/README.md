@@ -10,7 +10,7 @@ See `AGENTS.md` in this directory for design decisions.
 ## Requirements
 
 - IntelliJ IDEA (or any IDE that ships the JetBrains MCP Server plugin) running locally
-- The MCP Server plugin enabled in the IDE (default endpoint: `http://127.0.0.1:64342/sse`)
+- The MCP Server plugin enabled in the IDE with the streamable-HTTP transport on (endpoint: `http://127.0.0.1:64342/stream`; the project is pinned via the `IJ_MCP_SERVER_PROJECT_PATH` header)
 - The project pi is working on must be open in the IDE
 
 ## Development

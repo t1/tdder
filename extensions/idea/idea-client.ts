@@ -1,5 +1,4 @@
-import { McpClient, type InitializeResult } from "@earendil-works/pi-mcp";
-import { LegacySseTransport } from "./sse-transport.ts";
+import { McpClient, StreamableHttpTransport, type InitializeResult } from "@earendil-works/pi-mcp";
 
 export type ToolCallResult =
   | { kind: "ok"; content: unknown }
@@ -25,7 +24,13 @@ export class IdeaClient {
   }
 
   connect(): Promise<InitializeResult> {
-    return this.raw.connect(new LegacySseTransport(this.baseUrl));
+    // The IDE's streamable-HTTP endpoint; the project is pinned server-side via header.
+    return this.raw.connect(
+      new StreamableHttpTransport({
+        url: `${this.baseUrl}/stream`,
+        headers: { IJ_MCP_SERVER_PROJECT_PATH: this.projectPath },
+      }),
+    );
   }
 
   callTool(name: string, args: object = {}, timeoutMs?: number): Promise<ToolCallResult> {
