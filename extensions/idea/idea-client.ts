@@ -1,27 +1,31 @@
-import { McpClient } from "./vendor/mcp-client.ts";
-import { SseTransport } from "./sse-transport.ts";
+import { McpClient, type InitializeResult } from "@earendil-works/pi-mcp";
+import { LegacySseTransport } from "./sse-transport.ts";
 
 export type ToolCallResult =
   | { kind: "ok"; content: unknown }
   | { kind: "project-not-open"; openProjects: string[] };
 
 /**
- * A thin wrapper around McpClient that injects projectPath and classifies
+ * A thin wrapper around pi-mcp's McpClient that injects projectPath and classifies
  * responses as ToolCallResult. Usable in both production (index.ts) and
  * e2e tests without going through the full extension.
  */
 export class IdeaClient {
+  private readonly raw: McpClient;
+
   constructor(
-    private readonly raw: McpClient,
+    private readonly baseUrl: string,
     private readonly projectPath: string,
-  ) {}
+  ) {
+    this.raw = new McpClient({ name: "pi-idea", version: "0.1.0" });
+  }
 
   get rawClient(): McpClient {
     return this.raw;
   }
 
-  connect(): Promise<void> {
-    return this.raw.connect();
+  connect(): Promise<InitializeResult> {
+    return this.raw.connect(new LegacySseTransport(this.baseUrl));
   }
 
   callTool(name: string, args: object = {}, timeoutMs?: number): Promise<ToolCallResult> {
@@ -34,12 +38,7 @@ export class IdeaClient {
 }
 
 export function createIdeaClient(baseUrl: string, projectPath: string): IdeaClient {
-  const raw = new McpClient(new SseTransport(baseUrl), {
-    clientInfo: { name: "pi-idea", version: "0.1.0" },
-    protocolVersion: "2024-11-05",
-    defaultTimeoutMs: 5000,
-  });
-  return new IdeaClient(raw, projectPath);
+  return new IdeaClient(baseUrl, projectPath);
 }
 
 export function callIdeaTool(
@@ -49,7 +48,7 @@ export function callIdeaTool(
   projectPath: string,
   timeoutMs = 5000,
 ): Promise<ToolCallResult> {
-  return client.callTool(name, { ...args, projectPath }, timeoutMs).then((result) => {
+  return client.callTool(name, { ...args, projectPath }, { timeoutMs }).then((result) => {
     if (result.isError) {
       const notOpen = classifyProjectNotOpen(result.content);
       if (notOpen) return notOpen;

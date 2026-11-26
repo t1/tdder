@@ -26,4 +26,28 @@ describe("callIdeaTool", () => {
     const result = await callIdeaTool(fakeClient as never, "some_tool", {}, "/project");
     expect(result.kind).toBe("ok");
   });
+
+  it("injects projectPath into the tool arguments", async () => {
+    let seen: unknown;
+    const fakeClient = {
+      callTool: async (_name: string, args: unknown) => {
+        seen = args;
+        return { isError: false, content: [{ type: "text", text: "ok" }] };
+      },
+    };
+    await callIdeaTool(fakeClient as never, "some_tool", { foo: 1 }, "/project");
+    expect(seen).toEqual({ foo: 1, projectPath: "/project" });
+  });
+
+  it("forwards the timeout as a pi-mcp McpRequestOptions object", async () => {
+    let seenOptions: unknown;
+    const fakeClient = {
+      callTool: async (_name: string, _args: unknown, options: unknown) => {
+        seenOptions = options;
+        return { isError: false, content: [{ type: "text", text: "ok" }] };
+      },
+    };
+    await callIdeaTool(fakeClient as never, "some_tool", {}, "/project", 5000);
+    expect(seenOptions).toEqual({ timeoutMs: 5000 });
+  });
 });
