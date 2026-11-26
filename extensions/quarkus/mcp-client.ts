@@ -1,52 +1,18 @@
 /**
- * Quarkus MCP client — wraps the shared McpClient with stdio transport.
+ * Quarkus MCP client — wraps pi-mcp's McpClient with a StdioTransport.
  *
- * The child process lifecycle (spawn, kill, close listeners) lives here
- * because it's specific to how quarkus-agent-mcp is launched.
+ * The child process lifecycle (spawn, kill, stderr capture, close listeners)
+ * lives here because it's specific to how quarkus-agent-mcp is launched via jbang.
  */
 
-import { type ChildProcessWithoutNullStreams } from "node:child_process";
-import { createInterface } from "node:readline";
-import { McpClient as McpClientBase, type McpTransport, type McpTool, type McpToolResult } from "./vendor/mcp-client.ts";
-import { spawnSafe } from "./vendor/spawn-safe.ts";
+import {
+  McpClient as PiMcpClient,
+  StdioTransport,
+  type CallToolResult,
+  type Tool,
+} from "@earendil-works/pi-mcp";
 
-export type { McpTool, McpToolResult };
-
-// ---------------------------------------------------------------------------
-// StdioTransport
-// ---------------------------------------------------------------------------
-
-/**
- * MCP transport over a child process's stdin/stdout.
- * Messages are newline-delimited JSON (one message per line).
- */
-class StdioTransport implements McpTransport {
-  onMessage: (data: string) => void = () => {};
-
-  constructor(
-    private readonly readable: NodeJS.ReadableStream,
-    private readonly writable: NodeJS.WritableStream,
-  ) {}
-
-  async connect(): Promise<void> {
-    const rl = createInterface({ input: this.readable });
-    rl.on("line", (line) => {
-      if (line.trim()) this.onMessage(line);
-    });
-  }
-
-  async send(message: string): Promise<void> {
-    (this.writable as NodeJS.WritableStream & { write(s: string): void }).write(message + "\n");
-  }
-
-  async close(): Promise<void> {
-    (this.writable as NodeJS.WritableStream & { end(): void }).end();
-  }
-}
-
-// ---------------------------------------------------------------------------
-// McpClient
-// ---------------------------------------------------------------------------
+export type { CallToolResult as McpToolResult, Tool as McpTool };
 
 /** Error thrown when the MCP child process exits before the handshake completes. */
 export class McpStartupError extends Error {
@@ -61,55 +27,61 @@ export class McpStartupError extends Error {
 }
 
 export class McpClient {
-  private proc: ChildProcessWithoutNullStreams;
-  private client: McpClientBase;
-  private ready: Promise<void>;
-  private closed = false;
+  private readonly transport: StdioTransport;
+  private readonly client: PiMcpClient;
+  private readonly ready: Promise<void>;
   private closeListeners: Array<() => void> = [];
-  private stderrChunks: Buffer[] = [];
+  private listenersFired = false;
+  private toolCache: Tool[] = [];
 
   constructor(command: string, args: string[], cwd: string, env?: Record<string, string>) {
-    const { child, whenSpawnError } = spawnSafe(command, args, {
+    const transport = new StdioTransport({
+      command,
+      args,
       cwd,
-      env: { ...process.env, ...env },
-      stdio: ["pipe", "pipe", "pipe"],
+      env,
     });
-    this.proc = child;
-
-    this.proc.stderr.on("data", (chunk: Buffer) => {
-      this.stderrChunks.push(chunk);
+    const client = new PiMcpClient({
+      name: "pi-quarkus-mcp",
+      version: "1.0.0",
     });
+    this.transport = transport;
+    this.client = client;
 
-    const transport = new StdioTransport(this.proc.stdout, this.proc.stdin);
-    this.client = new McpClientBase(transport, {
-      clientInfo: { name: "pi-quarkus-mcp", version: "1.0.0" },
-      protocolVersion: "2025-03-26",
-      capabilities: { roots: { listChanged: false } },
-    });
-
-    // Reject the ready promise with a rich error when the process exits
-    // unexpectedly during startup, before the handshake completes.
-    const whenProcessClose = new Promise<never>((_resolve, reject) => {
-      this.proc.on("close", (code) => {
-        this.closed = true;
-        this.client.close().catch(() => {});
-        for (const cb of this.closeListeners) cb();
-        const stderr = this.stderrChunks.map((b) => b.toString()).join("").trim();
-        const codeStr = code !== null ? `exit code ${code}` : "no exit code";
-        const summary = `quarkus-agent-mcp exited unexpectedly (${codeStr})`;
-        reject(new McpStartupError(summary, code, stderr));
+    // Reject the ready promise with a rich error when the connection drops
+    // before the handshake completes (e.g. jbang fails to resolve the alias).
+    let settled = false;
+    const whenDropped = new Promise<never>((_resolve, reject) => {
+      client.onClose(() => {
+        this.fireCloseListeners();
+        if (!settled) {
+          settled = true;
+          reject(
+            new McpStartupError(
+              "quarkus-agent-mcp exited unexpectedly before the handshake completed",
+              null,
+              transport.stderr.trim(),
+            ),
+          );
+        }
       });
     });
 
-    this.ready = Promise.race([this.client.connect(), whenSpawnError, whenProcessClose]);
+    const whenConnected = (async () => {
+      await client.connect(transport);
+      this.toolCache = await client.listTools();
+      settled = true;
+    })();
+
+    this.ready = Promise.race([whenConnected, whenDropped]);
   }
 
   addCloseListener(cb: () => void): void {
     this.closeListeners.push(cb);
   }
 
-  get tools(): McpTool[] {
-    return this.client.tools;
+  get tools(): Tool[] {
+    return this.toolCache;
   }
 
   /** Wait for the MCP handshake and tool discovery to complete. */
@@ -118,21 +90,20 @@ export class McpClient {
   }
 
   /** Call a tool by name with the given arguments. */
-  async callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<McpToolResult> {
+  async callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<CallToolResult> {
     await this.ready;
-    return this.client.callTool(name, args, undefined, signal);
+    return this.client.callTool(name, args, { signal });
   }
 
   /** Gracefully shut down the MCP client. */
   async close(): Promise<void> {
-    if (this.closed) return;
-    try {
-      await this.client.request("shutdown", {}).catch(() => {});
-    } catch {
-      // ignore
-    }
     await this.client.close();
-    this.proc.kill();
-    this.closed = true;
+    this.fireCloseListeners();
+  }
+
+  private fireCloseListeners(): void {
+    if (this.listenersFired) return;
+    this.listenersFired = true;
+    for (const cb of this.closeListeners) cb();
   }
 }
