@@ -1,4 +1,6 @@
-import { McpClient, StreamableHttpTransport, type InitializeResult } from "@earendil-works/pi-mcp";
+// Vendored: pi's extension loader does not alias @earendil-works/pi-mcp, so the
+// package is vendored into vendor/node_modules (see scripts/vendor-mcp-deps.mjs).
+import { McpClient, StreamableHttpTransport, type InitializeResult } from "./vendor/node_modules/@earendil-works/pi-mcp/dist/index.js";
 
 export type ToolCallResult =
   | { kind: "ok"; content: unknown }

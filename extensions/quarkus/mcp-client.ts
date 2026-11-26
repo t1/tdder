@@ -5,12 +5,14 @@
  * lives here because it's specific to how quarkus-agent-mcp is launched via jbang.
  */
 
+// Vendored: pi's extension loader does not alias @earendil-works/pi-mcp, so the
+// package is vendored into vendor/node_modules (see scripts/vendor-mcp-deps.mjs).
 import {
   McpClient as PiMcpClient,
   StdioTransport,
   type CallToolResult,
   type Tool,
-} from "@earendil-works/pi-mcp";
+} from "./vendor/node_modules/@earendil-works/pi-mcp/dist/index.js";
 
 export type { CallToolResult as McpToolResult, Tool as McpTool };
 

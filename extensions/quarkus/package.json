@@ -6,15 +6,15 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "sync": "mkdir -p vendor && rm -rf vendor/yaml && mkdir -p vendor/yaml && cp ../shared/context-filter.ts ../shared/spawn-safe.ts ../shared/maven-project-tree.ts ../shared/maven-version-lookup.ts vendor/ && YAML_DIR=$(node -e \"console.log(require('node:path').dirname(require.resolve('yaml/package.json')))\") && cp -R \"$YAML_DIR/dist\" vendor/yaml/dist && cp \"$YAML_DIR/package.json\" vendor/yaml/package.json",
+    "sync": "mkdir -p vendor && rm -rf vendor/yaml && mkdir -p vendor/yaml && node ../../scripts/vendor-mcp-deps.mjs vendor && cp ../shared/context-filter.ts ../shared/spawn-safe.ts ../shared/maven-project-tree.ts ../shared/maven-version-lookup.ts vendor/ && YAML_DIR=$(node -e \"console.log(require('node:path').dirname(require.resolve('yaml/package.json')))\") && cp -R \"$YAML_DIR/dist\" vendor/yaml/dist && cp \"$YAML_DIR/package.json\" vendor/yaml/package.json",
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
+    "@earendil-works/pi-mcp": "*",
     "yaml": "2.9.1"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-mcp": "*",
     "@earendil-works/pi-tui": "*",
     "typebox": "*"
   },

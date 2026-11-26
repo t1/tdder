@@ -6,16 +6,18 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "sync": "mkdir -p vendor && cp ../shared/context-filter.ts ../shared/tool-activation.ts vendor/",
+    "sync": "mkdir -p vendor && cp ../shared/context-filter.ts ../shared/tool-activation.ts vendor/ && node ../../scripts/vendor-mcp-deps.mjs vendor",
     "pretest": "npm run sync && tsc",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "prepack": "npm run sync"
   },
+  "dependencies": {
+    "@earendil-works/pi-mcp": "*"
+  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-mcp": "*",
     "@earendil-works/pi-tui": "*",
     "typebox": "*"
   },
